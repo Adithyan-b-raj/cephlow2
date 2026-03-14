@@ -23,14 +23,27 @@ export default function VerifyCertificate() {
       if (!certId) return;
       try {
         const apiUrl = import.meta.env.VITE_API_URL || "";
-        const response = await fetch(`${apiUrl}/api/certificates/${certId}/verify`);
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+        let response: Response;
+        try {
+          response = await fetch(`${apiUrl}/api/certificates/${certId}/verify`, {
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeout);
+        }
         if (!response.ok) {
           throw new Error("Certificate not found or invalid");
         }
         const result = await response.json();
         setData(result);
       } catch (err: any) {
-        setError(err.message);
+        if (err.name === "AbortError") {
+          setError("Verification is taking longer than expected. Please try again in a moment.");
+        } else {
+          setError(err.message);
+        }
       } finally {
         setLoading(false);
       }
