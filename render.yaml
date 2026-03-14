@@ -10,6 +10,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: NODE_OPTIONS
+        value: --no-deprecation
       - key: FIREBASE_SERVICE_ACCOUNT_KEY
         sync: false
 
