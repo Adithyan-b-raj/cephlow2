@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, signInWithGoogle, signOut, type User } from "@/lib/firebase";
-import { setAuthTokenProvider } from "@workspace/api-client-react";
+import { setAuthTokenProvider, setBaseUrl } from "@workspace/api-client-react";
 
 const GOOGLE_TOKEN_KEY = "google_access_token";
 
@@ -49,6 +49,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Configure the API client's auth token provider once
     useEffect(() => {
+        const apiUrl = import.meta.env.VITE_API_URL;
+        if (apiUrl) {
+            setBaseUrl(apiUrl);
+        }
+
         setAuthTokenProvider(async () => {
             const currentUser = auth.currentUser;
             const idToken = currentUser ? await currentUser.getIdToken() : null;

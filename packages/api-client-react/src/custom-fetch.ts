@@ -12,9 +12,14 @@ type AuthTokenProvider = () => Promise<{
   googleAccessToken: string | null;
 }>;
 let _authTokenProvider: AuthTokenProvider | null = null;
+let _baseUrl: string = "";
 
 export function setAuthTokenProvider(provider: AuthTokenProvider) {
   _authTokenProvider = provider;
+}
+
+export function setBaseUrl(url: string) {
+  _baseUrl = url.endsWith("/") ? url.slice(0, -1) : url;
 }
 
 const NO_BODY_STATUS = new Set([204, 205, 304]);
@@ -323,9 +328,14 @@ export async function customFetch<T = unknown>(
     }
   }
 
-  const requestInfo = { method, url: resolveUrl(input) };
+  let url = resolveUrl(input);
+  if (url.startsWith("/") && _baseUrl) {
+    url = `${_baseUrl}${url}`;
+  }
 
-  const response = await fetch(input, { ...init, method, headers });
+  const requestInfo = { method, url };
+
+  const response = await fetch(url, { ...init, method, headers });
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

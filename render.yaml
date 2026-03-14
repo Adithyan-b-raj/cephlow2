@@ -22,6 +22,8 @@ services:
     buildCommand: pnpm install && pnpm --filter @workspace/cert-app build
     staticPublishPath: apps/cert-app/dist/public
     envVars:
+      - key: VITE_API_URL
+        value: https://certificate-api-imks.onrender.com
       - key: VITE_FIREBASE_API_KEY
         sync: false
       - key: VITE_FIREBASE_AUTH_DOMAIN
