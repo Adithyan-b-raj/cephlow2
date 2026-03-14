@@ -16,9 +16,8 @@ services:
         sync: false
 
   # 2. The Frontend Website
-  - type: web
+  - type: static_site
     name: certificate-web
-    runtime: static
     rootDir: .
     buildCommand: pnpm install && pnpm --filter @workspace/cert-app build
     staticPublishPath: apps/cert-app/dist/public
@@ -40,7 +39,7 @@ services:
     routes:
       - type: rewrite
         source: /api/*
-        destination: https://certificate-api.onrender.com/api/*
+        destination: https://certificate-api-imks.onrender.com/api/*
       - type: rewrite
         source: /*
         destination: /index.html
