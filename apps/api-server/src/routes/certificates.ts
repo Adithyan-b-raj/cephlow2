@@ -19,10 +19,20 @@ function serializeDoc(data: Record<string, any>): Record<string, any> {
 // List certificates with optional filters
 router.get("/certificates", async (req, res) => {
   try {
+    const userId = req.user?.uid;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
     const batchId = req.query.batchId as string | undefined;
     const status = req.query.status as string | undefined;
 
     if (batchId) {
+      // Verify batch ownership
+      const batchDoc = await batchesCollection.doc(batchId).get();
+      if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
+      if (batchDoc.data()?.userId !== userId) {
+        return res.status(403).json({ error: "Access denied" });
+      }
+
       // Query certificates from a specific batch subcollection
       let query: FirebaseFirestore.Query = certificatesCollection(batchId);
       if (status) {
@@ -38,8 +48,8 @@ router.get("/certificates", async (req, res) => {
       return;
     }
 
-    // If no batchId, collect from all batches
-    const batchesSnapshot = await batchesCollection.get();
+    // If no batchId, collect from all of the user's batches
+    const batchesSnapshot = await batchesCollection.where("userId", "==", userId).get();
     const allCerts: any[] = [];
 
     for (const batchDoc of batchesSnapshot.docs) {
@@ -55,7 +65,9 @@ router.get("/certificates", async (req, res) => {
 
     // Sort by createdAt desc across all batches
     allCerts.sort((a, b) => {
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+      return timeB - timeA;
     });
 
     res.json({ certificates: allCerts, total: allCerts.length });

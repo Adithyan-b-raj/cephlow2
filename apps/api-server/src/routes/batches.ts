@@ -21,7 +21,11 @@ function serializeDoc(data: Record<string, any>): Record<string, any> {
 // List all batches
 router.get("/batches", async (req, res) => {
   try {
+    const userId = req.user?.uid;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
     const snapshot = await batchesCollection
+      .where("userId", "==", userId)
       .orderBy("createdAt", "desc")
       .get();
     const batches = snapshot.docs.map((doc) => ({
@@ -37,6 +41,9 @@ router.get("/batches", async (req, res) => {
 // Create a new batch
 router.post("/batches", async (req, res) => {
   try {
+    const userId = req.user?.uid;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
     const accessToken = req.googleAccessToken;
     if (!accessToken) {
       return res.status(401).json({ error: "Google access token required" });
@@ -83,6 +90,7 @@ router.post("/batches", async (req, res) => {
 
     // Create the batch document
     const batchData = {
+      userId,
       name,
       sheetId,
       sheetName,
@@ -140,10 +148,18 @@ router.post("/batches", async (req, res) => {
 // Get batch detail with certificates
 router.get("/batches/:batchId", async (req, res) => {
   try {
+    const userId = req.user?.uid;
+    if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
     const { batchId } = req.params;
     const batchDoc = await batchesCollection.doc(batchId).get();
 
     if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
+    const batch = batchDoc.data() as any;
+
+    if (batch.userId !== userId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
 
     const certsSnapshot = await certificatesCollection(batchId).get();
     const certificates = certsSnapshot.docs.map((doc) => ({
@@ -159,6 +175,9 @@ router.get("/batches/:batchId", async (req, res) => {
 
 // Share the PDF folder (make it public)
 router.post("/batches/:batchId/share-folder", async (req, res) => {
+  const userId = req.user?.uid;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
   const { batchId } = req.params;
   const accessToken = req.googleAccessToken;
   if (!accessToken) {
@@ -168,7 +187,11 @@ router.post("/batches/:batchId/share-folder", async (req, res) => {
   try {
     const batchDoc = await batchesCollection.doc(batchId).get();
     if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
-    const batch = batchDoc.data() as Batch;
+    const batch = batchDoc.data() as any;
+
+    if (batch.userId !== userId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
 
     if (!batch.pdfFolderId) {
       return res.status(400).json({ error: "PDF folder does not exist for this batch" });
@@ -187,6 +210,9 @@ router.post("/batches/:batchId/share-folder", async (req, res) => {
 
 // Generate certificates for a batch
 router.post("/batches/:batchId/generate", async (req, res) => {
+  const userId = req.user?.uid;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
   const { batchId } = req.params;
   const accessToken = req.googleAccessToken;
   if (!accessToken) {
@@ -198,7 +224,11 @@ router.post("/batches/:batchId/generate", async (req, res) => {
     const batchDoc = await batchRef.get();
 
     if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
-    const batch = { id: batchDoc.id, ...batchDoc.data() } as Batch;
+    const batch = { id: batchDoc.id, ...batchDoc.data() } as any;
+
+    if (batch.userId !== userId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
 
     // Mark batch as generating
     await batchRef.update({ status: "generating" });
@@ -284,6 +314,9 @@ router.post("/batches/:batchId/generate", async (req, res) => {
 
 // Send certificates via Gmail
 router.post("/batches/:batchId/send", async (req, res) => {
+  const userId = req.user?.uid;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
   const { batchId } = req.params;
   const accessToken = req.googleAccessToken;
   if (!accessToken) {
@@ -295,7 +328,11 @@ router.post("/batches/:batchId/send", async (req, res) => {
     const batchDoc = await batchRef.get();
 
     if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
-    const batch = { id: batchDoc.id, ...batchDoc.data() } as Batch;
+    const batch = { id: batchDoc.id, ...batchDoc.data() } as any;
+
+    if (batch.userId !== userId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
 
     const { emailSubject: reqSubject, emailBody: reqBody } = req.body;
     const subject = reqSubject || batch.emailSubject || "Your Certificate";
