@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { batchesCollection, certificatesCollection, type Batch, type Certificate } from "@workspace/firebase";
+import { batchesCollection, certificatesCollection, certIndexCollection, type Batch, type Certificate } from "@workspace/firebase";
 import { getSheetsClient } from "../lib/googleSheets.js";
 import { generateCertificate, exportSlidesToPdf, createFolder, uploadPdf, makeFilePublic } from "../lib/googleDrive.js";
 import { sendEmail } from "../lib/gmail.js";
@@ -284,14 +284,18 @@ router.post("/batches/:batchId/generate", async (req, res) => {
           }
         }
 
-        await certificatesCollection(batchId).doc(cert.id).update({
-          status: "generated",
-          slideFileId,
-          slideUrl,
-          pdfFileId,
-          pdfUrl,
-          errorMessage: null,
-        });
+        await Promise.all([
+          certificatesCollection(batchId).doc(cert.id).update({
+            status: "generated",
+            slideFileId,
+            slideUrl,
+            pdfFileId,
+            pdfUrl,
+            errorMessage: null,
+          }),
+          // Write to fast lookup index so verification is O(1) not O(n)
+          certIndexCollection.doc(cert.id).set({ batchId }),
+        ]);
         generated++;
       } catch (err: any) {
         await certificatesCollection(batchId).doc(cert.id).update({
