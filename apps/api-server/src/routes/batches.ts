@@ -26,12 +26,14 @@ router.get("/batches", async (req, res) => {
 
     const snapshot = await batchesCollection
       .where("userId", "==", userId)
-      .orderBy("createdAt", "desc")
       .get();
-    const batches = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...serializeDoc(doc.data()),
-    }));
+    const batches = snapshot.docs
+      .map((doc) => ({ id: doc.id, ...serializeDoc(doc.data()) }))
+      .sort((a, b) => {
+        const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return tB - tA;
+      });
     res.json({ batches });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
