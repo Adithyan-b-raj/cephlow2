@@ -18,9 +18,8 @@ services:
         sync: false
 
   # 2. The Frontend Website
-  - type: web
+  - type: static_site
     name: certificate-web
-    runtime: static
     rootDir: .
     buildCommand: pnpm install && pnpm --filter @workspace/cert-app build
     staticPublishPath: apps/cert-app/dist/public
