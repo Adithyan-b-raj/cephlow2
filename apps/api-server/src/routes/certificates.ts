@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { batchesCollection, certificatesCollection, type Certificate } from "@workspace/firebase";
+import { batchesCollection, certificatesCollection, certIndexCollection, type Certificate } from "@workspace/firebase";
 
 const router: IRouter = Router({ mergeParams: true });
 
@@ -79,30 +79,53 @@ router.get("/certificates", async (req, res) => {
 /**
  * Public route to verify a certificate by ID (for QR scanning)
  * Mounted at /api/certificates/:certId/verify
+ *
+ * Fast path: look up batchId from certIndex/{certId} (2 reads total).
+ * Fallback: scan all batches for backward compatibility with certs
+ * generated before the index was introduced (writes to index when found).
  */
 router.get("/", async (req, res) => {
   try {
     const { certId } = req.params;
     console.log(`Verifying certificate ID: ${certId}`);
 
-    // Robust search: iterate batches to find the document by ID directly
-    // This is 100% reliable even without collectionGroup indexes
-    const batchesSnapshot = await batchesCollection.get();
     let foundCert: any = null;
     let foundBatch: any = null;
 
-    for (const batchDoc of batchesSnapshot.docs) {
-      const certDoc = await certificatesCollection(batchDoc.id).doc(certId).get();
-      if (certDoc.exists) {
+    // Fast path — check the index first
+    const indexDoc = await certIndexCollection.doc(certId).get();
+    if (indexDoc.exists) {
+      const { batchId } = indexDoc.data() as { batchId: string };
+      const [certDoc, batchDoc] = await Promise.all([
+        certificatesCollection(batchId).doc(certId).get(),
+        batchesCollection.doc(batchId).get(),
+      ]);
+      if (certDoc.exists && batchDoc.exists) {
         foundCert = certDoc.data();
         foundBatch = batchDoc.data();
-        console.log(`Certificate found in batch: ${batchDoc.id}`);
-        break;
+        console.log(`Certificate found via index in batch: ${batchId}`);
+      }
+    }
+
+    // Fallback — scan all batches (legacy certs not yet in the index)
+    if (!foundCert) {
+      console.log(`Index miss for ${certId}, falling back to full scan`);
+      const batchesSnapshot = await batchesCollection.get();
+      for (const batchDoc of batchesSnapshot.docs) {
+        const certDoc = await certificatesCollection(batchDoc.id).doc(certId).get();
+        if (certDoc.exists) {
+          foundCert = certDoc.data();
+          foundBatch = batchDoc.data();
+          console.log(`Certificate found via scan in batch: ${batchDoc.id}`);
+          // Backfill the index so future lookups are fast
+          certIndexCollection.doc(certId).set({ batchId: batchDoc.id }).catch(() => {});
+          break;
+        }
       }
     }
 
     if (!foundCert || !foundBatch) {
-      console.log(`Certificate ${certId} not found in any batch.`);
+      console.log(`Certificate ${certId} not found.`);
       return res.status(404).json({ error: "Certificate not found" });
     }
 
