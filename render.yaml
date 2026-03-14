@@ -1,33 +1,11 @@
 services:
-  # 1. The Backend API
+  # 1. The Frontend Website (Renamed to force fresh deployment)
   - type: web
-    name: certificate-api
-    runtime: node
-    plan: free
-    rootDir: .
-    buildCommand: pnpm install && pnpm --filter @workspace/api-server build
-    startCommand: node apps/api-server/dist/index.cjs
-    envVars:
-      - key: NODE_ENV
-        value: production
-      - key: NODE_OPTIONS
-        value: --no-deprecation
-      - key: ORIGIN
-        value: https://certificate-web-96it.onrender.com
-      - key: FIREBASE_SERVICE_ACCOUNT_KEY
-        sync: false
-
-  # 2. The Frontend Website
-  - type: web
-    name: certificate-web
+    name: cephlow-app
     runtime: static
     rootDir: .
     buildCommand: pnpm install && pnpm --filter @workspace/cert-app build
     staticPublishPath: apps/cert-app/dist/public
-    headers:
-      - path: /index.html
-        name: Cache-Control
-        value: no-cache
     envVars:
       - key: VITE_API_URL
         value: https://certificate-api-imks.onrender.com
@@ -52,3 +30,21 @@ services:
       - type: rewrite
         source: /*
         destination: /index.html
+
+  # 2. The Backend API
+  - type: web
+    name: certificate-api
+    runtime: node
+    plan: free
+    rootDir: .
+    buildCommand: pnpm install && pnpm --filter @workspace/api-server build
+    startCommand: node apps/api-server/dist/index.cjs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_OPTIONS
+        value: --no-deprecation
+      - key: ORIGIN
+        value: https://cephlow-app.onrender.com
+      - key: FIREBASE_SERVICE_ACCOUNT_KEY
+        sync: false
