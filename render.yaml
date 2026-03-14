@@ -1,0 +1,29 @@
+services:
+  # 1. The Backend API
+  - type: web
+    name: certificate-api
+    env: node
+    plan: free
+    rootDir: .
+    buildCommand: pnpm install && pnpm --filter @workspace/api-server build
+    startCommand: node apps/api-server/dist/index.cjs
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - fromContext: .env # Render can import your local .env file when you upload
+
+  # 2. The Frontend Website
+  - type: static
+    name: certificate-web
+    env: static
+    plan: free
+    rootDir: apps/cert-app
+    buildCommand: pnpm install && pnpm build
+    staticPublishDir: dist/public
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://certificate-api.onrender.com/api/*
+      - type: rewrite
+        source: /*
+        destination: /index.html

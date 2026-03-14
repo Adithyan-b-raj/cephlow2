@@ -1,0 +1,485 @@
+import { useState } from "react";
+import { useLocation } from "wouter";
+import { motion, AnimatePresence } from "framer-motion";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useListSheets,
+  useGetSheetData,
+  useListSlideTemplates,
+  useGetSlidePlaceholders,
+  useCreateBatch,
+  getListBatchesQueryKey
+} from "@workspace/api-client-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FileSpreadsheet, Presentation, ChevronRight, CheckCircle2, Loader2, Link2, Send } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+const STEPS = [
+  "Name & Details",
+  "Select Data Source",
+  "Select Template",
+  "Map Data",
+  "Email Settings",
+  "Review & Create"
+];
+
+export default function NewBatchWizard() {
+  const [step, setStep] = useState(0);
+  const [, setLocation] = useLocation();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Wizard State
+  const [name, setName] = useState("");
+
+  const [sheetId, setSheetId] = useState("");
+  const [sheetName, setSheetName] = useState("");
+  const [tabName, setTabName] = useState("");
+
+  const [templateId, setTemplateId] = useState("");
+  const [templateName, setTemplateName] = useState("");
+
+  const [columnMap, setColumnMap] = useState<Record<string, string>>({});
+  const [emailColumn, setEmailColumn] = useState("");
+  const [nameColumn, setNameColumn] = useState("");
+
+  const [emailSubject, setEmailSubject] = useState("Your Certificate is ready!");
+  const [emailBody, setEmailBody] = useState("Hi ,\n\nHere is your certificate attached.\n\nBest,\nThe Team");
+
+  // API Queries
+  const { data: sheetsRes, isLoading: sheetsLoading } = useListSheets();
+  const { data: sheetData, isLoading: sheetDataLoading } = useGetSheetData(sheetId, { tabName }, { query: { enabled: !!sheetId } });
+  const { data: templatesRes, isLoading: templatesLoading } = useListSlideTemplates();
+  const { data: placeholdersRes, isLoading: placeholdersLoading } = useGetSlidePlaceholders(templateId, { query: { enabled: !!templateId } });
+
+  const { mutate: createBatch, isPending: creating } = useCreateBatch({
+    mutation: {
+      onSuccess: (data) => {
+        queryClient.invalidateQueries({ queryKey: getListBatchesQueryKey() });
+        toast({ title: "Batch created!" });
+        setLocation(`/batches/${data.id}`);
+      },
+      onError: (error: any) => {
+        toast({ title: "Failed to create batch", description: error.message, variant: "destructive" });
+      }
+    }
+  });
+
+  const handleNext = () => setStep(s => Math.min(STEPS.length - 1, s + 1));
+  const handlePrev = () => setStep(s => Math.max(0, s - 1));
+
+  const submitBatch = () => {
+    createBatch({
+      data: {
+        name,
+        sheetId,
+        sheetName,
+        tabName,
+        templateId,
+        templateName,
+        columnMap,
+        emailColumn,
+        nameColumn,
+        emailSubject,
+        emailBody
+      }
+    });
+  };
+
+  const isNextDisabled = () => {
+    if (step === 0) return !name;
+    if (step === 1) return !sheetId;
+    if (step === 2) return !templateId;
+    if (step === 3) return !emailColumn || !nameColumn || Object.keys(columnMap).length < (placeholdersRes?.placeholders?.length || 0);
+    return false;
+  };
+
+  return (
+    <div className="max-w-4xl mx-auto py-8">
+      {/* Stepper Header */}
+      <div className="mb-10">
+        <h1 className="text-3xl font-display font-bold mb-6">Create New Batch</h1>
+        <div className="flex items-center justify-between relative">
+          <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-secondary rounded-full -z-10" />
+          <div
+            className="absolute left-0 top-1/2 -translate-y-1/2 h-1 bg-primary rounded-full transition-all duration-500 ease-out -z-10"
+            style={{ width: `${(step / (STEPS.length - 1)) * 100}%` }}
+          />
+          {STEPS.map((label, idx) => (
+            <div key={idx} className="flex flex-col items-center gap-2">
+              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors duration-300 ${step > idx ? "bg-primary text-primary-foreground" :
+                  step === idx ? "bg-primary ring-4 ring-primary/20 text-primary-foreground" :
+                    "bg-secondary text-muted-foreground"
+                }`}>
+                {step > idx ? <CheckCircle2 className="w-5 h-5" /> : idx + 1}
+              </div>
+              <span className={`text-xs font-medium hidden md:block ${step >= idx ? "text-foreground" : "text-muted-foreground"}`}>
+                {label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <Card className="border-border/50 shadow-lg shadow-black/5 overflow-hidden relative min-h-[400px]">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -20 }}
+            transition={{ duration: 0.2 }}
+            className="p-6 md:p-8"
+          >
+            {/* STEP 0: Name */}
+            {step === 0 && (
+              <div className="space-y-6 max-w-xl">
+                <div>
+                  <h2 className="text-2xl font-display font-semibold mb-2">Name this batch</h2>
+                  <p className="text-muted-foreground">Give your automation a recognizable name to find it later.</p>
+                </div>
+                <div className="space-y-3">
+                  <Label htmlFor="name">Batch Name</Label>
+                  <Input
+                    id="name"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    placeholder="e.g. Q3 Leadership Training"
+                    className="h-12 text-lg px-4"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* STEP 1: Sheets */}
+            {step === 1 && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-2xl font-display font-semibold mb-2">Select Google Sheet</h2>
+                  <p className="text-muted-foreground">Choose the spreadsheet containing your recipient data.</p>
+                </div>
+                {sheetsLoading ? (
+                  <div className="flex items-center gap-3 text-muted-foreground p-8"><Loader2 className="animate-spin" /> Loading sheets...</div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto p-1">
+                    {sheetsRes?.sheets.map(sheet => (
+                      <div
+                        key={sheet.id}
+                        onClick={() => { setSheetId(sheet.id); setSheetName(sheet.name); }}
+                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all hover-elevate ${sheetId === sheet.id ? "border-primary bg-primary/5 ring-4 ring-primary/10" : "border-border/50 bg-card hover:border-primary/30"
+                          }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`p-2 rounded-lg ${sheetId === sheet.id ? "bg-primary text-primary-foreground" : "bg-green-100 text-green-700"}`}>
+                            <FileSpreadsheet className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <div className="font-semibold text-foreground line-clamp-1">{sheet.name}</div>
+                            <div className="text-xs text-muted-foreground mt-0.5">Spreadsheet</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 2: Templates */}
+            {step === 2 && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-2xl font-display font-semibold mb-2">Select Google Slides Template</h2>
+                  <p className="text-muted-foreground">Choose the presentation file to use as a certificate template.</p>
+                </div>
+                {templatesLoading ? (
+                  <div className="flex items-center gap-3 text-muted-foreground p-8"><Loader2 className="animate-spin" /> Loading templates...</div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[400px] overflow-y-auto p-1">
+                    {templatesRes?.templates.map(tpl => (
+                      <div
+                        key={tpl.id}
+                        onClick={() => { setTemplateId(tpl.id); setTemplateName(tpl.name); }}
+                        className={`group p-4 rounded-xl border-2 cursor-pointer transition-all hover-elevate flex flex-col gap-4 ${templateId === tpl.id ? "border-primary bg-primary/5 ring-4 ring-primary/10" : "border-border/50 bg-card hover:border-primary/30"
+                          }`}
+                      >
+                        {tpl.thumbnailUrl ? (
+                          <img src={tpl.thumbnailUrl} alt={tpl.name} className="w-full aspect-[4/3] object-cover rounded-lg border border-border/50" />
+                        ) : (
+                          <div className="w-full aspect-[4/3] bg-secondary rounded-lg flex items-center justify-center">
+                            <Presentation className="w-10 h-10 text-muted-foreground/50" />
+                          </div>
+                        )}
+                        <div className="font-semibold text-sm line-clamp-2">{tpl.name}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 3: Map Columns */}
+            {step === 3 && (
+              <div className="space-y-8">
+                <div>
+                  <h2 className="text-2xl font-display font-semibold mb-2">Map Data Fields</h2>
+                  <p className="text-muted-foreground">Match the placeholders in your template to columns in your sheet.</p>
+                </div>
+
+                {(sheetDataLoading || placeholdersLoading) ? (
+                  <div className="flex items-center gap-3 text-muted-foreground p-8"><Loader2 className="animate-spin" /> Loading mapping data...</div>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-8">
+                    <div className="space-y-6">
+                      <div className="bg-secondary/50 p-5 rounded-2xl border border-border/50 space-y-4">
+                        <h3 className="font-semibold text-lg flex items-center gap-2">
+                          <Send className="w-5 h-5 text-primary" /> Recipient Config
+                        </h3>
+                        <div className="space-y-4">
+                          <div className="space-y-2">
+                            <Label>Name Column (Required)</Label>
+                            <Select value={nameColumn} onValueChange={setNameColumn}>
+                              <SelectTrigger className="bg-background"><SelectValue placeholder="Select name column" /></SelectTrigger>
+                              <SelectContent>
+                                {sheetData?.headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="space-y-2">
+                            <Label>Email Column (Required)</Label>
+                            <Select value={emailColumn} onValueChange={setEmailColumn}>
+                              <SelectTrigger className="bg-background"><SelectValue placeholder="Select email column" /></SelectTrigger>
+                              <SelectContent>
+                                {sheetData?.headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-4">
+                      <h3 className="font-semibold text-lg">Template Placeholders</h3>
+                      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                        {placeholdersRes?.placeholders?.length === 0 ? (
+                          <div className="text-muted-foreground text-sm p-4 bg-secondary/50 rounded-lg">No placeholders found in template (like `&lt;&lt;Name&gt;&gt;`)</div>
+                        ) : (
+                          placeholdersRes?.placeholders?.map(ph => (
+                            <div key={ph} className="flex items-center gap-4 bg-background p-3 rounded-xl border border-border shadow-sm">
+                              <div className="w-1/3 text-sm font-mono bg-secondary px-2 py-1 rounded text-center truncate">{ph}</div>
+                              <Link2 className="w-4 h-4 text-muted-foreground shrink-0" />
+                              <Select value={columnMap[ph] || ""} onValueChange={(val) => setColumnMap(prev => ({ ...prev, [ph]: val }))}>
+                                <SelectTrigger className="flex-1 border-0 shadow-none bg-secondary/30"><SelectValue placeholder="Map to column..." /></SelectTrigger>
+                                <SelectContent>
+                                  {sheetData?.headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 4: Email Settings */}
+            {step === 4 && (
+              <div className="space-y-6">
+                <div>
+                  <h2 className="text-2xl font-display font-semibold mb-2">Email Configuration</h2>
+                  <p className="text-muted-foreground">Design the email that will be sent with each certificate. Use column names like `&lt;&lt;Name&gt;&gt;` to personalize.</p>
+                </div>
+
+                <div className="grid md:grid-cols-3 gap-8">
+                  <div className="md:col-span-2 space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="subject">Subject Line</Label>
+                      <Input
+                        id="subject"
+                        value={emailSubject}
+                        onChange={e => setEmailSubject(e.target.value)}
+                        placeholder="e.g. Congratulations, your certificate is ready!"
+                        className="transition-all duration-200"
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "copy";
+                          const target = e.target as HTMLInputElement;
+                          target.focus();
+
+                          // Estimate character position
+                          // For a simple input, this works fairly well
+                          const rect = target.getBoundingClientRect();
+                          const x = e.clientX - rect.left - 12; // 12px for padding
+                          const charWidth = 8; // Approximation for standard font
+                          const pos = Math.max(0, Math.floor(x / charWidth));
+                          target.setSelectionRange(pos, pos);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const target = e.target as HTMLInputElement;
+                          const text = e.dataTransfer.getData("text/plain");
+                          if (text) {
+                            const start = target.selectionStart || 0;
+                            const end = target.selectionEnd || 0;
+                            const newValue = emailSubject.substring(0, start) + text + emailSubject.substring(end);
+                            setEmailSubject(newValue);
+                          }
+                        }}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="body">Email Body</Label>
+                      <Textarea
+                        id="body"
+                        value={emailBody}
+                        onChange={e => setEmailBody(e.target.value)}
+                        rows={12}
+                        className="resize-none font-sans leading-relaxed transition-all duration-200"
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.dataTransfer.dropEffect = "copy";
+                          const target = e.target as HTMLTextAreaElement;
+                          target.focus();
+
+                          // Exact same logic as Subject (math-based estimation)
+                          // but adapted for multiple lines
+                          const rect = target.getBoundingClientRect();
+                          const x = e.clientX - rect.left - 12; // 12px for padding
+                          const y = e.clientY - rect.top - 12;  // 12px for padding
+
+                          const charWidth = 8.4; // Average width for sans-serif characters
+                          const lineHeight = 24; // Corresponds to leading-relaxed (1.5 * 16px)
+
+                          const lineIdx = Math.max(0, Math.floor(y / lineHeight));
+                          const colIdx = Math.max(0, Math.floor(x / charWidth));
+
+                          const textLines = target.value.split('\n');
+                          let pos = 0;
+                          for (let i = 0; i < Math.min(lineIdx, textLines.length); i++) {
+                            pos += textLines[i].length + 1; // +1 for newline character
+                          }
+                          pos += Math.min(colIdx, textLines[lineIdx]?.length || 0);
+
+                          target.setSelectionRange(pos, pos);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          const target = e.target as HTMLTextAreaElement;
+                          const text = e.dataTransfer.getData("text/plain");
+                          if (text) {
+                            const start = target.selectionStart || 0;
+                            const end = target.selectionEnd || 0;
+                            const newValue = emailBody.substring(0, start) + text + emailBody.substring(end);
+                            setEmailBody(newValue);
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="bg-secondary/30 rounded-2xl p-5 border border-border/50 h-full">
+                      <Label className="text-sm font-semibold mb-3 block">Available Placeholders</Label>
+                      <p className="text-xs text-muted-foreground mb-4">
+                        Drag and drop these into your email body or subject line to personalize your message.
+                      </p>
+
+                      <div className="flex flex-wrap gap-2 overflow-y-auto max-h-[350px] pr-1">
+                        {sheetData?.headers.map(header => (
+                          <div
+                            key={header}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData("text/plain", `<<${header}>>`);
+                              e.dataTransfer.effectAllowed = "copy";
+                            }}
+                            className="bg-background border border-border hover:border-primary/50 hover:bg-primary/5 text-foreground px-3 py-1.5 rounded-lg text-xs font-mono cursor-grab active:cursor-grabbing transition-all flex items-center gap-2 group shadow-sm"
+                          >
+                            <div className="w-1.5 h-1.5 rounded-full bg-primary/40 group-hover:bg-primary transition-colors" />
+                            {header}
+                          </div>
+                        ))}
+
+                        {(!sheetData?.headers || sheetData.headers.length === 0) && (
+                          <div className="text-xs text-muted-foreground italic p-4 text-center w-full">
+                            No headers found in your sheet.
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="mt-6 pt-4 border-t border-border/50">
+                        <p className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground mb-2">Pro Tip</p>
+                        <p className="text-xs text-muted-foreground">
+                          You can also use these placeholders in the <strong>Subject Line</strong>!
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 5: Review */}
+            {step === 5 && (
+              <div className="space-y-8">
+                <div>
+                  <h2 className="text-2xl font-display font-semibold mb-2">Review & Confirm</h2>
+                  <p className="text-muted-foreground">You're almost there. Double check your settings before creating this batch.</p>
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-6">
+                  <div className="bg-secondary/30 p-5 rounded-2xl border border-border/50">
+                    <div className="text-sm text-muted-foreground mb-1">Batch Name</div>
+                    <div className="font-semibold text-lg">{name}</div>
+                  </div>
+
+                  <div className="bg-secondary/30 p-5 rounded-2xl border border-border/50">
+                    <div className="text-sm text-muted-foreground mb-1">Data Source</div>
+                    <div className="font-medium flex items-center gap-2"><FileSpreadsheet className="w-4 h-4 text-green-600" /> {sheetName}</div>
+                    <div className="text-xs text-muted-foreground mt-2">Emails: {emailColumn} | Names: {nameColumn}</div>
+                  </div>
+
+                  <div className="bg-secondary/30 p-5 rounded-2xl border border-border/50">
+                    <div className="text-sm text-muted-foreground mb-1">Template</div>
+                    <div className="font-medium flex items-center gap-2"><Presentation className="w-4 h-4 text-orange-500" /> {templateName}</div>
+                    <div className="text-xs text-muted-foreground mt-2">{Object.keys(columnMap).length} fields mapped</div>
+                  </div>
+
+                  <div className="bg-secondary/30 p-5 rounded-2xl border border-border/50">
+                    <div className="text-sm text-muted-foreground mb-1">Email Subject</div>
+                    <div className="font-medium italic">"{emailSubject}"</div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </motion.div>
+        </AnimatePresence>
+
+        <div className="px-6 md:px-8 py-4 bg-secondary/20 border-t flex justify-between items-center mt-auto">
+          <Button variant="outline" onClick={handlePrev} disabled={step === 0 || creating} className="hover-elevate">
+            Back
+          </Button>
+
+          {step === STEPS.length - 1 ? (
+            <Button onClick={submitBatch} disabled={creating} className="bg-primary hover-elevate">
+              {creating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <CheckCircle2 className="w-4 h-4 mr-2" />}
+              Create Batch
+            </Button>
+          ) : (
+            <Button onClick={handleNext} disabled={isNextDisabled()} className="hover-elevate">
+              Next Step <ChevronRight className="w-4 h-4 ml-1" />
+            </Button>
+          )}
+        </div>
+      </Card>
+    </div>
+  );
+}

@@ -1,0 +1,539 @@
+openapi: 3.1.0
+info:
+  title: Api
+  version: 0.1.0
+  description: Certificate Automation API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: sheets
+    description: Google Sheets operations
+  - name: slides
+    description: Google Slides template operations
+  - name: batches
+    description: Certificate batch operations
+  - name: certificates
+    description: Individual certificate operations
+
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  /sheets:
+    get:
+      operationId: listSheets
+      tags: [sheets]
+      summary: List available Google Sheets from Drive
+      responses:
+        "200":
+          description: List of sheets
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SheetListResponse"
+    post:
+      operationId: createSheet
+      tags: [sheets]
+      summary: Create a new Google Sheet with column headers
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSheetRequest"
+      responses:
+        "201":
+          description: Sheet created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedFileResponse"
+
+  /sheets/{sheetId}/data:
+    get:
+      operationId: getSheetData
+      tags: [sheets]
+      summary: Get headers and rows from a Google Sheet
+      parameters:
+        - name: sheetId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tabName
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sheet data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SheetDataResponse"
+
+  /slides/templates:
+    get:
+      operationId: listSlideTemplates
+      tags: [slides]
+      summary: List Google Slides files from Drive
+      responses:
+        "200":
+          description: List of slide templates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SlideTemplateListResponse"
+    post:
+      operationId: createSlideTemplate
+      tags: [slides]
+      summary: Create a new blank Google Slides presentation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateSlideTemplateRequest"
+      responses:
+        "201":
+          description: Slide presentation created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreatedFileResponse"
+
+  /slides/{templateId}/placeholders:
+    get:
+      operationId: getSlidePlaceholders
+      tags: [slides]
+      summary: Get placeholder tags found in a Slides template
+      parameters:
+        - name: templateId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Placeholders found in template
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaceholderResponse"
+
+  /batches:
+    get:
+      operationId: listBatches
+      tags: [batches]
+      summary: List all certificate batches
+      responses:
+        "200":
+          description: List of batches
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchListResponse"
+    post:
+      operationId: createBatch
+      tags: [batches]
+      summary: Create a new certificate batch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBatchRequest"
+      responses:
+        "201":
+          description: Batch created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Batch"
+
+  /batches/{batchId}:
+    get:
+      operationId: getBatch
+      tags: [batches]
+      summary: Get a batch with its certificates
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Batch detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchDetail"
+
+  /batches/{batchId}/generate:
+    post:
+      operationId: generateBatch
+      tags: [batches]
+      summary: Generate certificates for a batch
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Generation started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchOperationResponse"
+
+  /batches/{batchId}/send:
+    post:
+      operationId: sendBatch
+      tags: [batches]
+      summary: Send generated certificates via email
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendBatchRequest"
+      responses:
+        "200":
+          description: Send operation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchOperationResponse"
+
+  /certificates:
+    get:
+      operationId: listCertificates
+      tags: [certificates]
+      summary: List certificates with optional batch filter
+      parameters:
+        - name: batchId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of certificates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CertificateListResponse"
+
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    SheetFile:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        modifiedTime:
+          type: string
+      required: [id, name]
+
+    SheetListResponse:
+      type: object
+      properties:
+        sheets:
+          type: array
+          items:
+            $ref: "#/components/schemas/SheetFile"
+      required: [sheets]
+
+    SheetDataResponse:
+      type: object
+      properties:
+        headers:
+          type: array
+          items:
+            type: string
+        rows:
+          type: array
+          items:
+            type: object
+            additionalProperties:
+              type: string
+        totalRows:
+          type: integer
+      required: [headers, rows, totalRows]
+
+    SlideTemplate:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        modifiedTime:
+          type: string
+        thumbnailUrl:
+          type: string
+      required: [id, name]
+
+    SlideTemplateListResponse:
+      type: object
+      properties:
+        templates:
+          type: array
+          items:
+            $ref: "#/components/schemas/SlideTemplate"
+      required: [templates]
+
+    PlaceholderResponse:
+      type: object
+      properties:
+        placeholders:
+          type: array
+          items:
+            type: string
+      required: [placeholders]
+
+    CreatedFileResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        url:
+          type: string
+      required: [id, name, url]
+
+    CreateSlideTemplateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+      required: [name]
+
+    CreateSheetRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        headers:
+          type: array
+          items:
+            type: string
+      required: [name, headers]
+
+    Batch:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        sheetId:
+          type: string
+        sheetName:
+          type: string
+        templateId:
+          type: string
+        templateName:
+          type: string
+        columnMap:
+          type: object
+          additionalProperties:
+            type: string
+        emailColumn:
+          type: string
+        nameColumn:
+          type: string
+        emailSubject:
+          type: string
+        emailBody:
+          type: string
+        status:
+          type: string
+          enum: [draft, generating, generated, sending, sent, partial]
+        totalCount:
+          type: integer
+        generatedCount:
+          type: integer
+        sentCount:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - sheetId
+        - sheetName
+        - templateId
+        - templateName
+        - columnMap
+        - emailColumn
+        - nameColumn
+        - status
+        - totalCount
+        - generatedCount
+        - sentCount
+        - createdAt
+
+    BatchDetail:
+      allOf:
+        - $ref: "#/components/schemas/Batch"
+        - type: object
+          properties:
+            certificates:
+              type: array
+              items:
+                $ref: "#/components/schemas/Certificate"
+          required: [certificates]
+
+    BatchListResponse:
+      type: object
+      properties:
+        batches:
+          type: array
+          items:
+            $ref: "#/components/schemas/Batch"
+      required: [batches]
+
+    CreateBatchRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        sheetId:
+          type: string
+        sheetName:
+          type: string
+        tabName:
+          type: string
+        templateId:
+          type: string
+        templateName:
+          type: string
+        columnMap:
+          type: object
+          additionalProperties:
+            type: string
+        emailColumn:
+          type: string
+        nameColumn:
+          type: string
+        emailSubject:
+          type: string
+        emailBody:
+          type: string
+      required:
+        - name
+        - sheetId
+        - sheetName
+        - templateId
+        - templateName
+        - columnMap
+        - emailColumn
+        - nameColumn
+
+    SendBatchRequest:
+      type: object
+      properties:
+        emailSubject:
+          type: string
+        emailBody:
+          type: string
+      required: [emailSubject, emailBody]
+
+    BatchOperationResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        processed:
+          type: integer
+        failed:
+          type: integer
+      required: [success, message]
+
+    Certificate:
+      type: object
+      properties:
+        id:
+          type: integer
+        batchId:
+          type: integer
+        recipientName:
+          type: string
+        recipientEmail:
+          type: string
+        status:
+          type: string
+          enum: [pending, generated, sent, failed]
+        slideFileId:
+          type: string
+        slideUrl:
+          type: string
+        sentAt:
+          type: string
+        errorMessage:
+          type: string
+        rowData:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - batchId
+        - recipientName
+        - recipientEmail
+        - status
+        - createdAt
+
+    CertificateListResponse:
+      type: object
+      properties:
+        certificates:
+          type: array
+          items:
+            $ref: "#/components/schemas/Certificate"
+        total:
+          type: integer
+      required: [certificates, total]

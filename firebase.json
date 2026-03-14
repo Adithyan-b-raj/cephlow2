@@ -1,0 +1,29 @@
+{
+  "hosting": {
+    "public": "apps/cert-app/dist/public",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "predeploy": [
+      "pnpm --filter @workspace/cert-app build"
+    ],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "function": {
+          "serviceId": "api",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "functions": {
+    "source": "apps/api-server",
+    "codebase": "default",
+    "predeploy": [
+      "pnpm --filter @workspace/api-server build"
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "@workspace/api-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=../../.env ./src/index.ts",
+    "build": "tsx ./build.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "main": "dist/index.cjs",
+  "dependencies": {
+    "@workspace/firebase": "workspace:*",
+    "@workspace/api-zod": "workspace:*",
+    "express": "^5",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2",
+    "googleapis": "^148.0.0",
+    "firebase-functions": "^6.3.2",
+    "firebase-admin": "^13.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/express": "^5.0.6",
+    "@types/cors": "^2.8.19",
+    "@types/cookie-parser": "^1.4.10",
+    "esbuild": "^0.27.3",
+    "tsx": "catalog:"
+  }
+}
