@@ -2,7 +2,7 @@ services:
   # 1. The Backend API
   - type: web
     name: certificate-api
-    env: node
+    runtime: node
     plan: free
     rootDir: .
     buildCommand: pnpm install && pnpm --filter @workspace/api-server build
@@ -13,13 +13,12 @@ services:
       - fromContext: .env # Render can import your local .env file when you upload
 
   # 2. The Frontend Website
-  - type: static
+  - type: web
     name: certificate-web
-    env: static
-    plan: free
-    rootDir: apps/cert-app
-    buildCommand: pnpm install && pnpm build
-    staticPublishDir: dist/public
+    runtime: static
+    rootDir: .
+    buildCommand: pnpm install && pnpm --filter @workspace/cert-app build
+    staticPublishPath: apps/cert-app/dist/public
     routes:
       - type: rewrite
         source: /api/*
