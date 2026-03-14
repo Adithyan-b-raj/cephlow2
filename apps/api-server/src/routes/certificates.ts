@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { batchesCollection, certificatesCollection, type Certificate } from "@workspace/firebase";
 
-const router: IRouter = Router();
+const router: IRouter = Router({ mergeParams: true });
 
 /** Convert Firestore Timestamps to ISO strings for JSON serialization */
 function serializeDoc(data: Record<string, any>): Record<string, any> {
@@ -72,6 +72,49 @@ router.get("/certificates", async (req, res) => {
 
     res.json({ certificates: allCerts, total: allCerts.length });
   } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/**
+ * Public route to verify a certificate by ID (for QR scanning)
+ * Mounted at /api/certificates/:certId/verify
+ */
+router.get("/", async (req, res) => {
+  try {
+    const { certId } = req.params;
+    console.log(`Verifying certificate ID: ${certId}`);
+
+    // Robust search: iterate batches to find the document by ID directly
+    // This is 100% reliable even without collectionGroup indexes
+    const batchesSnapshot = await batchesCollection.get();
+    let foundCert: any = null;
+    let foundBatch: any = null;
+
+    for (const batchDoc of batchesSnapshot.docs) {
+      const certDoc = await certificatesCollection(batchDoc.id).doc(certId).get();
+      if (certDoc.exists) {
+        foundCert = certDoc.data();
+        foundBatch = batchDoc.data();
+        console.log(`Certificate found in batch: ${batchDoc.id}`);
+        break;
+      }
+    }
+
+    if (!foundCert || !foundBatch) {
+      console.log(`Certificate ${certId} not found in any batch.`);
+      return res.status(404).json({ error: "Certificate not found" });
+    }
+
+    res.json({
+      valid: true,
+      recipientName: foundCert.recipientName,
+      batchName: foundBatch.name,
+      issuedAt: serializeDoc(foundCert).createdAt,
+      status: foundCert.status,
+    });
+  } catch (err: any) {
+    console.error("Verification error:", err);
     res.status(500).json({ error: err.message });
   }
 });

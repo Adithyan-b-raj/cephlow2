@@ -243,6 +243,9 @@ export default function NewTemplate() {
                       {"<<Name>>   <<Email>>   <<Course>>"}
                     </code>
                   </p>
+                  <p className="mt-2 pt-2 border-t border-amber-200/50 dark:border-amber-800/50 italic text-[11px]">
+                    Tip: Add <code className="font-mono font-bold bg-white/40 dark:bg-black/10 px-1 rounded">{"{{qr_code}}"}</code> anywhere on your slide to include a verification link for others to scan.
+                  </p>
                 </div>
 
                 <Button

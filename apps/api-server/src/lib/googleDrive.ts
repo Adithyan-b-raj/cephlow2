@@ -1,6 +1,7 @@
 // Google Drive & Slides integration using Google access token from Firebase Auth
 import { google } from "googleapis";
 import { Readable } from "stream";
+import QRCode from "qrcode";
 
 function getAuthClient(accessToken: string) {
   const oauth2Client = new google.auth.OAuth2();
@@ -197,7 +198,8 @@ export async function generateCertificate(
   templateId: string,
   recipientName: string,
   replacements: Record<string, string>,
-  folderId?: string | null
+  folderId?: string | null,
+  qrCodeUrl?: string | null
 ): Promise<{ fileId: string; url: string }> {
   const drive = getDriveClient(accessToken);
   const slides = getSlidesClient(accessToken);
@@ -212,7 +214,7 @@ export async function generateCertificate(
   });
   const fileId = copy.data.id!;
 
-  const requests = Object.entries(replacements).map(
+  const requests: any[] = Object.entries(replacements).map(
     ([placeholder, value]) => ({
       replaceAllText: {
         containsText: { text: placeholder, matchCase: true },
@@ -220,6 +222,28 @@ export async function generateCertificate(
       },
     })
   );
+
+  // If a QR code URL is provided, we replace the {{qr_code}} placeholder with a real QR image.
+  if (qrCodeUrl) {
+    try {
+      // Use a public QR code generator API so Google Slides can fetch the image directly.
+      // This works both locally and on Render.
+      const publicQrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUrl)}`;
+      
+      requests.push({
+        replaceAllShapesWithImage: {
+          imageUrl: publicQrApiUrl,
+          imageReplaceMethod: "CENTER_INSIDE",
+          containsText: {
+            text: "{{qr_code}}",
+            matchCase: true,
+          },
+        },
+      });
+    } catch (qrErr) {
+      console.error("Failed to process QR code:", qrErr);
+    }
+  }
 
   if (requests.length > 0) {
     await slides.presentations.batchUpdate({

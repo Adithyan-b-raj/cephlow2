@@ -10,6 +10,7 @@ import NewBatch from "@/pages/batches/NewBatch";
 import BatchDetail from "@/pages/batches/BatchDetail";
 import History from "@/pages/History";
 import NewTemplate from "@/pages/templates/NewTemplate";
+import VerifyCertificate from "@/pages/VerifyCertificate";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 
@@ -48,11 +49,14 @@ function AppRouter() {
     );
   }
 
-  if (!user) {
-    return <Login />;
-  }
-
-  return <AuthenticatedRouter />;
+  return (
+    <Switch>
+      <Route path="/verify/:id" component={VerifyCertificate} />
+      <Route>
+        {!user ? <Login /> : <AuthenticatedRouter />}
+      </Route>
+    </Switch>
+  );
 }
 
 function App() {

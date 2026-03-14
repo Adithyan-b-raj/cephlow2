@@ -12,6 +12,8 @@ services:
         value: production
       - key: NODE_OPTIONS
         value: --no-deprecation
+      - key: ORIGIN
+        value: https://certificate-web-96it.onrender.com
       - key: FIREBASE_SERVICE_ACCOUNT_KEY
         sync: false
 

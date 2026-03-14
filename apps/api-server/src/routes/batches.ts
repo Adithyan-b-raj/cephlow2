@@ -125,6 +125,7 @@ router.post("/batches", async (req, res) => {
       });
       const certRef = certsCol.doc();
       writeBatch.set(certRef, {
+        id: certRef.id, // Store ID explicitly for collectionGroup search
         batchId: batchRef.id,
         recipientName: rowData[nameColumn] || "Unknown",
         recipientEmail: rowData[emailColumn] || "",
@@ -255,12 +256,17 @@ router.post("/batches/:batchId/generate", async (req, res) => {
           replacements[placeholder] = rowData[column] || "";
         }
 
+        // Generate a verification URL for the QR code
+        const origin = process.env.ORIGIN || "http://localhost:5173";
+        const qrCodeUrl = `${origin}/verify/${cert.id}`;
+
         const { fileId: slideFileId, url: slideUrl } = await generateCertificate(
           accessToken,
           batch.templateId,
           cert.recipientName,
           replacements,
-          batch.driveFolderId
+          batch.driveFolderId,
+          qrCodeUrl
         );
 
         // Export to PDF and upload to Drive if we have a PDF subfolder
