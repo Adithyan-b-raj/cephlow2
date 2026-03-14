@@ -24,6 +24,10 @@ services:
     rootDir: .
     buildCommand: pnpm install && pnpm --filter @workspace/cert-app build
     staticPublishPath: apps/cert-app/dist/public
+    headers:
+      - path: /index.html
+        name: Cache-Control
+        value: no-cache
     envVars:
       - key: VITE_API_URL
         value: https://certificate-api-imks.onrender.com
