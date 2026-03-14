@@ -47,6 +47,9 @@ export function certificatesCollection(batchId: string) {
   return batchesCollection.doc(batchId).collection("certificates");
 }
 
+// Fast lookup index: certIndex/{certId} = { batchId }
+export const certIndexCollection = db.collection("certIndex");
+
 // Type definitions (matching old Drizzle schema)
 export interface Batch {
   id: string;
