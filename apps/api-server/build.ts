@@ -52,7 +52,7 @@ async function buildAll() {
   );
 
   await esbuild({
-    entryPoints: [path.resolve(__dirname, "src/functions.ts")],
+    entryPoints: [path.resolve(__dirname, "src/index.ts")],
     platform: "node",
     bundle: true,
     format: "cjs",
