@@ -1,141 +1,119 @@
 import { useEffect, useState } from "react";
 import { useRoute } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, XCircle, Loader2, Award } from "lucide-react";
+import { CheckCircle2, XCircle, Loader2, ExternalLink, ShieldCheck } from "lucide-react";
 import { format } from "date-fns";
 
+interface CertData {
+  id: string;
+  recipientName: string;
+  status: string;
+  batchName: string;
+  issuedAt: string | null;
+  r2PdfUrl: string | null;
+  pdfUrl: string | null;
+  slideUrl: string | null;
+}
+
 export default function VerifyCertificate() {
-  const [, params] = useRoute("/verify/:id");
-  const certId = params?.id;
+  const [, params] = useRoute("/verify/:batchId/:certId");
+  const batchId = params?.batchId ?? "";
+  const certId = params?.certId ?? "";
+
+  const [cert, setCert] = useState<CertData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [data, setData] = useState<{
-    valid: boolean;
-    recipientName: string;
-    batchName: string;
-    issuedAt: string;
-    status: string;
-  } | null>(null);
 
   useEffect(() => {
-    async function verify() {
-      if (!certId) return;
-      try {
-        const apiUrl = import.meta.env.VITE_API_URL || "";
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 15000);
-        let response: Response;
-        try {
-          response = await fetch(`${apiUrl}/api/certificates/${certId}/verify`, {
-            signal: controller.signal,
-          });
-        } finally {
-          clearTimeout(timeout);
-        }
-        if (!response.ok) {
-          throw new Error("Certificate not found or invalid");
-        }
-        const result = await response.json();
-        setData(result);
-      } catch (err: any) {
-        if (err.name === "AbortError") {
-          setError("Verification is taking longer than expected. Please try again in a moment.");
-        } else {
-          setError(err.message);
-        }
-      } finally {
-        setLoading(false);
-      }
-    }
-    verify();
-  }, [certId]);
+    if (!batchId || !certId) return;
+    fetch(`/api/verify/${batchId}/${certId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) setError(data.error);
+        else setCert(data);
+      })
+      .catch(() => setError("Failed to load certificate"))
+      .finally(() => setLoading(false));
+  }, [batchId, certId]);
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-primary mx-auto mb-4" />
-          <p className="text-muted-foreground font-medium">Verifying certificate...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100">
+        <Loader2 className="w-10 h-10 animate-spin text-green-600" />
+      </div>
+    );
+  }
+
+  if (error || !cert) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50 p-4">
+        <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-10 text-center border border-red-100">
+          <XCircle className="w-16 h-16 text-red-400 mx-auto mb-4" />
+          <h1 className="text-2xl font-bold text-gray-800 mb-2">Certificate Not Found</h1>
+          <p className="text-gray-500 text-sm">{error || "This certificate could not be verified."}</p>
         </div>
       </div>
     );
   }
 
+  const isValid = cert.status === "sent" || cert.status === "generated";
+  const viewUrl = cert.r2PdfUrl || cert.pdfUrl || cert.slideUrl;
+
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-slate-50">
-      <div className="w-full max-w-md animate-in fade-in zoom-in duration-500">
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary text-primary-foreground mb-4 shadow-lg">
-            <Award className="w-8 h-8" />
-          </div>
-          <h1 className="text-3xl font-display font-bold text-slate-900">Cephlow Verify</h1>
-          <p className="text-slate-500 mt-2">Official Certificate Verification System</p>
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-green-50 to-emerald-100 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden border border-green-100">
+        {/* Header band */}
+        <div className={`px-8 py-6 text-center ${isValid ? "bg-green-600" : "bg-orange-500"}`}>
+          <ShieldCheck className="w-12 h-12 text-white mx-auto mb-2 opacity-90" />
+          <p className="text-white font-semibold text-lg tracking-wide">
+            {isValid ? "Certificate Verified" : "Certificate Pending"}
+          </p>
         </div>
 
-        {error ? (
-          <Card className="border-destructive/20 bg-destructive/5 overflow-hidden shadow-xl border-t-4 border-t-destructive">
-            <CardContent className="pt-8 pb-8 text-center">
-              <XCircle className="w-16 h-16 text-destructive mx-auto mb-4" />
-              <CardTitle className="text-2xl font-bold text-destructive mb-2">Invalid Certificate</CardTitle>
-              <p className="text-slate-600 mb-6">{error}</p>
-              <div className="p-4 bg-white/50 rounded-xl text-sm text-slate-500 border border-destructive/10">
-                This certificate record could not be found or has been revoked. Please contact the issuer for more information.
-              </div>
-            </CardContent>
-          </Card>
-        ) : data && (
-          <Card className="border-green-100 bg-white overflow-hidden shadow-2xl border-t-4 border-t-green-500 rounded-3xl">
-            <CardContent className="pt-10 pb-10">
-              <div className="text-center mb-8">
-                <div className="relative inline-block">
-                    <CheckCircle2 className="w-20 h-20 text-green-500 mx-auto" />
-                    <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-1">
-                        <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 uppercase font-bold text-[10px] tracking-wider py-0.5">Verified</Badge>
-                    </div>
-                </div>
-                <h2 className="text-2xl font-bold text-slate-900 mt-6">Authenticity Confirmed</h2>
-                <p className="text-slate-500 text-sm mt-1">This digital certificate is genuine and valid.</p>
-              </div>
+        {/* Body */}
+        <div className="px-8 py-8 text-center space-y-4">
+          <div>
+            <p className="text-sm text-gray-400 uppercase tracking-widest mb-1">This certifies that</p>
+            <h1 className="text-3xl font-bold text-gray-900">{cert.recipientName}</h1>
+          </div>
 
-              <div className="space-y-6">
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 group transition-colors hover:bg-white hover:border-primary/20 hover:shadow-sm">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-1">Recipient Name</label>
-                  <p className="text-xl font-bold text-slate-800">{data.recipientName}</p>
-                </div>
+          <div>
+            <p className="text-sm text-gray-400 uppercase tracking-widest mb-1">has successfully completed</p>
+            <p className="text-xl font-semibold text-gray-700">{cert.batchName}</p>
+          </div>
 
-                <div className="p-5 rounded-2xl bg-slate-50 border border-slate-100 group transition-colors hover:bg-white hover:border-primary/20 hover:shadow-sm">
-                  <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-1">Issued For</label>
-                  <p className="text-lg font-semibold text-slate-700">{data.batchName}</p>
-                </div>
+          {cert.issuedAt && (
+            <p className="text-sm text-gray-400">
+              Issued on{" "}
+              <span className="text-gray-600 font-medium">
+                {format(new Date(cert.issuedAt), "MMMM d, yyyy")}
+              </span>
+            </p>
+          )}
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-1">Issue Date</label>
-                    <p className="font-semibold text-slate-700">{format(new Date(data.issuedAt), 'MMM d, yyyy')}</p>
-                  </div>
-                  <div className="p-4 rounded-2xl bg-slate-50 border border-slate-100">
-                    <label className="text-[10px] font-bold uppercase tracking-widest text-slate-400 block mb-1">Status</label>
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 capitalize font-bold">
-                      {data.status}
-                    </Badge>
-                  </div>
-                </div>
-              </div>
+          {isValid && (
+            <div className="flex items-center justify-center gap-2 text-green-600 bg-green-50 rounded-lg px-4 py-2 text-sm font-medium">
+              <CheckCircle2 className="w-4 h-4" />
+              Authenticity confirmed
+            </div>
+          )}
 
-              <div className="mt-10 pt-6 border-t border-slate-100 text-center">
-                <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-4">Verification ID</p>
-                <code className="px-4 py-2 bg-slate-100 rounded-lg text-xs font-mono text-slate-600 break-all block">
-                  {certId}
-                </code>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-        
-        <p className="text-center text-[10px] text-slate-400 mt-8 uppercase tracking-[0.2em] font-bold">
-          Powered by Cephlow Certificate Authority
-        </p>
+          {viewUrl && (
+            <a
+              href={viewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 mt-2 px-6 py-3 bg-green-600 text-white rounded-xl text-sm font-semibold hover:bg-green-700 transition-colors shadow-md shadow-green-200"
+            >
+              <ExternalLink className="w-4 h-4" />
+              View Certificate
+            </a>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t border-gray-100 px-8 py-4 bg-gray-50 text-center">
+          <p className="text-xs text-gray-400">Certificate ID: {certId}</p>
+        </div>
       </div>
     </div>
   );

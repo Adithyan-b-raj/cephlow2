@@ -98,8 +98,15 @@ export default function NewTemplate() {
   const handleCreateSheet = () => {
     if (!createdTemplate || placeholders.length === 0) return;
     const sheetName = `${createdTemplate.name} – Data`;
-    const headers = placeholders.map((p) => p.replace(/^<<|>>$/g, ""));
-    createSheet({ data: { name: sheetName, headers } });
+    const detectedHeaders = placeholders.map((p) => p.replace(/^<<|>>$/g, ""));
+    const requiredHeaders = ["Phone Number", "Email"];
+    const allHeaders = [...detectedHeaders];
+    for (const rh of requiredHeaders) {
+      if (!allHeaders.some((h) => h.toLowerCase() === rh.toLowerCase())) {
+        allHeaders.push(rh);
+      }
+    }
+    createSheet({ data: { name: sheetName, headers: allHeaders } });
   };
 
   const handleCreateBatch = () => {
@@ -126,21 +133,19 @@ export default function NewTemplate() {
         {STEPS.map((label, i) => (
           <div key={i} className="flex items-center gap-2">
             <div
-              className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold transition-colors ${
-                i < step
+              className={`flex items-center justify-center w-7 h-7 rounded-full text-xs font-bold transition-colors ${i < step
                   ? "bg-primary text-primary-foreground"
                   : i === step
-                  ? "bg-primary/15 text-primary ring-2 ring-primary"
-                  : "bg-secondary text-muted-foreground"
-              }`}
+                    ? "bg-primary/15 text-primary ring-2 ring-primary"
+                    : "bg-secondary text-muted-foreground"
+                }`}
             >
               {i < step ? <CheckCircle2 className="w-4 h-4" /> : i + 1}
             </div>
             {i < STEPS.length - 1 && (
               <div
-                className={`h-0.5 w-8 rounded-full transition-colors ${
-                  i < step ? "bg-primary" : "bg-secondary"
-                }`}
+                className={`h-0.5 w-8 rounded-full transition-colors ${i < step ? "bg-primary" : "bg-secondary"
+                  }`}
               />
             )}
           </div>
@@ -185,10 +190,10 @@ export default function NewTemplate() {
                   />
                   <p className="text-xs text-muted-foreground">
                     Use placeholders like{" "}
-                    <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{"<<Name>>"}</code>{" "}
-                    and{" "}
-                    <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{"<<Email>>"}</code>{" "}
-                    inside the slide to mark fields that will be filled from your spreadsheet.
+                    <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{"<<Name>>"}</code>,{" "}
+                    <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{"<<Email>>"}</code>, and{" "}
+                    <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{"<<Phone Number>>"}</code>{" "}
+                    inside the slide. Phone Number and Email columns are always included in the spreadsheet.
                   </p>
                 </div>
 
@@ -240,7 +245,7 @@ export default function NewTemplate() {
                     In your slide, type tags surrounded by double angle brackets, for example:
                     <br />
                     <code className="font-mono bg-white/60 dark:bg-black/20 px-1.5 py-0.5 rounded mt-1 inline-block">
-                      {"<<Name>>   <<Email>>   <<Course>>"}
+                      {"<<Name>>   <<Email>>   <<Phone Number>>   <<Course>>"}
                     </code>
                   </p>
                   <p className="mt-2 pt-2 border-t border-amber-200/50 dark:border-amber-800/50 italic text-[11px]">
@@ -296,7 +301,17 @@ export default function NewTemplate() {
                       </span>{" "}
                       will be created with these column headers:{" "}
                       <span className="text-foreground font-medium">
-                        {placeholders.map((p) => p.replace(/^<<|>>$/g, "")).join(", ")}
+                        {(() => {
+                          const detected = placeholders.map((p) => p.replace(/^<<|>>$/g, ""));
+                          const required = ["Phone Number", "Email"];
+                          const all = [...detected];
+                          for (const rh of required) {
+                            if (!all.some((h) => h.toLowerCase() === rh.toLowerCase())) {
+                              all.push(rh);
+                            }
+                          }
+                          return all.join(", ");
+                        })()}
                       </span>
                     </div>
                   </div>
@@ -373,7 +388,17 @@ export default function NewTemplate() {
                         {createdSheet.name}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        Columns: {placeholders.map((p) => p.replace(/^<<|>>$/g, "")).join(", ")}
+                        Columns: {(() => {
+                          const detected = placeholders.map((p) => p.replace(/^<<|>>$/g, ""));
+                          const required = ["Phone Number", "Email"];
+                          const all = [...detected];
+                          for (const rh of required) {
+                            if (!all.some((h) => h.toLowerCase() === rh.toLowerCase())) {
+                              all.push(rh);
+                            }
+                          }
+                          return all.join(", ");
+                        })()}
                       </p>
                     </div>
                     <ExternalLink className="w-4 h-4 text-muted-foreground group-hover:text-primary shrink-0" />

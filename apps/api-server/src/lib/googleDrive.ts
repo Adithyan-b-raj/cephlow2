@@ -66,6 +66,7 @@ export async function getSlidePlaceholders(
 
   for (const slide of res.data.slides || []) {
     for (const element of slide.pageElements || []) {
+      // Detect placeholders in text content
       const textElements =
         (element.shape as any)?.text?.textElements || [];
       const text = textElements
@@ -75,12 +76,21 @@ export async function getSlidePlaceholders(
       while ((match = regex.exec(text)) !== null) {
         placeholders.add(`<<${match[1]}>>`);
       }
+      // Detect <<...>> shape titles, but skip <<qr_code>> — it's generated automatically
+      if (element.title) {
+        let titleMatch;
+        while ((titleMatch = regex.exec(element.title)) !== null) {
+          if (titleMatch[1].toLowerCase() !== "qr_code") {
+            placeholders.add(`<<${titleMatch[1]}>>`);
+          }
+        }
+      }
     }
   }
   return Array.from(placeholders);
 }
 
-// Create a new blank Google Slides presentation
+// Create a new blank Google Slides presentation with a <<qr_code>> placeholder shape
 export async function createSlidePresentation(
   accessToken: string,
   name: string
@@ -88,8 +98,107 @@ export async function createSlidePresentation(
   const slides = getSlidesClient(accessToken);
   const res = await slides.presentations.create({
     requestBody: { title: name },
+    fields: "presentationId,slides(objectId),pageSize",
   });
   const id = res.data.presentationId!;
+
+  const slideObjectId = res.data.slides?.[0]?.objectId;
+
+  if (slideObjectId) {
+    // Use actual page dimensions; fall back to standard 16:9 defaults (9144000 x 5143500 EMUs)
+    const size = 914400;       // 1 inch in EMUs
+    const margin = 228600;     // 0.25 inch in EMUs
+    const pageSizeWidth = res.data.pageSize?.width?.magnitude;
+    const pageSizeHeight = res.data.pageSize?.height?.magnitude;
+    const slideWidth = (typeof pageSizeWidth === "number" && pageSizeWidth > 0) ? pageSizeWidth : 9144000;
+    const slideHeight = (typeof pageSizeHeight === "number" && pageSizeHeight > 0) ? pageSizeHeight : 5143500;
+    const shapeObjectId = "qr_code_placeholder";
+
+    await slides.presentations.batchUpdate({
+      presentationId: id,
+      requestBody: {
+        requests: [
+          {
+            createShape: {
+              objectId: shapeObjectId,
+              shapeType: "RECTANGLE",
+              elementProperties: {
+                pageObjectId: slideObjectId,
+                size: {
+                  width: { magnitude: size, unit: "EMU" },
+                  height: { magnitude: size, unit: "EMU" },
+                },
+                transform: {
+                  scaleX: 1,
+                  scaleY: 1,
+                  translateX: slideWidth - size - margin,
+                  translateY: slideHeight - size - margin,
+                  unit: "EMU",
+                },
+              },
+            },
+          },
+          // Light gray fill so it's visible
+          {
+            updateShapeProperties: {
+              objectId: shapeObjectId,
+              fields: "shapeBackgroundFill,outline",
+              shapeProperties: {
+                shapeBackgroundFill: {
+                  solidFill: {
+                    color: { rgbColor: { red: 0.93, green: 0.93, blue: 0.93 } },
+                  },
+                },
+                outline: {
+                  outlineFill: {
+                    solidFill: {
+                      color: { rgbColor: { red: 0.5, green: 0.5, blue: 0.5 } },
+                    },
+                  },
+                  weight: { magnitude: 2, unit: "PT" },
+                  dashStyle: "DASH",
+                },
+              },
+            },
+          },
+          // Label so the user knows what it is
+          {
+            insertText: {
+              objectId: shapeObjectId,
+              text: "QR Code",
+            },
+          },
+          {
+            updateTextStyle: {
+              objectId: shapeObjectId,
+              style: {
+                fontSize: { magnitude: 10, unit: "PT" },
+                foregroundColor: {
+                  opaqueColor: { rgbColor: { red: 0.4, green: 0.4, blue: 0.4 } },
+                },
+              },
+              fields: "fontSize,foregroundColor",
+            },
+          },
+          {
+            updateParagraphStyle: {
+              objectId: shapeObjectId,
+              style: { alignment: "CENTER" },
+              fields: "alignment",
+            },
+          },
+          {
+            updatePageElementAltText: {
+              objectId: shapeObjectId,
+              title: "<<qr_code>>",
+              description: "QR code will be generated here",
+            },
+          },
+        ],
+      },
+    });
+  }
+
   return {
     id,
     name: res.data.title || name,
@@ -249,6 +358,80 @@ export async function generateCertificate(
     await slides.presentations.batchUpdate({
       presentationId: fileId,
       requestBody: { requests },
+    });
+  }
+
+  // Find shapes titled <<qr_code>> and replace with a QR code image
+  const presentation = await slides.presentations.get({
+    presentationId: fileId,
+    fields: "slides(objectId,pageElements(objectId,title,size,transform))",
+  });
+
+  const qrShapes: Array<{
+    objectId: string;
+    slideObjectId: string;
+    size: any;
+    transform: any;
+  }> = [];
+
+  for (const slide of presentation.data.slides || []) {
+    for (const element of slide.pageElements || []) {
+      if (element.title === "<<qr_code>>") {
+        qrShapes.push({
+          objectId: element.objectId!,
+          slideObjectId: slide.objectId!,
+          size: element.size,
+          transform: element.transform,
+        });
+      }
+    }
+  }
+
+  if (qrShapes.length > 0) {
+    const targetUrl = qrCodeUrl || `https://docs.google.com/presentation/d/${fileId}`;
+    const qrBuffer = await QRCode.toBuffer(targetUrl, { type: "png", width: 300, margin: 1 });
+
+    // Upload QR code PNG to Drive and make it publicly accessible
+    const qrFileRes = await drive.files.create({
+      requestBody: {
+        name: `qr_${fileId}.png`,
+        parents: folderId ? [folderId] : undefined,
+        mimeType: "image/png",
+      },
+      media: {
+        mimeType: "image/png",
+        body: Readable.from(qrBuffer),
+      },
+      fields: "id",
+    });
+    const qrFileId = qrFileRes.data.id!;
+
+    await drive.permissions.create({
+      fileId: qrFileId,
+      requestBody: { role: "reader", type: "anyone" },
+    });
+
+    const qrImageUrl = `https://drive.google.com/uc?id=${qrFileId}&export=view`;
+
+    // Delete each placeholder shape and insert the QR code image in its place
+    const qrRequests: any[] = [];
+    for (const shape of qrShapes) {
+      qrRequests.push({ deleteObject: { objectId: shape.objectId } });
+      qrRequests.push({
+        createImage: {
+          url: qrImageUrl,
+          elementProperties: {
+            pageObjectId: shape.slideObjectId,
+            size: shape.size,
+            transform: shape.transform,
+          },
+        },
+      });
+    }
+
+    await slides.presentations.batchUpdate({
+      presentationId: fileId,
+      requestBody: { requests: qrRequests },
     });
   }
 

@@ -13,11 +13,48 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Play, Send, MailCheck, Loader2, FileText, CheckCircle2, XCircle, Clock, Share2, ExternalLink } from "lucide-react";
+import { Play, Send, MailCheck, Loader2, FileText, CheckCircle2, XCircle, Clock, Share2, ExternalLink, QrCode, Copy, Check } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+
+function QrCodePopover({ batchId, certId }: { batchId: string; certId: string }) {
+  const [copied, setCopied] = useState(false);
+  const verifyUrl = `${window.location.origin}/verify/${batchId}/${certId}`;
+  const qrSrc = `/api/verify/${batchId}/${certId}/qr`;
+
+  const copyUrl = () => {
+    navigator.clipboard.writeText(verifyUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="sm" className="hover-elevate" title="View QR Code">
+          <QrCode className="w-4 h-4" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-64 p-4 text-center space-y-3" align="end">
+        <p className="text-sm font-semibold text-foreground">Scan to Verify</p>
+        <img src={qrSrc} alt="Certificate QR Code" className="w-40 h-40 mx-auto rounded-lg border" />
+        <div className="flex items-center gap-2">
+          <input
+            readOnly
+            value={verifyUrl}
+            className="flex-1 text-xs bg-muted rounded px-2 py-1 text-muted-foreground truncate border"
+          />
+          <Button variant="ghost" size="sm" onClick={copyUrl} className="shrink-0 px-2">
+            {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 export default function BatchDetail() {
   const [, params] = useRoute("/batches/:id");
@@ -213,10 +250,13 @@ export default function BatchDetail() {
                           <a href={cert.slideUrl} target="_blank" rel="noopener noreferrer">Slides</a>
                         </Button>
                       )}
-                      {cert.pdfUrl && (
+                      {(cert.r2PdfUrl || cert.pdfUrl) && (
                         <Button variant="outline" size="sm" asChild className="hover-elevate">
-                          <a href={cert.pdfUrl} target="_blank" rel="noopener noreferrer">PDF</a>
+                          <a href={(cert.r2PdfUrl || cert.pdfUrl) as string} target="_blank" rel="noopener noreferrer">PDF</a>
                         </Button>
+                      )}
+                      {(cert.status === 'generated' || cert.status === 'sent') && (
+                        <QrCodePopover batchId={batchId} certId={cert.id} />
                       )}
                     </TableCell>
                   </TableRow>

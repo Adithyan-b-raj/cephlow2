@@ -48,20 +48,22 @@ router.get("/certificates", async (req, res) => {
       return;
     }
 
-    // If no batchId, collect from all of the user's batches
+    // If no batchId, collect from all of the user's batches in parallel
     const batchesSnapshot = await batchesCollection.where("userId", "==", userId).get();
-    const allCerts: any[] = [];
 
-    for (const batchDoc of batchesSnapshot.docs) {
-      let query: FirebaseFirestore.Query = certificatesCollection(batchDoc.id);
-      if (status) {
-        query = query.where("status", "==", status);
-      }
-      const certsSnapshot = await query.get();
-      certsSnapshot.docs.forEach((doc) => {
-        allCerts.push({ id: doc.id, ...serializeDoc(doc.data()) });
-      });
-    }
+    const certSnapshots = await Promise.all(
+      batchesSnapshot.docs.map((batchDoc) => {
+        let query: FirebaseFirestore.Query = certificatesCollection(batchDoc.id);
+        if (status) {
+          query = query.where("status", "==", status);
+        }
+        return query.get();
+      })
+    );
+
+    const allCerts: any[] = certSnapshots.flatMap((certsSnapshot) =>
+      certsSnapshot.docs.map((doc) => ({ id: doc.id, ...serializeDoc(doc.data()) }))
+    );
 
     // Sort by createdAt desc across all batches
     allCerts.sort((a, b) => {

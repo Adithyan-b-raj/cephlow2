@@ -1,9 +1,12 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, signInWithGoogle, signOut, type User } from "@/lib/firebase";
-import { setAuthTokenProvider, setBaseUrl } from "@workspace/api-client-react";
+import { setAuthTokenProvider, setGoogleTokenRefresher, setBaseUrl } from "@workspace/api-client-react";
 
 const GOOGLE_TOKEN_KEY = "google_access_token";
+const GOOGLE_TOKEN_EXPIRES_KEY = "google_access_token_expires_at";
+// Google OAuth tokens expire in 3600s; refresh 5 minutes early to avoid mid-request expiry
+const TOKEN_LIFETIME_MS = 55 * 60 * 1000;
 
 interface AuthContextType {
     user: User | null;
@@ -16,6 +19,24 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+function storeGoogleToken(
+    tokenRef: React.MutableRefObject<string | null>,
+    expiresAtRef: React.MutableRefObject<number | null>,
+    token: string | null,
+) {
+    tokenRef.current = token;
+    if (token) {
+        const expiresAt = Date.now() + TOKEN_LIFETIME_MS;
+        expiresAtRef.current = expiresAt;
+        sessionStorage.setItem(GOOGLE_TOKEN_KEY, token);
+        sessionStorage.setItem(GOOGLE_TOKEN_EXPIRES_KEY, String(expiresAt));
+    } else {
+        expiresAtRef.current = null;
+        sessionStorage.removeItem(GOOGLE_TOKEN_KEY);
+        sessionStorage.removeItem(GOOGLE_TOKEN_EXPIRES_KEY);
+    }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
@@ -25,27 +46,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const googleAccessTokenRef = useRef<string | null>(
         sessionStorage.getItem(GOOGLE_TOKEN_KEY)
     );
+    const googleTokenExpiresAtRef = useRef<number | null>(
+        (() => {
+            const stored = sessionStorage.getItem(GOOGLE_TOKEN_EXPIRES_KEY);
+            return stored ? Number(stored) : null;
+        })()
+    );
 
-    // Keep ref and sessionStorage in sync
-    useEffect(() => {
-        googleAccessTokenRef.current = googleAccessToken;
-        if (googleAccessToken) {
-            sessionStorage.setItem(GOOGLE_TOKEN_KEY, googleAccessToken);
-        } else {
-            sessionStorage.removeItem(GOOGLE_TOKEN_KEY);
-        }
-    }, [googleAccessToken]);
+    // Imperative helper so token + expiry always update together
+    const setGoogleToken = useCallback((token: string | null) => {
+        storeGoogleToken(googleAccessTokenRef, googleTokenExpiresAtRef, token);
+        setGoogleAccessToken(token);
+    }, []);
 
     // Re-authenticate to get a fresh Google access token
     const refreshGoogleToken = useCallback(async (): Promise<string | null> => {
         try {
             const result = await signInWithGoogle();
-            setGoogleAccessToken(result.accessToken);
+            setGoogleToken(result.accessToken);
             return result.accessToken;
         } catch {
             return null;
         }
-    }, []);
+    }, [setGoogleToken]);
 
     // Configure the API client's auth token provider once
     useEffect(() => {
@@ -59,19 +82,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             const idToken = currentUser ? await currentUser.getIdToken() : null;
             let token = googleAccessTokenRef.current;
 
-            // If no Google access token and user is logged in, re-authenticate
-            if (!token && currentUser) {
+            // Proactively refresh if token is missing or expired (within 5-minute buffer)
+            const isExpired =
+                !googleTokenExpiresAtRef.current ||
+                Date.now() >= googleTokenExpiresAtRef.current;
+
+            if (currentUser && (!token || isExpired)) {
                 try {
                     const result = await signInWithGoogle();
                     token = result.accessToken;
-                    googleAccessTokenRef.current = token;
-                    if (token) sessionStorage.setItem(GOOGLE_TOKEN_KEY, token);
+                    storeGoogleToken(googleAccessTokenRef, googleTokenExpiresAtRef, token);
                 } catch {
-                    // User may have blocked the popup
+                    // User may have blocked the popup; proceed with stale/null token
                 }
             }
 
             return { idToken, googleAccessToken: token };
+        });
+
+        // Reactive fallback: if a 401 slips through, refresh and let custom-fetch retry
+        setGoogleTokenRefresher(async () => {
+            try {
+                const result = await signInWithGoogle();
+                const token = result.accessToken;
+                storeGoogleToken(googleAccessTokenRef, googleTokenExpiresAtRef, token);
+                return token;
+            } catch {
+                return null;
+            }
         });
     }, []);
 
@@ -85,13 +123,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const login = async () => {
         const result = await signInWithGoogle();
-        setGoogleAccessToken(result.accessToken);
+        setGoogleToken(result.accessToken);
     };
 
     const logout = async () => {
         await signOut();
         setUser(null);
-        setGoogleAccessToken(null);
+        setGoogleToken(null);
     };
 
     return (

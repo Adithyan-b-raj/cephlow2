@@ -11,11 +11,19 @@ type AuthTokenProvider = () => Promise<{
   idToken: string | null;
   googleAccessToken: string | null;
 }>;
+// Called when a 401 is received to force-refresh the Google access token
+type GoogleTokenRefresher = () => Promise<string | null>;
+
 let _authTokenProvider: AuthTokenProvider | null = null;
+let _googleTokenRefresher: GoogleTokenRefresher | null = null;
 let _baseUrl: string = "";
 
 export function setAuthTokenProvider(provider: AuthTokenProvider) {
   _authTokenProvider = provider;
+}
+
+export function setGoogleTokenRefresher(refresher: GoogleTokenRefresher) {
+  _googleTokenRefresher = refresher;
 }
 
 export function setBaseUrl(url: string) {
@@ -323,8 +331,11 @@ export async function customFetch<T = unknown>(
       if (googleAccessToken && !headers.has("x-google-access-token")) {
         headers.set("x-google-access-token", googleAccessToken);
       }
-    } catch {
-      // Silently skip if token retrieval fails
+    } catch (err) {
+      throw new Error(
+        `Authentication failed: unable to retrieve tokens. Please sign in again.`,
+        { cause: err }
+      );
     }
   }
 
@@ -335,7 +346,16 @@ export async function customFetch<T = unknown>(
 
   const requestInfo = { method, url };
 
-  const response = await fetch(url, { ...init, method, headers });
+  let response = await fetch(url, { ...init, method, headers });
+
+  // If 401 and a Google token refresher is registered, refresh and retry once
+  if (response.status === 401 && _googleTokenRefresher) {
+    const newToken = await _googleTokenRefresher();
+    if (newToken) {
+      headers.set("x-google-access-token", newToken);
+      response = await fetch(url, { ...init, method, headers });
+    }
+  }
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

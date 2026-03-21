@@ -48,10 +48,23 @@ router.get("/sheets/:sheetId/data", async (req, res) => {
     const tabName = (req.query.tabName as string) || undefined;
     const sheets = getSheetsClient(accessToken);
 
-    const range = tabName ? `${tabName}` : undefined;
+    // Fetch row 1 to determine actual column count, then use that bound
+    const headerPrefix = tabName ? `${tabName}!` : "";
+    const headerResponse = await sheets.spreadsheets.values.get({
+      spreadsheetId: sheetId,
+      range: `${headerPrefix}1:1`,
+    });
+    const headerRow = headerResponse.data.values?.[0] ?? [];
+    const colCount = headerRow.length || 1;
+    // Convert column index to A1 letter notation (supports up to 702 columns)
+    const colLetter = colCount <= 26
+      ? String.fromCharCode(64 + colCount)
+      : String.fromCharCode(64 + Math.floor((colCount - 1) / 26)) +
+        String.fromCharCode(65 + ((colCount - 1) % 26));
+    const range = `${headerPrefix}A:${colLetter}`;
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
-      range: range || "A:ZZ",
+      range,
     });
 
     const rows = response.data.values || [];

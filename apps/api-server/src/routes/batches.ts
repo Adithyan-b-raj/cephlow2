@@ -1,8 +1,29 @@
 import { Router, type IRouter } from "express";
-import { batchesCollection, certificatesCollection, certIndexCollection, type Batch, type Certificate } from "@workspace/firebase";
+import { batchesCollection, certificatesCollection, type Batch, type Certificate } from "@workspace/firebase";
 import { getSheetsClient } from "../lib/googleSheets.js";
 import { generateCertificate, exportSlidesToPdf, createFolder, uploadPdf, makeFilePublic } from "../lib/googleDrive.js";
 import { sendEmail } from "../lib/gmail.js";
+import { uploadPdfToR2, isR2Configured, getR2PublicUrl } from "../lib/cloudflareR2.js";
+
+// Column names commonly used for phone numbers (all lowercase, no spaces/underscores for comparison)
+const PHONE_COLUMN_NAMES = ["phonenumber", "phone", "mobile", "mobilenumber", "contact", "contactnumber", "contactno", "phoneno"];
+
+function normalizeColumnName(name: string): string {
+  return name.toLowerCase().replace(/[\s_\-]/g, "");
+}
+
+function extractPhoneNumber(rowData: Record<string, string>): string {
+  const configuredColumn = process.env.R2_PHONE_COLUMN;
+  if (configuredColumn && rowData[configuredColumn]) {
+    return rowData[configuredColumn];
+  }
+  for (const key of Object.keys(rowData)) {
+    if (PHONE_COLUMN_NAMES.includes(normalizeColumnName(key))) {
+      return rowData[key];
+    }
+  }
+  return "";
+}
 
 const router: IRouter = Router();
 
@@ -29,10 +50,10 @@ router.get("/batches", async (req, res) => {
       .get();
     const batches = snapshot.docs
       .map((doc) => ({ id: doc.id, ...serializeDoc(doc.data()) }))
-      .sort((a, b) => {
-        const tA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const tB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return tB - tA;
+      .sort((a: any, b: any) => {
+        const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return tb - ta;
       });
     res.json({ batches });
   } catch (err: any) {
@@ -127,7 +148,6 @@ router.post("/batches", async (req, res) => {
       });
       const certRef = certsCol.doc();
       writeBatch.set(certRef, {
-        id: certRef.id, // Store ID explicitly for collectionGroup search
         batchId: batchRef.id,
         recipientName: rowData[nameColumn] || "Unknown",
         recipientEmail: rowData[emailColumn] || "",
@@ -213,6 +233,7 @@ router.post("/batches/:batchId/share-folder", async (req, res) => {
 
 // Generate certificates for a batch
 router.post("/batches/:batchId/generate", async (req, res) => {
+  console.log("[GENERATE] endpoint hit");
   const userId = req.user?.uid;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -255,12 +276,11 @@ router.post("/batches/:batchId/generate", async (req, res) => {
         const rowData = (cert.rowData as Record<string, string>) || {};
         const replacements: Record<string, string> = {};
         for (const [placeholder, column] of Object.entries(batch.columnMap)) {
-          replacements[placeholder] = rowData[column] || "";
+          replacements[placeholder] = rowData[String(column)] || "";
         }
 
-        // Generate a verification URL for the QR code
-        const origin = process.env.ORIGIN || "http://localhost:5173";
-        const qrCodeUrl = `${origin}/verify/${cert.id}`;
+        const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+        const qrCodeUrl = `${baseUrl}/verify/${batchId}/${cert.id}`;
 
         const { fileId: slideFileId, url: slideUrl } = await generateCertificate(
           accessToken,
@@ -271,33 +291,57 @@ router.post("/batches/:batchId/generate", async (req, res) => {
           qrCodeUrl
         );
 
-        // Export to PDF and upload to Drive if we have a PDF subfolder
+        // Export PDF buffer (needed for Drive upload and/or R2 upload)
         let pdfFileId = null;
         let pdfUrl = null;
-        if (batch.pdfFolderId) {
+        const pdfName = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_certificate`;
+        const needsPdf = !!batch.pdfFolderId || isR2Configured();
+        let pdfBuffer: Buffer | null = null;
+
+        if (needsPdf) {
           try {
-            const pdfBuffer = await exportSlidesToPdf(accessToken, slideFileId);
-            const pdfName = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_certificate`;
+            pdfBuffer = await exportSlidesToPdf(accessToken, slideFileId);
+          } catch (pdfErr) {
+            console.error("Failed to export PDF for certificate:", cert.id, pdfErr);
+          }
+        }
+
+        // Upload to Google Drive
+        if (pdfBuffer && batch.pdfFolderId) {
+          try {
             const pdfRes = await uploadPdf(accessToken, pdfName, pdfBuffer, batch.pdfFolderId);
             pdfFileId = pdfRes.fileId;
             pdfUrl = pdfRes.url;
           } catch (pdfErr) {
-            console.error("Failed to export/upload PDF for certificate:", cert.id, pdfErr);
+            console.error("Failed to upload PDF to Google Drive for certificate:", cert.id, pdfErr);
           }
         }
 
-        await Promise.all([
-          certificatesCollection(batchId).doc(cert.id).update({
-            status: "generated",
-            slideFileId,
-            slideUrl,
-            pdfFileId,
-            pdfUrl,
-            errorMessage: null,
-          }),
-          // Write to fast lookup index so verification is O(1) not O(n)
-          certIndexCollection.doc(cert.id).set({ batchId }),
-        ]);
+        // Upload to Cloudflare R2 (folder = phone number)
+        let r2PdfUrl: string | null = null;
+        const r2Ready = isR2Configured();
+        console.log(`[R2] isR2Configured=${r2Ready} pdfBuffer=${!!pdfBuffer}`);
+        if (pdfBuffer && r2Ready) {
+          try {
+            const phoneNumber = extractPhoneNumber(rowData);
+            console.log(`[R2] phone detected: "${phoneNumber}", rowData keys: ${Object.keys(rowData).join(", ")}`);
+            const r2Folder = phoneNumber || cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_");
+            const r2Key = await uploadPdfToR2(r2Folder, pdfName, pdfBuffer);
+            r2PdfUrl = getR2PublicUrl(r2Key);
+          } catch (r2Err) {
+            console.error("[R2] Upload failed for certificate:", cert.id, r2Err);
+          }
+        }
+
+        await certificatesCollection(batchId).doc(cert.id).update({
+          status: "generated",
+          slideFileId,
+          slideUrl,
+          pdfFileId,
+          pdfUrl,
+          r2PdfUrl,
+          errorMessage: null,
+        });
         generated++;
       } catch (err: any) {
         await certificatesCollection(batchId).doc(cert.id).update({
@@ -378,7 +422,7 @@ router.post("/batches/:batchId/send", async (req, res) => {
         let personalizedSubject = subject;
         let personalizedBody = body;
         for (const [placeholder, column] of Object.entries(batch.columnMap)) {
-          const value = rowData[column] || "";
+          const value = rowData[String(column)] || "";
           personalizedSubject = personalizedSubject.replace(new RegExp(`<<${placeholder}>>`, "gi"), value);
           personalizedBody = personalizedBody.replace(new RegExp(`<<${placeholder}>>`, "gi"), value);
         }

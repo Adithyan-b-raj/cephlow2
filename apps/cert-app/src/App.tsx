@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter } from "wouter";
+import { Switch, Route, Router as WouterRouter, useRoute } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,6 +13,7 @@ import NewTemplate from "@/pages/templates/NewTemplate";
 import VerifyCertificate from "@/pages/VerifyCertificate";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
+import VerifyCertificate from "@/pages/VerifyCertificate";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,6 +41,10 @@ function AuthenticatedRouter() {
 
 function AppRouter() {
   const { user, loading } = useAuth();
+  const [isVerifyRoute] = useRoute("/verify/:batchId/:certId");
+
+  // Public certificate verification page — no auth required
+  if (isVerifyRoute) return <VerifyCertificate />;
 
   if (loading) {
     return (

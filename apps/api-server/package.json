@@ -10,6 +10,7 @@
   },
   "main": "dist/index.cjs",
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1010.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/firebase": "workspace:*",
     "cookie-parser": "^1.4.7",
