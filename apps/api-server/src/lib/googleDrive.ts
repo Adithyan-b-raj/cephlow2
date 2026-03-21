@@ -90,7 +90,7 @@ export async function getSlidePlaceholders(
   return Array.from(placeholders);
 }
 
-// Create a new blank Google Slides presentation with a <<qr_code>> placeholder shape
+// Create a new blank Google Slides presentation
 export async function createSlidePresentation(
   accessToken: string,
   name: string
@@ -102,108 +102,111 @@ export async function createSlidePresentation(
   });
   const id = res.data.presentationId!;
 
-  const slideObjectId = res.data.slides?.[0]?.objectId;
-
-  if (slideObjectId) {
-    // Use actual page dimensions; fall back to standard 16:9 defaults (9144000 x 5143500 EMUs)
-    const size = 914400;       // 1 inch in EMUs
-    const margin = 228600;     // 0.25 inch in EMUs
-    const pageSizeWidth = res.data.pageSize?.width?.magnitude;
-    const pageSizeHeight = res.data.pageSize?.height?.magnitude;
-    const slideWidth = (typeof pageSizeWidth === "number" && pageSizeWidth > 0) ? pageSizeWidth : 9144000;
-    const slideHeight = (typeof pageSizeHeight === "number" && pageSizeHeight > 0) ? pageSizeHeight : 5143500;
-    const shapeObjectId = "qr_code_placeholder";
-
-    await slides.presentations.batchUpdate({
-      presentationId: id,
-      requestBody: {
-        requests: [
-          {
-            createShape: {
-              objectId: shapeObjectId,
-              shapeType: "RECTANGLE",
-              elementProperties: {
-                pageObjectId: slideObjectId,
-                size: {
-                  width: { magnitude: size, unit: "EMU" },
-                  height: { magnitude: size, unit: "EMU" },
-                },
-                transform: {
-                  scaleX: 1,
-                  scaleY: 1,
-                  translateX: slideWidth - size - margin,
-                  translateY: slideHeight - size - margin,
-                  unit: "EMU",
-                },
-              },
-            },
-          },
-          // Light gray fill so it's visible
-          {
-            updateShapeProperties: {
-              objectId: shapeObjectId,
-              fields: "shapeBackgroundFill,outline",
-              shapeProperties: {
-                shapeBackgroundFill: {
-                  solidFill: {
-                    color: { rgbColor: { red: 0.93, green: 0.93, blue: 0.93 } },
-                  },
-                },
-                outline: {
-                  outlineFill: {
-                    solidFill: {
-                      color: { rgbColor: { red: 0.5, green: 0.5, blue: 0.5 } },
-                    },
-                  },
-                  weight: { magnitude: 2, unit: "PT" },
-                  dashStyle: "DASH",
-                },
-              },
-            },
-          },
-          // Label so the user knows what it is
-          {
-            insertText: {
-              objectId: shapeObjectId,
-              text: "QR Code",
-            },
-          },
-          {
-            updateTextStyle: {
-              objectId: shapeObjectId,
-              style: {
-                fontSize: { magnitude: 10, unit: "PT" },
-                foregroundColor: {
-                  opaqueColor: { rgbColor: { red: 0.4, green: 0.4, blue: 0.4 } },
-                },
-              },
-              fields: "fontSize,foregroundColor",
-            },
-          },
-          {
-            updateParagraphStyle: {
-              objectId: shapeObjectId,
-              style: { alignment: "CENTER" },
-              fields: "alignment",
-            },
-          },
-          {
-            updatePageElementAltText: {
-              objectId: shapeObjectId,
-              title: "<<qr_code>>",
-              description: "QR code will be generated here",
-            },
-          },
-        ],
-      },
-    });
-  }
-
   return {
     id,
     name: res.data.title || name,
     url: `https://docs.google.com/presentation/d/${id}/edit`,
   };
+}
+
+// Add a <<qr_code>> placeholder shape to an existing presentation
+export async function addQrCodePlaceholder(
+  accessToken: string,
+  presentationId: string
+): Promise<void> {
+  const slides = getSlidesClient(accessToken);
+  const res = await slides.presentations.get({
+    presentationId,
+    fields: "slides(objectId),pageSize",
+  });
+
+  const slideObjectId = res.data.slides?.[0]?.objectId;
+  if (!slideObjectId) return;
+
+  const size = 914400;      // 1 inch in EMUs
+  const margin = 228600;    // 0.25 inch in EMUs
+  const pageSizeWidth = res.data.pageSize?.width?.magnitude;
+  const pageSizeHeight = res.data.pageSize?.height?.magnitude;
+  const slideWidth = (typeof pageSizeWidth === "number" && pageSizeWidth > 0) ? pageSizeWidth : 9144000;
+  const slideHeight = (typeof pageSizeHeight === "number" && pageSizeHeight > 0) ? pageSizeHeight : 5143500;
+  const shapeObjectId = "qr_code_placeholder";
+
+  await slides.presentations.batchUpdate({
+    presentationId,
+    requestBody: {
+      requests: [
+        {
+          createShape: {
+            objectId: shapeObjectId,
+            shapeType: "RECTANGLE",
+            elementProperties: {
+              pageObjectId: slideObjectId,
+              size: {
+                width: { magnitude: size, unit: "EMU" },
+                height: { magnitude: size, unit: "EMU" },
+              },
+              transform: {
+                scaleX: 1,
+                scaleY: 1,
+                translateX: slideWidth - size - margin,
+                translateY: slideHeight - size - margin,
+                unit: "EMU",
+              },
+            },
+          },
+        },
+        {
+          updateShapeProperties: {
+            objectId: shapeObjectId,
+            fields: "shapeBackgroundFill,outline",
+            shapeProperties: {
+              shapeBackgroundFill: {
+                solidFill: {
+                  color: { rgbColor: { red: 0.93, green: 0.93, blue: 0.93 } },
+                },
+              },
+              outline: {
+                outlineFill: {
+                  solidFill: {
+                    color: { rgbColor: { red: 0.5, green: 0.5, blue: 0.5 } },
+                  },
+                },
+                weight: { magnitude: 2, unit: "PT" },
+                dashStyle: "DASH",
+              },
+            },
+          },
+        },
+        { insertText: { objectId: shapeObjectId, text: "QR Code" } },
+        {
+          updateTextStyle: {
+            objectId: shapeObjectId,
+            style: {
+              fontSize: { magnitude: 10, unit: "PT" },
+              foregroundColor: {
+                opaqueColor: { rgbColor: { red: 0.4, green: 0.4, blue: 0.4 } },
+              },
+            },
+            fields: "fontSize,foregroundColor",
+          },
+        },
+        {
+          updateParagraphStyle: {
+            objectId: shapeObjectId,
+            style: { alignment: "CENTER" },
+            fields: "alignment",
+          },
+        },
+        {
+          updatePageElementAltText: {
+            objectId: shapeObjectId,
+            title: "<<qr_code>>",
+            description: "QR code will be generated here",
+          },
+        },
+      ],
+    },
+  });
 }
 
 // Export a Google Slides presentation as a PDF buffer
@@ -415,16 +418,31 @@ export async function generateCertificate(
 
     // Delete each placeholder shape and insert the QR code image in its place
     const qrRequests: any[] = [];
-    for (const shape of qrShapes) {
+    const qrImageObjectIds: string[] = [];
+    for (let i = 0; i < qrShapes.length; i++) {
+      const shape = qrShapes[i];
+      const newObjectId = `qr_img_${i}_${Date.now()}`;
+      qrImageObjectIds.push(newObjectId);
       qrRequests.push({ deleteObject: { objectId: shape.objectId } });
       qrRequests.push({
         createImage: {
+          objectId: newObjectId,
           url: qrImageUrl,
           elementProperties: {
             pageObjectId: shape.slideObjectId,
             size: shape.size,
             transform: shape.transform,
           },
+        },
+      });
+    }
+
+    // Bring QR images to front so they appear above any template images
+    for (const objectId of qrImageObjectIds) {
+      qrRequests.push({
+        updatePageElementsZOrder: {
+          pageElementObjectIds: [objectId],
+          operation: "BRING_TO_FRONT",
         },
       });
     }

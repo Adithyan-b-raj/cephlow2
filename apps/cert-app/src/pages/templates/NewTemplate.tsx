@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
+import { useMutation } from "@tanstack/react-query";
 import {
   useCreateSlideTemplate,
   useGetSlidePlaceholders,
   useCreateSheet,
+  customFetch,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,6 +22,8 @@ import {
   Tag,
   Sparkles,
   ChevronRight,
+  QrCode,
+  SkipForward,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +32,7 @@ const STEPS = [
   "Name Your Template",
   "Edit in Google Slides",
   "Review Placeholders",
+  "QR Code",
   "Done",
 ];
 
@@ -70,7 +75,7 @@ export default function NewTemplate() {
     mutation: {
       onSuccess: (data) => {
         setCreatedSheet(data);
-        setStep(3);
+        setStep(4);
       },
       onError: (err: any) => {
         toast({ title: "Failed to create spreadsheet", description: err.message, variant: "destructive" });
@@ -108,6 +113,18 @@ export default function NewTemplate() {
     }
     createSheet({ data: { name: sheetName, headers: allHeaders } });
   };
+
+  const { mutate: addQrPlaceholder, isPending: addingQr } = useMutation({
+    mutationFn: () =>
+      customFetch(`/api/slides/${createdTemplate!.id}/qr-placeholder`, { method: "POST" }),
+    onSuccess: () => {
+      window.open(createdTemplate!.url, "_blank");
+      handleCreateSheet();
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to add QR placeholder", description: err.message, variant: "destructive" });
+    },
+  });
 
   const handleCreateBatch = () => {
     setLocation("/batches/new");
@@ -248,9 +265,6 @@ export default function NewTemplate() {
                       {"<<Name>>   <<Email>>   <<Phone Number>>   <<Course>>"}
                     </code>
                   </p>
-                  <p className="mt-2 pt-2 border-t border-amber-200/50 dark:border-amber-800/50 italic text-[11px]">
-                    Tip: Add <code className="font-mono font-bold bg-white/40 dark:bg-black/10 px-1 rounded">{"{{qr_code}}"}</code> anywhere on your slide to include a verification link for others to scan.
-                  </p>
                 </div>
 
                 <Button
@@ -326,22 +340,73 @@ export default function NewTemplate() {
                     Back
                   </Button>
                   <Button
-                    onClick={handleCreateSheet}
-                    disabled={creatingSheet || placeholders.length === 0}
+                    onClick={() => setStep(3)}
+                    disabled={placeholders.length === 0}
                     className="flex-1 h-11"
                   >
-                    {creatingSheet ? (
-                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating…</>
-                    ) : (
-                      <><FileSpreadsheet className="w-4 h-4 mr-2" /> Create Spreadsheet</>
-                    )}
+                    Continue <ChevronRight className="w-4 h-4 ml-1" />
                   </Button>
                 </div>
               </CardContent>
             )}
 
-            {/* Step 3 – Done */}
-            {step === 3 && createdTemplate && createdSheet && (
+            {/* Step 3 – QR Code */}
+            {step === 3 && (
+              <CardContent className="p-8 space-y-6">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 p-3 rounded-2xl">
+                    <QrCode className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-xl">Add a QR code?</CardTitle>
+                    <CardDescription>
+                      A QR code lets recipients scan and verify their certificate online.
+                    </CardDescription>
+                  </div>
+                </div>
+
+                <div className="grid gap-3">
+                  <button
+                    onClick={() => addQrPlaceholder()}
+                    disabled={addingQr}
+                    className="flex items-center gap-4 p-5 rounded-xl border-2 border-purple-200 hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all text-left disabled:opacity-60"
+                  >
+                    <div className="bg-purple-100 dark:bg-purple-900/30 text-purple-600 p-2.5 rounded-xl shrink-0">
+                      {addingQr ? <Loader2 className="w-5 h-5 animate-spin" /> : <QrCode className="w-5 h-5" />}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm">Add QR Code</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Places a scannable QR placeholder in the bottom-right of your slide.
+                      </p>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={handleCreateSheet}
+                    disabled={creatingSheet || addingQr}
+                    className="flex items-center gap-4 p-5 rounded-xl border-2 border-border hover:border-muted-foreground/40 hover:bg-secondary/50 transition-all text-left disabled:opacity-60"
+                  >
+                    <div className="bg-secondary text-muted-foreground p-2.5 rounded-xl shrink-0">
+                      {creatingSheet ? <Loader2 className="w-5 h-5 animate-spin" /> : <SkipForward className="w-5 h-5" />}
+                    </div>
+                    <div>
+                      <p className="font-semibold text-sm">Skip</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Continue without a QR code.
+                      </p>
+                    </div>
+                  </button>
+                </div>
+
+                <Button variant="ghost" size="sm" onClick={() => setStep(2)} className="w-full">
+                  Back
+                </Button>
+              </CardContent>
+            )}
+
+            {/* Step 4 – Done */}
+            {step === 4 && createdTemplate && createdSheet && (
               <CardContent className="p-8 space-y-6">
                 <div className="text-center space-y-3 py-2">
                   <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 text-green-600 mx-auto">

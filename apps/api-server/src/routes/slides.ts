@@ -3,6 +3,7 @@ import {
   listSlideTemplates,
   getSlidePlaceholders,
   createSlidePresentation,
+  addQrCodePlaceholder,
 } from "../lib/googleDrive.js";
 
 const router: IRouter = Router();
@@ -49,6 +50,21 @@ router.get("/slides/:templateId/placeholders", async (req, res) => {
     const { templateId } = req.params;
     const placeholders = await getSlidePlaceholders(accessToken, templateId);
     res.json({ placeholders });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Add a <<qr_code>> placeholder shape to an existing presentation
+router.post("/slides/:templateId/qr-placeholder", async (req, res) => {
+  try {
+    const accessToken = req.googleAccessToken;
+    if (!accessToken) {
+      return res.status(401).json({ error: "Google access token required" });
+    }
+    const { templateId } = req.params;
+    await addQrCodePlaceholder(accessToken, templateId);
+    res.status(200).json({ ok: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

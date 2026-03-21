@@ -13,7 +13,6 @@ import NewTemplate from "@/pages/templates/NewTemplate";
 import VerifyCertificate from "@/pages/VerifyCertificate";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
-import VerifyCertificate from "@/pages/VerifyCertificate";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,7 +55,6 @@ function AppRouter() {
 
   return (
     <Switch>
-      <Route path="/verify/:id" component={VerifyCertificate} />
       <Route>
         {!user ? <Login /> : <AuthenticatedRouter />}
       </Route>
