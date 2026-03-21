@@ -48,3 +48,7 @@ services:
         value: https://cephlow-app.onrender.com
       - key: FIREBASE_SERVICE_ACCOUNT_KEY
         sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
