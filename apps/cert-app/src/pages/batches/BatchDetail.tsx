@@ -7,6 +7,7 @@ import {
   useSendBatch,
   useShareBatchFolder,
   getGetBatchQueryKey,
+  useSendBatchWhatsapp,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Play, Send, MailCheck, Loader2, FileText, CheckCircle2, XCircle, Clock, Share2, ExternalLink, QrCode, Copy, Check } from "lucide-react";
+import { Play, Send, MailCheck, Loader2, FileText, CheckCircle2, XCircle, Clock, Share2, ExternalLink, QrCode, Copy, Check, MessageCircle } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
@@ -113,9 +114,24 @@ export default function BatchDetail() {
     }
   });
 
+  const { mutate: sendWhatsapp, isPending: isSendingWhatsapp } = useSendBatchWhatsapp({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "WhatsApp sending started!" });
+        setWaModalOpen(false);
+        refetch();
+      },
+      onError: (err: any) => toast({ title: "WhatsApp send failed", description: err.message, variant: "destructive" })
+    }
+  });
+
   const [sendModalOpen, setSendModalOpen] = useState(false);
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
+
+  const [waModalOpen, setWaModalOpen] = useState(false);
+  const [waVar1, setWaVar1] = useState("");
+  const [waVar2, setWaVar2] = useState("");
 
   if (isLoading) return <div className="p-8 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>;
   if (!batch) return <div className="p-8 text-center text-red-500">Batch not found</div>;
@@ -124,6 +140,12 @@ export default function BatchDetail() {
     setEmailSubject(batch.emailSubject || "");
     setEmailBody(batch.emailBody || "");
     setSendModalOpen(true);
+  };
+
+  const handleOpenWa = () => {
+    setWaVar1(batch.nameColumn ? `<<${batch.nameColumn}>>` : "");
+    setWaVar2(batch.name || "");
+    setWaModalOpen(true);
   };
 
   const getStatusColor = (status: string) => {
@@ -176,6 +198,15 @@ export default function BatchDetail() {
           >
             {isSending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
             Send Emails
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleOpenWa}
+            disabled={isSendingWhatsapp || batch.status === 'sending' || batch.generatedCount === 0}
+            className="hover-elevate bg-background"
+          >
+            {isSendingWhatsapp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2 text-green-500" />}
+            Send via WhatsApp
           </Button>
         </div>
       </div>
@@ -233,13 +264,20 @@ export default function BatchDetail() {
                     <TableCell className="font-medium">{cert.recipientName}</TableCell>
                     <TableCell className="text-muted-foreground">{cert.recipientEmail}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={getStatusColor(cert.status)}>
-                        {cert.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
-                        {cert.status === 'generated' && <CheckCircle2 className="w-3 h-3 mr-1" />}
-                        {cert.status === 'sent' && <MailCheck className="w-3 h-3 mr-1" />}
-                        {cert.status === 'failed' && <XCircle className="w-3 h-3 mr-1" />}
-                        {cert.status}
-                      </Badge>
+                      <div className="flex flex-col gap-1">
+                        <Badge variant="outline" className={getStatusColor(cert.status)}>
+                          {cert.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
+                          {cert.status === 'generated' && <CheckCircle2 className="w-3 h-3 mr-1" />}
+                          {cert.status === 'sent' && <MailCheck className="w-3 h-3 mr-1" />}
+                          {cert.status === 'failed' && <XCircle className="w-3 h-3 mr-1" />}
+                          {cert.status}
+                        </Badge>
+                        {cert.status === 'failed' && cert.errorMessage && (
+                          <span className="text-[11px] text-red-500 max-w-[200px] truncate" title={cert.errorMessage}>
+                            {cert.errorMessage}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground text-sm">
                       {cert.sentAt ? format(new Date(cert.sentAt), 'MMM d, h:mm a') : '-'}
@@ -364,6 +402,17 @@ export default function BatchDetail() {
                 </p>
                 
                 <div className="flex flex-wrap gap-2 overflow-y-auto max-h-[250px] pr-1">
+                  <div
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("text/plain", batch.name);
+                      e.dataTransfer.effectAllowed = "copy";
+                    }}
+                    className="bg-background border border-border hover:border-primary/50 hover:bg-primary/5 text-foreground px-2 py-1 rounded-md text-[11px] font-mono cursor-grab active:cursor-grabbing transition-all flex items-center gap-1.5 group shadow-sm"
+                  >
+                    <div className="w-1 h-1 rounded-full bg-primary/40 group-hover:bg-primary transition-colors" />
+                    Batch Name
+                  </div>
                   {batch.certificates[0]?.rowData ? (
                     Object.keys(batch.certificates[0].rowData).map(header => (
                       <div
@@ -396,6 +445,118 @@ export default function BatchDetail() {
             >
               {isSending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
               Send Now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* WhatsApp Send Modal */}
+      <Dialog open={waModalOpen} onOpenChange={setWaModalOpen}>
+        <DialogContent className="sm:max-w-[700px]">
+          <DialogHeader>
+            <DialogTitle>Send via WhatsApp</DialogTitle>
+            <DialogDescription>
+              Uses the <strong>document_sender</strong> template. The PDF certificate will be attached and sent to each recipient's phone number.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid md:grid-cols-3 gap-6 py-4">
+            <div className="md:col-span-2 space-y-4">
+              <div className="bg-secondary/30 rounded-xl p-4 border border-border/50 text-sm font-mono text-muted-foreground mb-2">
+                Hi <span className="text-foreground font-semibold">{waVar1 || "{{1}}"}</span>, your certificate for <span className="text-foreground font-semibold">{waVar2 || "{{2}}"}</span> is attached below
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{"{{1}}"} — Participant Name</label>
+                <Input
+                  value={waVar1}
+                  onChange={e => setWaVar1(e.target.value)}
+                  placeholder="e.g. <<Name>>"
+                  className="transition-all duration-200"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "copy";
+                    const target = e.target as HTMLInputElement;
+                    target.focus();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const text = e.dataTransfer.getData("text/plain");
+                    if (text) setWaVar1(text);
+                  }}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">{"{{2}}"} — Event Name</label>
+                <Input
+                  value={waVar2}
+                  onChange={e => setWaVar2(e.target.value)}
+                  placeholder="e.g. batch name or <<EventName>>"
+                  className="transition-all duration-200"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "copy";
+                    const target = e.target as HTMLInputElement;
+                    target.focus();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const text = e.dataTransfer.getData("text/plain");
+                    if (text) setWaVar2(text);
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="bg-secondary/30 rounded-xl p-4 border border-border/50 h-full">
+                <label className="text-sm font-semibold mb-3 block">Placeholders</label>
+                <p className="text-[10px] text-muted-foreground mb-3">
+                  Drag and drop to insert
+                </p>
+                <div className="flex flex-wrap gap-2 overflow-y-auto max-h-[250px] pr-1">
+                  <div
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("text/plain", batch.name);
+                      e.dataTransfer.effectAllowed = "copy";
+                    }}
+                    className="bg-background border border-border hover:border-primary/50 hover:bg-primary/5 text-foreground px-2 py-1 rounded-md text-[11px] font-mono cursor-grab active:cursor-grabbing transition-all flex items-center gap-1.5 group shadow-sm"
+                  >
+                    <div className="w-1 h-1 rounded-full bg-primary/40 group-hover:bg-primary transition-colors" />
+                    Batch Name
+                  </div>
+                  {batch.certificates[0]?.rowData ? (
+                    Object.keys(batch.certificates[0].rowData).map(header => (
+                      <div
+                        key={header}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("text/plain", `<<${header}>>`);
+                          e.dataTransfer.effectAllowed = "copy";
+                        }}
+                        className="bg-background border border-border hover:border-primary/50 hover:bg-primary/5 text-foreground px-2 py-1 rounded-md text-[11px] font-mono cursor-grab active:cursor-grabbing transition-all flex items-center gap-1.5 group shadow-sm"
+                      >
+                        <div className="w-1 h-1 rounded-full bg-primary/40 group-hover:bg-primary transition-colors" />
+                        {header}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-[10px] text-muted-foreground italic text-center w-full py-4">
+                      No data fields available.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWaModalOpen(false)}>Cancel</Button>
+            <Button
+              onClick={() => sendWhatsapp({ batchId, data: { var1Template: waVar1, var2Template: waVar2 } })}
+              disabled={isSendingWhatsapp || !waVar1 || !waVar2}
+              className="bg-green-600 hover:bg-green-700 text-white"
+            >
+              {isSendingWhatsapp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />}
+              Send via WhatsApp
             </Button>
           </DialogFooter>
         </DialogContent>

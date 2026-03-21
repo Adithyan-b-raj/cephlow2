@@ -393,6 +393,17 @@ export default function NewBatchWizard() {
                       </p>
 
                       <div className="flex flex-wrap gap-2 overflow-y-auto max-h-[350px] pr-1">
+                        <div
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData("text/plain", name);
+                            e.dataTransfer.effectAllowed = "copy";
+                          }}
+                          className="bg-background border border-border hover:border-primary/50 hover:bg-primary/5 text-foreground px-3 py-1.5 rounded-lg text-xs font-mono cursor-grab active:cursor-grabbing transition-all flex items-center gap-2 group shadow-sm"
+                        >
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary/40 group-hover:bg-primary transition-colors" />
+                          Batch Name
+                        </div>
                         {sheetData?.headers.map(header => (
                           <div
                             key={header}

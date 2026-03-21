@@ -4,6 +4,7 @@ import { getSheetsClient } from "../lib/googleSheets.js";
 import { generateCertificate, exportSlidesToPdf, createFolder, uploadPdf, makeFilePublic } from "../lib/googleDrive.js";
 import { sendEmail } from "../lib/gmail.js";
 import { uploadPdfToR2, isR2Configured, getR2PublicUrl } from "../lib/cloudflareR2.js";
+import { isWhatsAppConfigured, sendWhatsAppDocument } from "../lib/whatsapp.js";
 
 // Column names commonly used for phone numbers (all lowercase, no spaces/underscores for comparison)
 const PHONE_COLUMN_NAMES = ["phonenumber", "phone", "mobile", "mobilenumber", "contact", "contactnumber", "contactno", "phoneno"];
@@ -468,6 +469,111 @@ router.post("/batches/:batchId/send", async (req, res) => {
       failed,
     });
   } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Send certificates via WhatsApp template (document_sender)
+router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
+  const userId = req.user?.uid;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  if (!isWhatsAppConfigured()) {
+    return res.status(400).json({
+      error: "WhatsApp is not configured. Set WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN.",
+    });
+  }
+
+  const { batchId } = req.params;
+
+  try {
+    const batchRef = batchesCollection.doc(batchId);
+    const batchDoc = await batchRef.get();
+
+    if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
+    const batch = { id: batchDoc.id, ...batchDoc.data() } as any;
+
+    if (batch.userId !== userId) return res.status(403).json({ error: "Access denied" });
+
+    const { var1Template, var2Template } = req.body;
+
+    await batchRef.update({ status: "sending" });
+
+    const certsSnapshot = await certificatesCollection(batchId).get();
+    const allCerts = certsSnapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Certificate[];
+
+    const toSend = allCerts.filter(
+      (c) => (c.status === "generated" || c.status === "failed") && (c as any).r2PdfUrl,
+    );
+
+    let sent = 0;
+    let failed = 0;
+
+    for (const cert of toSend) {
+      try {
+        const rowData = (cert.rowData as Record<string, string>) || {};
+        const rawPhone = extractPhoneNumber(rowData);
+        // Normalize: keep digits only, strip leading +
+        const phone = rawPhone.replace(/\D/g, "").replace(/^0+/, "");
+
+        if (!phone) {
+          await certificatesCollection(batchId).doc(cert.id).update({
+            status: "failed",
+            errorMessage: "No phone number found in row data",
+          });
+          failed++;
+          continue;
+        }
+
+        // Resolve <<column>> placeholders from rowData
+        let var1 = var1Template || cert.recipientName;
+        let var2 = var2Template || batch.name;
+        for (const [col, value] of Object.entries(rowData)) {
+          var1 = var1.replace(new RegExp(`<<${col}>>`, "gi"), value);
+          var2 = var2.replace(new RegExp(`<<${col}>>`, "gi"), value);
+        }
+
+        const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_certificate.pdf`;
+        await sendWhatsAppDocument(
+          phone,
+          (cert as any).r2PdfUrl,
+          pdfFilename,
+          var1,
+          var2,
+        );
+
+        await certificatesCollection(batchId).doc(cert.id).update({
+          status: "sent",
+          sentAt: new Date(),
+          errorMessage: null,
+        });
+        sent++;
+      } catch (err: any) {
+        await certificatesCollection(batchId).doc(cert.id).update({
+          status: "failed",
+          errorMessage: err.message,
+        });
+        failed++;
+      }
+    }
+
+    const alreadySent = allCerts.filter((c) => c.status === "sent").length;
+    const totalSent = sent + alreadySent;
+    const newStatus =
+      failed === 0 ? "sent" : totalSent > 0 ? "partial" : "generated";
+    await batchRef.update({ status: newStatus, sentCount: totalSent });
+
+    res.json({
+      success: failed === 0,
+      message: `Sent ${sent} WhatsApp messages. ${failed} failed.`,
+      processed: sent,
+      failed,
+    });
+  } catch (err: any) {
+    await batchesCollection.doc(batchId).update({ status: "generated" });
     res.status(500).json({ error: err.message });
   }
 });
