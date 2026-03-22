@@ -47,6 +47,8 @@ export async function sendWhatsAppDocument(
     },
   };
 
+  console.log(`[WhatsApp] Sending to=${to} docUrl=${documentUrl} lang=${templateLanguage} var1=${var1} var2=${var2}`);
+
   const res = await fetch(
     `https://graph.facebook.com/${WA_API_VERSION}/${phoneNumberId}/messages`,
     {
@@ -59,8 +61,10 @@ export async function sendWhatsAppDocument(
     },
   );
 
+  const data = await res.json().catch(() => ({})) as any;
+  console.log(`[WhatsApp] API response status=${res.status}`, JSON.stringify(data));
+
   if (!res.ok) {
-    const data = await res.json().catch(() => ({})) as any;
     throw new Error(
       data?.error?.message || `WhatsApp API error: ${res.status} ${res.statusText}`,
     );
