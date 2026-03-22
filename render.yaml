@@ -52,3 +52,5 @@ services:
         sync: false
       - key: WHATSAPP_PHONE_NUMBER_ID
         sync: false
+      - key: R2_PUBLIC_URL
+        sync: false
