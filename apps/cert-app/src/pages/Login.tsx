@@ -7,10 +7,10 @@ export default function Login() {
     const { login } = useAuth();
 
     return (
-        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/5 via-background to-accent/5 p-4">
-            <Card className="w-full max-w-md shadow-2xl shadow-primary/10 border-border/50 backdrop-blur-sm">
+        <div className="min-h-screen flex items-center justify-center bg-background p-4">
+            <Card className="w-full max-w-md shadow-sm border-border">
                 <CardHeader className="text-center space-y-4 pb-2">
-                    <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+                    <div className="mx-auto w-16 h-16 rounded-sm bg-primary/10 flex items-center justify-center">
                         <Award className="w-8 h-8 text-primary" />
                     </div>
                     <CardTitle className="text-3xl font-display font-bold tracking-tight">

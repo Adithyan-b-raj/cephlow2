@@ -21,12 +21,12 @@ export default function History() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'sent': return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400';
-      case 'generated': return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400';
-      case 'partial': return 'bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400';
+      case 'sent': return 'bg-foreground text-background border-foreground';
+      case 'generated': return 'bg-secondary text-secondary-foreground border-border';
+      case 'partial': return 'bg-muted text-muted-foreground border-border';
       case 'generating':
-      case 'sending': return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400';
-      default: return 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-400';
+      case 'sending': return 'bg-muted text-muted-foreground border-border';
+      default: return 'bg-background text-muted-foreground border-border';
     }
   };
 
@@ -52,7 +52,46 @@ export default function History() {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* Mobile card list */}
+        <div className="sm:hidden divide-y divide-border">
+          {isLoading ? (
+            <div className="h-48 flex items-center justify-center">
+              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            </div>
+          ) : filteredBatches.length === 0 ? (
+            <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">
+              No batches found.
+            </div>
+          ) : (
+            filteredBatches.map(batch => (
+              <Link key={batch.id} href={`/batches/${batch.id}`}>
+                <div className="p-4 hover:bg-muted/30 transition-colors">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <span className="font-medium text-sm leading-snug">{batch.name}</span>
+                    <Badge variant="outline" className={`shrink-0 ${getStatusColor(batch.status)}`}>
+                      {batch.status === 'draft' && <Clock className="w-3 h-3 mr-1" />}
+                      {batch.status === 'generating' && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                      {batch.status === 'generated' && <CheckCircle2 className="w-3 h-3 mr-1" />}
+                      {batch.status === 'sent' && <MailCheck className="w-3 h-3 mr-1" />}
+                      {batch.status === 'partial' && <AlertTriangle className="w-3 h-3 mr-1" />}
+                      {batch.status}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                    <span>{batch.templateName}</span>
+                    <span>•</span>
+                    <span>{batch.sentCount} / {batch.totalCount} sent</span>
+                    <span>•</span>
+                    <span>{format(new Date(batch.createdAt), 'MMM d, yyyy')}</span>
+                  </div>
+                </div>
+              </Link>
+            ))
+          )}
+        </div>
+
+        {/* Desktop table */}
+        <div className="hidden sm:block overflow-x-auto">
           <Table>
             <TableHeader className="bg-muted/30">
               <TableRow>
@@ -68,7 +107,7 @@ export default function History() {
               {isLoading ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-48 text-center">
-                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" />
+                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
                   </TableCell>
                 </TableRow>
               ) : filteredBatches.length === 0 ? (
@@ -99,7 +138,7 @@ export default function History() {
                       {format(new Date(batch.createdAt), 'MMM d, yyyy')}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Link href={`/batches/${batch.id}`} className="text-primary hover:underline font-medium text-sm">
+                      <Link href={`/batches/${batch.id}`} className="text-foreground hover:underline font-medium text-sm">
                         View
                       </Link>
                     </TableCell>

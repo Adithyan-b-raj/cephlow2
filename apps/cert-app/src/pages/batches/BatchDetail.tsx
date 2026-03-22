@@ -8,6 +8,8 @@ import {
   useShareBatchFolder,
   getGetBatchQueryKey,
   useSendBatchWhatsapp,
+  useSendCertEmail,
+  useSendCertWhatsapp,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -49,7 +51,7 @@ function QrCodePopover({ batchId, certId }: { batchId: string; certId: string })
             className="flex-1 text-xs bg-muted rounded px-2 py-1 text-muted-foreground truncate border"
           />
           <Button variant="ghost" size="sm" onClick={copyUrl} className="shrink-0 px-2">
-            {copied ? <Check className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? <Check className="w-3.5 h-3.5 text-foreground" /> : <Copy className="w-3.5 h-3.5" />}
           </Button>
         </div>
       </PopoverContent>
@@ -133,8 +135,51 @@ export default function BatchDetail() {
   const [waVar1, setWaVar1] = useState("");
   const [waVar2, setWaVar2] = useState("");
 
-  if (isLoading) return <div className="p-8 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-primary" /></div>;
-  if (!batch) return <div className="p-8 text-center text-red-500">Batch not found</div>;
+  // Individual certificate send
+  type CertRow = typeof batch extends { certificates: infer C } ? (C extends (infer T)[] ? T : never) : never;
+  const [indivEmailCert, setIndivEmailCert] = useState<CertRow | null>(null);
+  const [indivEmailSubject, setIndivEmailSubject] = useState("");
+  const [indivEmailBody, setIndivEmailBody] = useState("");
+  const [indivWaCert, setIndivWaCert] = useState<CertRow | null>(null);
+  const [indivWaVar1, setIndivWaVar1] = useState("");
+  const [indivWaVar2, setIndivWaVar2] = useState("");
+
+  const { mutate: sendOneCertEmail, isPending: isSendingOne } = useSendCertEmail({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Certificate sent!" });
+        setIndivEmailCert(null);
+        refetch();
+      },
+      onError: (err: any) => toast({ title: "Send failed", description: err.message, variant: "destructive" }),
+    },
+  });
+
+  const { mutate: sendOneCertWa, isPending: isSendingOneWa } = useSendCertWhatsapp({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "WhatsApp sent!" });
+        setIndivWaCert(null);
+        refetch();
+      },
+      onError: (err: any) => toast({ title: "WhatsApp send failed", description: err.message, variant: "destructive" }),
+    },
+  });
+
+  const handleOpenIndivEmail = (cert: CertRow) => {
+    setIndivEmailCert(cert);
+    setIndivEmailSubject((batch as any).emailSubject || "");
+    setIndivEmailBody((batch as any).emailBody || "");
+  };
+
+  const handleOpenIndivWa = (cert: CertRow) => {
+    setIndivWaCert(cert);
+    setIndivWaVar1((batch as any).nameColumn ? `<<${(batch as any).nameColumn}>>` : "");
+    setIndivWaVar2((batch as any).name || "");
+  };
+
+  if (isLoading) return <div className="p-8 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>;
+  if (!batch) return <div className="p-8 text-center text-muted-foreground">Batch not found</div>;
 
   const handleOpenSend = () => {
     setEmailSubject(batch.emailSubject || "");
@@ -150,10 +195,10 @@ export default function BatchDetail() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'sent': return 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400';
-      case 'generated': return 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-400';
-      case 'failed': return 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400';
-      default: return 'bg-slate-100 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-slate-400';
+      case 'sent': return 'bg-foreground text-background border-foreground';
+      case 'generated': return 'bg-secondary text-secondary-foreground border-border';
+      case 'failed': return 'bg-background text-foreground border-foreground';
+      default: return 'bg-background text-muted-foreground border-border';
     }
   };
 
@@ -179,7 +224,7 @@ export default function BatchDetail() {
             disabled={isSharing || !batch.pdfFolderId}
             className="hover-elevate bg-background"
           >
-            {isSharing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Share2 className="w-4 h-4 mr-2 text-green-500" />}
+            {isSharing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Share2 className="w-4 h-4 mr-2" />}
             Share PDF Folder
           </Button>
           <Button
@@ -188,13 +233,13 @@ export default function BatchDetail() {
             disabled={isGenerating || batch.status === 'generating'}
             className="hover-elevate bg-background"
           >
-            {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2 text-blue-500" />}
+            {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
             Generate Certificates
           </Button>
           <Button
             onClick={handleOpenSend}
             disabled={isSending || batch.status === 'sending' || batch.generatedCount === 0}
-            className="hover-elevate bg-primary text-primary-foreground shadow-md shadow-primary/20"
+            className="hover-elevate"
           >
             {isSending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
             Send Emails
@@ -205,7 +250,7 @@ export default function BatchDetail() {
             disabled={isSendingWhatsapp || batch.status === 'sending' || batch.generatedCount === 0}
             className="hover-elevate bg-background"
           >
-            {isSendingWhatsapp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2 text-green-500" />}
+            {isSendingWhatsapp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />}
             Send via WhatsApp
           </Button>
         </div>
@@ -223,7 +268,7 @@ export default function BatchDetail() {
         </Card>
         <Card className="border-border/50 bg-card shadow-sm">
           <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl"><CheckCircle2 className="w-6 h-6 text-blue-600 dark:text-blue-400" /></div>
+            <div className="p-3 bg-secondary rounded-xl"><CheckCircle2 className="w-6 h-6 text-muted-foreground" /></div>
             <div>
               <div className="text-2xl font-bold font-display">{batch.generatedCount}</div>
               <div className="text-sm font-medium text-muted-foreground">Generated</div>
@@ -232,7 +277,7 @@ export default function BatchDetail() {
         </Card>
         <Card className="border-border/50 bg-card shadow-sm">
           <CardContent className="p-6 flex items-center gap-4">
-            <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-xl"><MailCheck className="w-6 h-6 text-green-600 dark:text-green-400" /></div>
+            <div className="p-3 bg-secondary rounded-xl"><MailCheck className="w-6 h-6 text-muted-foreground" /></div>
             <div>
               <div className="text-2xl font-bold font-display">{batch.sentCount}</div>
               <div className="text-sm font-medium text-muted-foreground">Successfully Sent</div>
@@ -273,7 +318,7 @@ export default function BatchDetail() {
                           {cert.status}
                         </Badge>
                         {cert.status === 'failed' && cert.errorMessage && (
-                          <span className="text-[11px] text-red-500 max-w-[200px] truncate" title={cert.errorMessage}>
+                          <span className="text-[11px] text-muted-foreground max-w-[200px] truncate" title={cert.errorMessage}>
                             {cert.errorMessage}
                           </span>
                         )}
@@ -282,20 +327,46 @@ export default function BatchDetail() {
                     <TableCell className="text-muted-foreground text-sm">
                       {cert.sentAt ? format(new Date(cert.sentAt), 'MMM d, h:mm a') : '-'}
                     </TableCell>
-                    <TableCell className="text-right flex items-center justify-end gap-2">
-                      {cert.slideUrl && (
-                        <Button variant="ghost" size="sm" asChild className="hover-elevate">
-                          <a href={cert.slideUrl} target="_blank" rel="noopener noreferrer">Slides</a>
-                        </Button>
-                      )}
-                      {(cert.r2PdfUrl || cert.pdfUrl) && (
-                        <Button variant="outline" size="sm" asChild className="hover-elevate">
-                          <a href={(cert.r2PdfUrl || cert.pdfUrl) as string} target="_blank" rel="noopener noreferrer">PDF</a>
-                        </Button>
-                      )}
-                      {(cert.status === 'generated' || cert.status === 'sent') && (
-                        <QrCodePopover batchId={batchId} certId={cert.id} />
-                      )}
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1.5">
+                        {cert.slideUrl && (
+                          <Button variant="ghost" size="sm" asChild className="hover-elevate">
+                            <a href={cert.slideUrl} target="_blank" rel="noopener noreferrer">Slides</a>
+                          </Button>
+                        )}
+                        {(cert.r2PdfUrl || cert.pdfUrl) && (
+                          <Button variant="outline" size="sm" asChild className="hover-elevate">
+                            <a href={(cert.r2PdfUrl || cert.pdfUrl) as string} target="_blank" rel="noopener noreferrer">PDF</a>
+                          </Button>
+                        )}
+                        {(cert.status === 'generated' || cert.status === 'sent' || cert.status === 'failed') && cert.slideUrl && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="hover-elevate"
+                            title="Send email"
+                            onClick={() => handleOpenIndivEmail(cert as any)}
+                          >
+                            <Send className="w-3.5 h-3.5 mr-1" />
+                            Email
+                          </Button>
+                        )}
+                        {(cert.status === 'generated' || cert.status === 'sent' || cert.status === 'failed') && (cert as any).r2PdfUrl && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="hover-elevate"
+                            title="Send via WhatsApp"
+                            onClick={() => handleOpenIndivWa(cert as any)}
+                          >
+                            <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                            WA
+                          </Button>
+                        )}
+                        {(cert.status === 'generated' || cert.status === 'sent') && (
+                          <QrCodePopover batchId={batchId} certId={cert.id} />
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -450,6 +521,74 @@ export default function BatchDetail() {
         </DialogContent>
       </Dialog>
 
+      {/* Individual Email Send Modal */}
+      <Dialog open={!!indivEmailCert} onOpenChange={(open) => { if (!open) setIndivEmailCert(null); }}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Send Certificate — {(indivEmailCert as any)?.recipientName}</DialogTitle>
+            <DialogDescription>
+              Sending to <strong>{(indivEmailCert as any)?.recipientEmail}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Subject Line</label>
+              <Input value={indivEmailSubject} onChange={e => setIndivEmailSubject(e.target.value)} placeholder="e.g. Your certificate is ready!" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Email Body</label>
+              <Textarea value={indivEmailBody} onChange={e => setIndivEmailBody(e.target.value)} rows={6} className="resize-none" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIndivEmailCert(null)}>Cancel</Button>
+            <Button
+              onClick={() => sendOneCertEmail({ batchId, certId: (indivEmailCert as any)?.id, data: { emailSubject: indivEmailSubject, emailBody: indivEmailBody } })}
+              disabled={isSendingOne || !indivEmailSubject || !indivEmailBody}
+            >
+              {isSendingOne ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
+              Send
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Individual WhatsApp Send Modal */}
+      <Dialog open={!!indivWaCert} onOpenChange={(open) => { if (!open) setIndivWaCert(null); }}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Send via WhatsApp — {(indivWaCert as any)?.recipientName}</DialogTitle>
+            <DialogDescription>
+              Uses the <strong>document_sender</strong> template.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="bg-secondary/30 rounded-xl p-4 border border-border/50 text-sm font-mono text-muted-foreground">
+              Hi <span className="text-foreground font-semibold">{indivWaVar1 || "{{1}}"}</span>, your certificate for <span className="text-foreground font-semibold">{indivWaVar2 || "{{2}}"}</span> is attached below
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{"{{1}}"} — Participant Name</label>
+              <Input value={indivWaVar1} onChange={e => setIndivWaVar1(e.target.value)} placeholder="e.g. <<Name>>" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">{"{{2}}"} — Event Name</label>
+              <Input value={indivWaVar2} onChange={e => setIndivWaVar2(e.target.value)} placeholder="e.g. batch name" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIndivWaCert(null)}>Cancel</Button>
+            <Button
+              onClick={() => sendOneCertWa({ batchId, certId: (indivWaCert as any)?.id, data: { var1Template: indivWaVar1, var2Template: indivWaVar2 } })}
+              disabled={isSendingOneWa || !indivWaVar1 || !indivWaVar2}
+              className=""
+            >
+              {isSendingOneWa ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />}
+              Send via WhatsApp
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* WhatsApp Send Modal */}
       <Dialog open={waModalOpen} onOpenChange={setWaModalOpen}>
         <DialogContent className="sm:max-w-[700px]">
@@ -553,7 +692,7 @@ export default function BatchDetail() {
             <Button
               onClick={() => sendWhatsapp({ batchId, data: { var1Template: waVar1, var2Template: waVar2 } })}
               disabled={isSendingWhatsapp || !waVar1 || !waVar2}
-              className="bg-green-600 hover:bg-green-700 text-white"
+              className=""
             >
               {isSendingWhatsapp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />}
               Send via WhatsApp

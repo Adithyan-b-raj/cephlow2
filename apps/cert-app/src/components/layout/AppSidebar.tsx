@@ -43,7 +43,7 @@ export function AppSidebar() {
   return (
     <Sidebar>
       <SidebarHeader className="p-4 flex flex-row items-center gap-2">
-        <div className="bg-primary/10 text-primary p-2 rounded-xl">
+        <div className="bg-foreground text-background p-2 rounded-sm">
           <Award className="w-6 h-6" />
         </div>
         <div className="flex flex-col">
@@ -67,11 +67,11 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       asChild
                       data-active={isActive}
-                      className="group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 hover:bg-primary/5 data-[active=true]:bg-primary/10 data-[active=true]:text-primary"
+                      className="group flex items-center gap-3 px-3 py-2.5 rounded-sm transition-all duration-200 hover:bg-accent data-[active=true]:bg-foreground data-[active=true]:text-background"
                     >
                       <Link href={item.url}>
-                        <item.icon className="w-5 h-5 text-muted-foreground group-data-[active=true]:text-primary transition-colors" />
-                        <span className="font-medium text-sm text-foreground/80 group-data-[active=true]:text-primary group-data-[active=true]:font-semibold transition-colors">
+                        <item.icon className="w-5 h-5 text-muted-foreground group-data-[active=true]:text-background transition-colors" />
+                        <span className="font-medium text-sm text-foreground/80 group-data-[active=true]:text-background group-data-[active=true]:font-semibold transition-colors">
                           {item.title}
                         </span>
                       </Link>
@@ -88,7 +88,7 @@ export function AppSidebar() {
           <div className="flex items-center gap-3">
             <Avatar className="h-9 w-9 shrink-0">
               <AvatarImage src={user.photoURL ?? undefined} alt={user.displayName ?? "User"} />
-              <AvatarFallback className="bg-primary/10 text-primary text-xs font-semibold">
+              <AvatarFallback className="bg-muted text-foreground text-xs font-semibold">
                 {initials}
               </AvatarFallback>
             </Avatar>

@@ -16,27 +16,22 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="relative overflow-hidden rounded-3xl bg-primary text-primary-foreground p-8 md:p-12 shadow-xl shadow-primary/20">
-        <img 
-          src={`${import.meta.env.BASE_URL}images/dashboard-hero.png`}
-          alt="Hero background"
-          className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-30"
-        />
+      <div className="relative overflow-hidden rounded-sm bg-foreground text-background p-8 md:p-12 shadow-sm">
         <div className="relative z-10 max-w-2xl">
-          <h1 className="text-4xl md:text-5xl font-display font-bold mb-4 tracking-tight">
+          <h1 className="text-4xl md:text-5xl font-display font-bold mb-4 tracking-tight text-background">
             Automate your certificates effortlessly.
           </h1>
-          <p className="text-primary-foreground/80 text-lg md:text-xl mb-8 max-w-xl">
+          <p className="text-background/70 text-lg md:text-xl mb-8 max-w-xl">
             Merge Google Sheets data into beautiful Google Slides templates and send personalized emails in minutes.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Button asChild size="lg" variant="outline" className="bg-white/20 border-white/30 text-white hover:bg-white/30 hover-elevate font-semibold rounded-xl px-6 h-12">
+            <Button asChild size="lg" variant="outline" className="bg-transparent border-background/30 text-background hover:bg-background/10 hover-elevate font-semibold px-6 h-12">
               <Link href="/templates/new">
                 <Sparkles className="mr-2 w-5 h-5" />
                 New Template
               </Link>
             </Button>
-            <Button asChild size="lg" className="bg-white text-primary hover:bg-white/90 hover-elevate font-semibold rounded-xl px-8 h-12 shadow-lg shadow-black/10">
+            <Button asChild size="lg" className="bg-background text-foreground hover:bg-background/90 hover-elevate font-semibold px-8 h-12 shadow-sm">
               <Link href="/batches/new">
                 <FilePlus2 className="mr-2 w-5 h-5" />
                 New Batch
@@ -47,10 +42,10 @@ export default function Dashboard() {
       </div>
 
       <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
-        <Card className="hover:shadow-md transition-shadow border-border/50 bg-card/50 backdrop-blur-sm">
+        <Card className="hover:shadow-md transition-shadow border-border">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-semibold text-muted-foreground">Total Batches</CardTitle>
-            <Presentation className="w-5 h-5 text-primary/70" />
+            <Presentation className="w-5 h-5 text-muted-foreground/50" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-display font-bold">
@@ -58,11 +53,11 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
-        
-        <Card className="hover:shadow-md transition-shadow border-border/50 bg-card/50 backdrop-blur-sm">
+
+        <Card className="hover:shadow-md transition-shadow border-border">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-semibold text-muted-foreground">Certificates Generated</CardTitle>
-            <Award className="w-5 h-5 text-accent-foreground/70" />
+            <Award className="w-5 h-5 text-muted-foreground/50" />
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-display font-bold">
@@ -71,13 +66,13 @@ export default function Dashboard() {
           </CardContent>
         </Card>
 
-        <Card className="hover:shadow-md transition-shadow border-border/50 bg-card/50 backdrop-blur-sm">
+        <Card className="hover:shadow-md transition-shadow border-border">
           <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
             <CardTitle className="text-sm font-semibold text-muted-foreground">Successfully Sent</CardTitle>
-            <Send className="w-5 h-5 text-green-500/70" />
+            <Send className="w-5 h-5 text-muted-foreground/50" />
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-display font-bold text-green-600 dark:text-green-400">
+            <div className="text-3xl font-display font-bold">
               {certsLoading ? "..." : sentCerts}
             </div>
           </CardContent>
@@ -96,7 +91,7 @@ export default function Dashboard() {
           {batchesLoading ? (
             <div className="h-32 flex items-center justify-center text-muted-foreground">Loading batches...</div>
           ) : batches.length === 0 ? (
-            <div className="text-center py-12 bg-card rounded-2xl border border-border/50 border-dashed">
+            <div className="text-center py-12 bg-card rounded-sm border border-dashed">
               <Clock className="w-12 h-12 mx-auto text-muted-foreground/30 mb-4" />
               <h3 className="text-lg font-semibold text-foreground">No batches yet</h3>
               <p className="text-muted-foreground mt-1">Create your first certificate batch to get started.</p>
@@ -104,10 +99,10 @@ export default function Dashboard() {
           ) : (
             batches.slice(0, 5).map(batch => (
               <Link key={batch.id} href={`/batches/${batch.id}`}>
-                <Card className="hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group group-hover:bg-primary/5">
+                <Card className="hover:border-foreground/50 hover:shadow-md transition-all cursor-pointer group">
                   <CardContent className="p-5 flex items-center justify-between gap-4 flex-wrap">
                     <div className="flex-1 min-w-[200px]">
-                      <h3 className="font-semibold text-lg text-foreground group-hover:text-primary transition-colors">
+                      <h3 className="font-semibold text-lg text-foreground transition-colors">
                         {batch.name}
                       </h3>
                       <div className="text-sm text-muted-foreground mt-1 flex flex-wrap gap-3">
@@ -122,9 +117,13 @@ export default function Dashboard() {
                         <div className="text-sm font-medium">{batch.sentCount} / {batch.totalCount}</div>
                         <div className="text-xs text-muted-foreground">Sent</div>
                       </div>
-                      <Badge 
-                        variant={batch.status === 'sent' ? 'default' : batch.status === 'failed' ? 'destructive' : 'secondary'}
-                        className="capitalize"
+                      <Badge
+                        variant="outline"
+                        className={`capitalize ${
+                          batch.status === 'sent'
+                            ? 'bg-foreground text-background border-foreground'
+                            : 'bg-secondary text-secondary-foreground border-border'
+                        }`}
                       >
                         {batch.status}
                       </Badge>
