@@ -58,7 +58,7 @@ router.get("/verify/:batchId/:certId/qr", async (req, res) => {
   try {
     const { batchId, certId } = req.params;
 
-    const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+    const baseUrl = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
     const verifyUrl = `${baseUrl}/verify/${batchId}/${certId}`;
 
     const qrBuffer = await QRCode.toBuffer(verifyUrl, {

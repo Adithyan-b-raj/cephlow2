@@ -284,7 +284,7 @@ router.post("/batches/:batchId/generate", async (req, res) => {
           replacements[placeholder] = rowData[String(column)] || "";
         }
 
-        const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
+        const baseUrl = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
         const qrCodeUrl = `${baseUrl}/verify/${batchId}/${cert.id}`;
 
         // Pick template: use category-based routing if configured, else default
@@ -698,6 +698,37 @@ router.post("/batches/:batchId/certificates/:certId/send-whatsapp", async (req, 
   } catch (err: any) {
     await certificatesCollection(batchId).doc(certId).update({ status: "failed", errorMessage: err.message });
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Delete a batch and all its certificates
+router.delete("/batches/:batchId", async (req, res) => {
+  const userId = req.user?.uid;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const { batchId } = req.params;
+
+  try {
+    const batchDoc = await batchesCollection.doc(batchId).get();
+    if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
+    const batch = batchDoc.data() as any;
+
+    if (batch.userId !== userId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    // Delete all certificates in the batch
+    const certsSnapshot = await certificatesCollection(batchId).get();
+    const writeBatch = batchesCollection.firestore.batch();
+    for (const doc of certsSnapshot.docs) {
+      writeBatch.delete(doc.ref);
+    }
+    writeBatch.delete(batchesCollection.doc(batchId));
+    await writeBatch.commit();
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
   }
 });
 

@@ -891,6 +891,45 @@ export function useGetBatch<
 }
 
 /**
+ * @summary Delete a batch and all its certificates
+ */
+export const deleteBatch = async (
+  batchId: string,
+  options?: SecondParameter<typeof customFetch>
+) => {
+  return customFetch<{ success: boolean }>(
+    `/api/batches/${batchId}`,
+    { ...options, method: "DELETE" }
+  );
+};
+
+export const useDeleteBatch = <
+  TError = ErrorType<unknown>,
+  TContext = unknown
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteBatch>>,
+    TError,
+    { batchId: string },
+    TContext
+  >;
+}) => {
+  const { mutation: mutationOptions } = options ?? {};
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteBatch>>,
+    { batchId: string }
+  > = ({ batchId }) => deleteBatch(batchId);
+
+  return useMutation<
+    Awaited<ReturnType<typeof deleteBatch>>,
+    TError,
+    { batchId: string },
+    TContext
+  >({ mutationFn, ...mutationOptions });
+};
+
+/**
  * @summary Share the PDF folder (make it public)
  */
 export const shareBatchFolder = async (

@@ -1,16 +1,38 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { useListBatches } from "@workspace/api-client-react";
+import { useListBatches, useDeleteBatch, getListBatchesQueryKey } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Loader2, CheckCircle2, Clock, MailCheck, AlertTriangle } from "lucide-react";
+import { Search, Loader2, CheckCircle2, Clock, MailCheck, AlertTriangle, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 
 export default function History() {
   const [search, setSearch] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const { data, isLoading } = useListBatches();
+  const queryClient = useQueryClient();
+  const { mutate: deleteBatch, isPending: isDeleting } = useDeleteBatch({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getListBatchesQueryKey() });
+        setDeleteId(null);
+      },
+    },
+  });
 
   const batches = data?.batches || [];
 
@@ -64,28 +86,38 @@ export default function History() {
             </div>
           ) : (
             filteredBatches.map(batch => (
-              <Link key={batch.id} href={`/batches/${batch.id}`}>
-                <div className="p-4 hover:bg-muted/30 transition-colors">
-                  <div className="flex items-start justify-between gap-3 mb-2">
-                    <span className="font-medium text-sm leading-snug">{batch.name}</span>
-                    <Badge variant="outline" className={`shrink-0 ${getStatusColor(batch.status)}`}>
-                      {batch.status === 'draft' && <Clock className="w-3 h-3 mr-1" />}
-                      {batch.status === 'generating' && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-                      {batch.status === 'generated' && <CheckCircle2 className="w-3 h-3 mr-1" />}
-                      {batch.status === 'sent' && <MailCheck className="w-3 h-3 mr-1" />}
-                      {batch.status === 'partial' && <AlertTriangle className="w-3 h-3 mr-1" />}
-                      {batch.status}
-                    </Badge>
+              <div key={batch.id} className="flex items-center">
+                <Link href={`/batches/${batch.id}`} className="flex-1">
+                  <div className="p-4 hover:bg-muted/30 transition-colors">
+                    <div className="flex items-start justify-between gap-3 mb-2">
+                      <span className="font-medium text-sm leading-snug">{batch.name}</span>
+                      <Badge variant="outline" className={`shrink-0 ${getStatusColor(batch.status)}`}>
+                        {batch.status === 'draft' && <Clock className="w-3 h-3 mr-1" />}
+                        {batch.status === 'generating' && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                        {batch.status === 'generated' && <CheckCircle2 className="w-3 h-3 mr-1" />}
+                        {batch.status === 'sent' && <MailCheck className="w-3 h-3 mr-1" />}
+                        {batch.status === 'partial' && <AlertTriangle className="w-3 h-3 mr-1" />}
+                        {batch.status}
+                      </Badge>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+                      <span>{batch.templateName}</span>
+                      <span>•</span>
+                      <span>{batch.sentCount} / {batch.totalCount} sent</span>
+                      <span>•</span>
+                      <span>{format(new Date(batch.createdAt), 'MMM d, yyyy')}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                    <span>{batch.templateName}</span>
-                    <span>•</span>
-                    <span>{batch.sentCount} / {batch.totalCount} sent</span>
-                    <span>•</span>
-                    <span>{format(new Date(batch.createdAt), 'MMM d, yyyy')}</span>
-                  </div>
-                </div>
-              </Link>
+                </Link>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="mr-2 text-muted-foreground hover:text-destructive"
+                  onClick={() => setDeleteId(batch.id)}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </Button>
+              </div>
             ))
           )}
         </div>
@@ -100,7 +132,7 @@ export default function History() {
                 <TableHead>Progress</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Date</TableHead>
-                <TableHead className="text-right">Details</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -138,9 +170,19 @@ export default function History() {
                       {format(new Date(batch.createdAt), 'MMM d, yyyy')}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Link href={`/batches/${batch.id}`} className="text-foreground hover:underline font-medium text-sm">
-                        View
-                      </Link>
+                      <div className="flex items-center justify-end gap-3">
+                        <Link href={`/batches/${batch.id}`} className="text-foreground hover:underline font-medium text-sm">
+                          View
+                        </Link>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
+                          onClick={() => setDeleteId(batch.id)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -149,6 +191,28 @@ export default function History() {
           </Table>
         </div>
       </Card>
+
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete batch?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the batch and all its certificate records. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeleting}
+              onClick={() => deleteId && deleteBatch({ batchId: deleteId })}
+            >
+              {isDeleting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
