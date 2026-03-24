@@ -358,6 +358,15 @@ components:
             type: string
       required: [name, headers]
 
+    CategoryTemplateEntry:
+      type: object
+      properties:
+        templateId:
+          type: string
+        templateName:
+          type: string
+      required: [templateId, templateName]
+
     Batch:
       type: object
       properties:
@@ -385,6 +394,12 @@ components:
           type: string
         emailBody:
           type: string
+        categoryColumn:
+          type: string
+        categoryTemplateMap:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/CategoryTemplateEntry"
         status:
           type: string
           enum: [draft, generating, generated, sending, sent, partial]
@@ -459,6 +474,12 @@ components:
           type: string
         emailBody:
           type: string
+        categoryColumn:
+          type: string
+        categoryTemplateMap:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/CategoryTemplateEntry"
       required:
         - name
         - sheetId

@@ -64,6 +64,8 @@ export interface Batch {
   nameColumn: string;
   emailSubject?: string | null;
   emailBody?: string | null;
+  categoryColumn?: string | null;
+  categoryTemplateMap?: Record<string, { templateId: string; templateName: string }> | null;
   status: string;
   driveFolderId?: string | null;
   pdfFolderId?: string | null;

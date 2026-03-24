@@ -20,6 +20,8 @@ export interface Batch {
   nameColumn: string;
   emailSubject?: string;
   emailBody?: string;
+  categoryColumn?: string;
+  categoryTemplateMap?: Record<string, { templateId: string; templateName: string }>;
   status: BatchStatus;
   totalCount: number;
   generatedCount: number;

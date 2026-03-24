@@ -16,6 +16,11 @@ export async function sendWhatsAppDocument(
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const templateLanguage = process.env.WHATSAPP_TEMPLATE_LANGUAGE || "en";
 
+  // Append a cache-buster so WhatsApp re-fetches the document instead of
+  // serving a previously cached version from an earlier send.
+  const separator = documentUrl.includes("?") ? "&" : "?";
+  const freshUrl = `${documentUrl}${separator}_cb=${Date.now()}`;
+
   const body = {
     messaging_product: "whatsapp",
     to,
@@ -30,7 +35,7 @@ export async function sendWhatsAppDocument(
             {
               type: "document",
               document: {
-                link: documentUrl,
+                link: freshUrl,
                 filename,
               },
             },
@@ -47,7 +52,7 @@ export async function sendWhatsAppDocument(
     },
   };
 
-  console.log(`[WhatsApp] Sending to=${to} docUrl=${documentUrl} lang=${templateLanguage} var1=${var1} var2=${var2}`);
+  console.log(`[WhatsApp] Sending to=${to} docUrl=${freshUrl} lang=${templateLanguage} var1=${var1} var2=${var2}`);
 
   const res = await fetch(
     `https://graph.facebook.com/${WA_API_VERSION}/${phoneNumberId}/messages`,
