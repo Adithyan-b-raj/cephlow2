@@ -85,6 +85,8 @@ router.post("/batches", async (req, res) => {
       nameColumn,
       emailSubject,
       emailBody,
+      categoryColumn,
+      categoryTemplateMap,
     } = req.body;
 
     // Fetch the sheet data to create certificate records
@@ -126,6 +128,8 @@ router.post("/batches", async (req, res) => {
       nameColumn,
       emailSubject: emailSubject || null,
       emailBody: emailBody || null,
+      categoryColumn: categoryColumn || null,
+      categoryTemplateMap: categoryTemplateMap || null,
       status: "draft",
       driveFolderId,
       pdfFolderId,
@@ -283,9 +287,18 @@ router.post("/batches/:batchId/generate", async (req, res) => {
         const baseUrl = process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`;
         const qrCodeUrl = `${baseUrl}/verify/${batchId}/${cert.id}`;
 
+        // Pick template: use category-based routing if configured, else default
+        let certTemplateId = batch.templateId;
+        if (batch.categoryColumn && batch.categoryTemplateMap) {
+          const categoryValue = rowData[batch.categoryColumn];
+          if (categoryValue && batch.categoryTemplateMap[categoryValue]) {
+            certTemplateId = batch.categoryTemplateMap[categoryValue].templateId;
+          }
+        }
+
         const { fileId: slideFileId, url: slideUrl } = await generateCertificate(
           accessToken,
-          batch.templateId,
+          certTemplateId,
           cert.recipientName,
           replacements,
           batch.driveFolderId,
@@ -295,7 +308,7 @@ router.post("/batches/:batchId/generate", async (req, res) => {
         // Export PDF buffer (needed for Drive upload and/or R2 upload)
         let pdfFileId = null;
         let pdfUrl = null;
-        const pdfName = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_certificate`;
+        const pdfName = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}`;
         const needsPdf = !!batch.pdfFolderId || isR2Configured();
         let pdfBuffer: Buffer | null = null;
 
@@ -416,7 +429,7 @@ router.post("/batches/:batchId/send", async (req, res) => {
         if (cert.slideFileId) {
           pdfBuffer = await exportSlidesToPdf(accessToken, cert.slideFileId);
         }
-        const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_certificate.pdf`;
+        const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
 
         // Replace <<placeholder>> in subject and body with actual row data
         const rowData = (cert.rowData as Record<string, string>) || {};
@@ -536,7 +549,7 @@ router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
           var2 = var2.replace(new RegExp(`<<${col}>>`, "gi"), value);
         }
 
-        const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_certificate.pdf`;
+        const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
         await sendWhatsAppDocument(
           phone,
           (cert as any).r2PdfUrl,
@@ -574,6 +587,116 @@ router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
     });
   } catch (err: any) {
     await batchesCollection.doc(batchId).update({ status: "generated" });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Send a single certificate via email
+router.post("/batches/:batchId/certificates/:certId/send", async (req, res) => {
+  const userId = req.user?.uid;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const { batchId, certId } = req.params;
+  const accessToken = req.googleAccessToken;
+  if (!accessToken) return res.status(401).json({ error: "Google access token required" });
+
+  try {
+    const batchDoc = await batchesCollection.doc(batchId).get();
+    if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
+    const batch = { id: batchDoc.id, ...batchDoc.data() } as any;
+    if (batch.userId !== userId) return res.status(403).json({ error: "Access denied" });
+
+    const certDoc = await certificatesCollection(batchId).doc(certId).get();
+    if (!certDoc.exists) return res.status(404).json({ error: "Certificate not found" });
+    const cert = { id: certDoc.id, ...certDoc.data() } as any;
+
+    if (!cert.recipientEmail) return res.status(400).json({ error: "Certificate has no email address" });
+    if (!cert.slideFileId) return res.status(400).json({ error: "Certificate has not been generated yet" });
+
+    const { emailSubject: reqSubject, emailBody: reqBody } = req.body;
+    const subject = reqSubject || batch.emailSubject || "Your Certificate";
+    const body = reqBody || batch.emailBody || "Please find your certificate attached.";
+
+    const pdfBuffer = await exportSlidesToPdf(accessToken, cert.slideFileId);
+    const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+
+    const rowData = (cert.rowData as Record<string, string>) || {};
+    let personalizedSubject = subject;
+    let personalizedBody = body;
+    for (const [placeholder, column] of Object.entries(batch.columnMap || {})) {
+      const value = rowData[String(column)] || "";
+      personalizedSubject = personalizedSubject.replace(new RegExp(`<<${placeholder}>>`, "gi"), value);
+      personalizedBody = personalizedBody.replace(new RegExp(`<<${placeholder}>>`, "gi"), value);
+    }
+    for (const [col, value] of Object.entries(rowData)) {
+      personalizedSubject = personalizedSubject.replace(new RegExp(`<<${col}>>`, "gi"), value);
+      personalizedBody = personalizedBody.replace(new RegExp(`<<${col}>>`, "gi"), value);
+    }
+
+    await sendEmail(accessToken, { to: cert.recipientEmail, subject: personalizedSubject, body: personalizedBody, pdfBuffer, pdfFilename });
+    await certificatesCollection(batchId).doc(certId).update({ status: "sent", sentAt: new Date(), errorMessage: null });
+
+    // Update batch sentCount
+    const certsSnapshot = await certificatesCollection(batchId).get();
+    const sentCount = certsSnapshot.docs.filter((d) => d.data().status === "sent").length;
+    await batchesCollection.doc(batchId).update({ sentCount });
+
+    res.json({ success: true, message: `Certificate sent to ${cert.recipientEmail}` });
+  } catch (err: any) {
+    await certificatesCollection(batchId).doc(certId).update({ status: "failed", errorMessage: err.message });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Send a single certificate via WhatsApp
+router.post("/batches/:batchId/certificates/:certId/send-whatsapp", async (req, res) => {
+  const userId = req.user?.uid;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  if (!isWhatsAppConfigured()) {
+    return res.status(400).json({ error: "WhatsApp is not configured." });
+  }
+
+  const { batchId, certId } = req.params;
+
+  try {
+    const batchDoc = await batchesCollection.doc(batchId).get();
+    if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
+    const batch = { id: batchDoc.id, ...batchDoc.data() } as any;
+    if (batch.userId !== userId) return res.status(403).json({ error: "Access denied" });
+
+    const certDoc = await certificatesCollection(batchId).doc(certId).get();
+    if (!certDoc.exists) return res.status(404).json({ error: "Certificate not found" });
+    const cert = { id: certDoc.id, ...certDoc.data() } as any;
+
+    if (!cert.r2PdfUrl) return res.status(400).json({ error: "No R2 PDF URL for this certificate" });
+
+    const rowData = (cert.rowData as Record<string, string>) || {};
+    const { var1Template, var2Template } = req.body;
+    const rawPhone = extractPhoneNumber(rowData);
+    const phone = rawPhone.replace(/\D/g, "").replace(/^0+/, "");
+
+    if (!phone) return res.status(400).json({ error: "No phone number found for this certificate" });
+
+    let var1 = var1Template || cert.recipientName;
+    let var2 = var2Template || batch.name;
+    for (const [col, value] of Object.entries(rowData)) {
+      var1 = var1.replace(new RegExp(`<<${col}>>`, "gi"), value);
+      var2 = var2.replace(new RegExp(`<<${col}>>`, "gi"), value);
+    }
+
+    const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+    await sendWhatsAppDocument(phone, cert.r2PdfUrl, pdfFilename, var1, var2);
+    await certificatesCollection(batchId).doc(certId).update({ status: "sent", sentAt: new Date(), errorMessage: null });
+
+    // Update batch sentCount
+    const certsSnapshot = await certificatesCollection(batchId).get();
+    const sentCount = certsSnapshot.docs.filter((d) => d.data().status === "sent").length;
+    await batchesCollection.doc(batchId).update({ sentCount });
+
+    res.json({ success: true, message: `WhatsApp sent to ${phone}` });
+  } catch (err: any) {
+    await certificatesCollection(batchId).doc(certId).update({ status: "failed", errorMessage: err.message });
     res.status(500).json({ error: err.message });
   }
 });
