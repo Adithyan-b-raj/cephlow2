@@ -19,7 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Play, Send, MailCheck, Loader2, FileText, CheckCircle2, XCircle, Clock, Share2, ExternalLink, QrCode, Copy, Check, MessageCircle } from "lucide-react";
+import { Play, Send, MailCheck, Loader2, FileText, CheckCircle2, XCircle, Clock, Share2, ExternalLink, QrCode, Copy, Check, MessageCircle, CheckCheck, Truck } from "lucide-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
@@ -321,6 +321,23 @@ export default function BatchDetail() {
                           <span className="text-[11px] text-muted-foreground max-w-[200px] truncate" title={cert.errorMessage}>
                             {cert.errorMessage}
                           </span>
+                        )}
+                        {cert.whatsappStatus && (
+                          <Badge variant="outline" className={
+                            cert.whatsappStatus === 'read'
+                              ? 'border-blue-400 text-blue-600 bg-blue-50'
+                              : cert.whatsappStatus === 'delivered'
+                              ? 'border-green-400 text-green-600 bg-green-50'
+                              : cert.whatsappStatus === 'wa_failed'
+                              ? 'border-red-400 text-red-600 bg-red-50'
+                              : 'border-border text-muted-foreground'
+                          }>
+                            {cert.whatsappStatus === 'read' && <CheckCheck className="w-3 h-3 mr-1" />}
+                            {cert.whatsappStatus === 'delivered' && <Truck className="w-3 h-3 mr-1" />}
+                            {cert.whatsappStatus === 'wa_failed' && <XCircle className="w-3 h-3 mr-1" />}
+                            {cert.whatsappStatus === 'sent' && <MessageCircle className="w-3 h-3 mr-1" />}
+                            WA: {cert.whatsappStatus === 'wa_failed' ? 'failed' : cert.whatsappStatus}
+                          </Badge>
                         )}
                       </div>
                     </TableCell>

@@ -4,6 +4,7 @@ import { requireAuth } from "./middlewares/auth.js";
 import healthRouter from "./routes/health.js";
 import verifyRouter from "./routes/verify.js";
 import authRouter from "./routes/auth.js";
+import webhooksRouter from "./routes/webhooks.js";
 import router from "./routes";
 
 const app: Express = express();
@@ -20,6 +21,9 @@ app.use("/api", verifyRouter);
 
 // Auth routes — callback is unprotected; url/status routes self-apply requireAuth
 app.use("/api", authRouter);
+
+// WhatsApp webhook — must be public (no auth), Meta POSTs here
+app.use("/api", webhooksRouter);
 
 // All other routes require Firebase Auth
 app.use("/api", requireAuth, router);

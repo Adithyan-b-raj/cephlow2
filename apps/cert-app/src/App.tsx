@@ -9,6 +9,7 @@ import Dashboard from "@/pages/Dashboard";
 import NewBatch from "@/pages/batches/NewBatch";
 import BatchDetail from "@/pages/batches/BatchDetail";
 import History from "@/pages/History";
+import Spending from "@/pages/Spending";
 import NewTemplate from "@/pages/templates/NewTemplate";
 import VerifyCertificate from "@/pages/VerifyCertificate";
 import Login from "@/pages/Login";
@@ -31,6 +32,7 @@ function AuthenticatedRouter() {
         <Route path="/batches/new" component={NewBatch} />
         <Route path="/batches/:id" component={BatchDetail} />
         <Route path="/history" component={History} />
+        <Route path="/spending" component={Spending} />
         <Route path="/templates/new" component={NewTemplate} />
         <Route component={NotFound} />
       </Switch>

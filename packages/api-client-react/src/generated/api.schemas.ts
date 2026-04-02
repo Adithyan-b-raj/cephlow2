@@ -88,6 +88,7 @@ export interface Batch {
   totalCount: number;
   generatedCount: number;
   sentCount: number;
+  whatsappSentCount?: number;
   createdAt: string;
 }
 
@@ -113,10 +114,13 @@ export interface Certificate {
   slideUrl?: string;
   pdfFileId?: string;
   pdfUrl?: string;
+  r2PdfUrl?: string;
   sentAt?: string;
   errorMessage?: string;
   rowData?: CertificateRowData;
   createdAt: string;
+  whatsappMessageId?: string | null;
+  whatsappStatus?: "sent" | "delivered" | "read" | "wa_failed" | null;
 }
 
 export type BatchDetail = Batch & {

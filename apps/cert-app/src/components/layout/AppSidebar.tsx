@@ -6,6 +6,7 @@ import {
   Award,
   Presentation,
   LogOut,
+  IndianRupee,
 } from "lucide-react";
 import {
   Sidebar,
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { title: "New Template", url: "/templates/new", icon: Presentation },
   { title: "New Batch", url: "/batches/new", icon: FilePlus2 },
   { title: "History", url: "/history", icon: History },
+  { title: "Spending", url: "/spending", icon: IndianRupee },
 ];
 
 export function AppSidebar() {

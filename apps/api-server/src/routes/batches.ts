@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { batchesCollection, certificatesCollection, type Batch, type Certificate } from "@workspace/firebase";
+import { db, batchesCollection, certificatesCollection, type Batch, type Certificate } from "@workspace/firebase";
 import { getSheetsClient } from "../lib/googleSheets.js";
 import { generateCertificate, exportSlidesToPdf, createFolder, uploadPdf, makeFilePublic } from "../lib/googleDrive.js";
 import { sendEmail } from "../lib/gmail.js";
@@ -536,7 +536,7 @@ router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
         }
 
         const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
-        await sendWhatsAppDocument(
+        const wamid = await sendWhatsAppDocument(
           phone,
           (cert as any).r2PdfUrl,
           pdfFilename,
@@ -548,7 +548,12 @@ router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
           status: "sent",
           sentAt: new Date(),
           errorMessage: null,
+          whatsappMessageId: wamid || null,
+          whatsappStatus: "sent",
         });
+        if (wamid) {
+          await db.collection("waMessages").doc(wamid).set({ batchId, certId: cert.id });
+        }
         sent++;
       } catch (err: any) {
         await certificatesCollection(batchId).doc(cert.id).update({
@@ -563,7 +568,11 @@ router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
     const totalSent = sent + alreadySent;
     const newStatus =
       failed === 0 ? "sent" : totalSent > 0 ? "partial" : "generated";
-    await batchRef.update({ status: newStatus, sentCount: totalSent });
+    await batchRef.update({
+      status: newStatus,
+      sentCount: totalSent,
+      whatsappSentCount: (batch.whatsappSentCount || 0) + sent,
+    });
 
     res.json({
       success: failed === 0,
@@ -670,13 +679,26 @@ router.post("/batches/:batchId/certificates/:certId/send-whatsapp", async (req, 
     }
 
     const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
-    await sendWhatsAppDocument(phone, cert.r2PdfUrl, pdfFilename, var1, var2);
-    await certificatesCollection(batchId).doc(certId).update({ status: "sent", sentAt: new Date(), errorMessage: null });
+    const wamid = await sendWhatsAppDocument(phone, cert.r2PdfUrl, pdfFilename, var1, var2);
+    await certificatesCollection(batchId).doc(certId).update({
+      status: "sent",
+      sentAt: new Date(),
+      errorMessage: null,
+      whatsappMessageId: wamid || null,
+      whatsappStatus: "sent",
+    });
+    if (wamid) {
+      await db.collection("waMessages").doc(wamid).set({ batchId, certId });
+    }
 
-    // Update batch sentCount
+    // Update batch sentCount and whatsappSentCount
     const certsSnapshot = await certificatesCollection(batchId).get();
     const sentCount = certsSnapshot.docs.filter((d) => d.data().status === "sent").length;
-    await batchesCollection.doc(batchId).update({ sentCount });
+    const batchData = (await batchesCollection.doc(batchId).get()).data() as any;
+    await batchesCollection.doc(batchId).update({
+      sentCount,
+      whatsappSentCount: (batchData?.whatsappSentCount || 0) + 1,
+    });
 
     res.json({ success: true, message: `WhatsApp sent to ${phone}` });
   } catch (err: any) {

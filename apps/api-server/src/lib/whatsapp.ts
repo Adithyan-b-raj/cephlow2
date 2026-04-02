@@ -11,7 +11,7 @@ export async function sendWhatsAppDocument(
   filename: string,
   var1: string, // {{1}} = participant name
   var2: string, // {{2}} = event name
-): Promise<void> {
+): Promise<string> { // returns wamid
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const accessToken = process.env.WHATSAPP_ACCESS_TOKEN;
   const templateLanguage = process.env.WHATSAPP_TEMPLATE_LANGUAGE || "en";
@@ -74,4 +74,7 @@ export async function sendWhatsAppDocument(
       data?.error?.message || `WhatsApp API error: ${res.status} ${res.statusText}`,
     );
   }
+
+  const wamid: string = data?.messages?.[0]?.id ?? "";
+  return wamid;
 }
