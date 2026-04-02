@@ -15,12 +15,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 
-// Google provider with API scopes for Gmail, Sheets, Drive, Slides
+// Google provider for Firebase Auth only — API scopes handled server-side
 const googleProvider = new GoogleAuthProvider();
-googleProvider.addScope("https://www.googleapis.com/auth/gmail.send");
-googleProvider.addScope("https://www.googleapis.com/auth/spreadsheets");
-googleProvider.addScope("https://www.googleapis.com/auth/drive");
-googleProvider.addScope("https://www.googleapis.com/auth/presentations");
 
 export async function signInWithGoogle() {
     const result = await signInWithPopup(auth, googleProvider);

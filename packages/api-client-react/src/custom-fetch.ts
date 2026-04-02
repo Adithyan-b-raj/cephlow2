@@ -7,23 +7,13 @@ export type ErrorType<T = unknown> = ApiError<T>;
 export type BodyType<T> = T;
 
 // Auth token provider — set by the app at startup
-type AuthTokenProvider = () => Promise<{
-  idToken: string | null;
-  googleAccessToken: string | null;
-}>;
-// Called when a 401 is received to force-refresh the Google access token
-type GoogleTokenRefresher = () => Promise<string | null>;
+type AuthTokenProvider = () => Promise<string | null>;
 
 let _authTokenProvider: AuthTokenProvider | null = null;
-let _googleTokenRefresher: GoogleTokenRefresher | null = null;
 let _baseUrl: string = "";
 
 export function setAuthTokenProvider(provider: AuthTokenProvider) {
   _authTokenProvider = provider;
-}
-
-export function setGoogleTokenRefresher(refresher: GoogleTokenRefresher) {
-  _googleTokenRefresher = refresher;
 }
 
 export function setBaseUrl(url: string) {
@@ -321,19 +311,16 @@ export async function customFetch<T = unknown>(
     headers.set("accept", DEFAULT_JSON_ACCEPT);
   }
 
-  // Inject auth tokens if provider is configured
+  // Inject Firebase ID token if provider is configured
   if (_authTokenProvider) {
     try {
-      const { idToken, googleAccessToken } = await _authTokenProvider();
+      const idToken = await _authTokenProvider();
       if (idToken && !headers.has("authorization")) {
         headers.set("authorization", `Bearer ${idToken}`);
       }
-      if (googleAccessToken && !headers.has("x-google-access-token")) {
-        headers.set("x-google-access-token", googleAccessToken);
-      }
     } catch (err) {
       throw new Error(
-        `Authentication failed: unable to retrieve tokens. Please sign in again.`,
+        `Authentication failed: unable to retrieve token. Please sign in again.`,
         { cause: err }
       );
     }
@@ -347,15 +334,6 @@ export async function customFetch<T = unknown>(
   const requestInfo = { method, url };
 
   let response = await fetch(url, { ...init, method, headers });
-
-  // If 401 and a Google token refresher is registered, refresh and retry once
-  if (response.status === 401 && _googleTokenRefresher) {
-    const newToken = await _googleTokenRefresher();
-    if (newToken) {
-      headers.set("x-google-access-token", newToken);
-      response = await fetch(url, { ...init, method, headers });
-    }
-  }
 
   if (!response.ok) {
     const errorData = await parseErrorBody(response, method);

@@ -1,24 +1,17 @@
-// Google Sheets integration using Google access token from Firebase Auth
 import { google } from "googleapis";
+import { getAuthClientForUser } from "./googleAuth.js";
 
-function getAuthClient(accessToken: string) {
-  const oauth2Client = new google.auth.OAuth2();
-  oauth2Client.setCredentials({ access_token: accessToken });
-  return oauth2Client;
-}
-
-export function getSheetsClient(accessToken: string) {
-  const auth = getAuthClient(accessToken);
+export async function getSheetsClient(uid: string) {
+  const auth = await getAuthClientForUser(uid);
   return google.sheets({ version: "v4", auth });
 }
 
-// Create a new Google Spreadsheet with given column headers in the first row
 export async function createSpreadsheetWithHeaders(
-  accessToken: string,
+  uid: string,
   name: string,
   headers: string[]
 ): Promise<{ id: string; name: string; url: string }> {
-  const sheets = getSheetsClient(accessToken);
+  const sheets = await getSheetsClient(uid);
   const response = await sheets.spreadsheets.create({
     requestBody: {
       properties: { title: name },

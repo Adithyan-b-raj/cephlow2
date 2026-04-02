@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
 
 function getConfig() {
   return {
@@ -77,4 +77,40 @@ export async function uploadPdfToR2(
 
   console.log(`[R2] Upload successful: ${key}`);
   return key;
+}
+
+/**
+ * Delete a single object from R2 by its key.
+ */
+export async function deleteR2Object(key: string): Promise<void> {
+  const config = getConfig();
+  if (!config.accountId || !config.accessKeyId || !config.secretAccessKey || !config.bucketName) {
+    throw new Error("Cloudflare R2 credentials are not fully configured");
+  }
+  const client = getR2Client(config);
+  await client.send(new DeleteObjectCommand({ Bucket: config.bucketName, Key: key }));
+  console.log(`[R2] Deleted object: ${key}`);
+}
+
+/**
+ * Delete multiple objects from R2 by their keys (up to 1000 at a time).
+ */
+export async function deleteR2Objects(keys: string[]): Promise<void> {
+  if (keys.length === 0) return;
+  const config = getConfig();
+  if (!config.accountId || !config.accessKeyId || !config.secretAccessKey || !config.bucketName) {
+    throw new Error("Cloudflare R2 credentials are not fully configured");
+  }
+  const client = getR2Client(config);
+  // R2 supports up to 1000 keys per batch delete
+  for (let i = 0; i < keys.length; i += 1000) {
+    const chunk = keys.slice(i, i + 1000);
+    await client.send(
+      new DeleteObjectsCommand({
+        Bucket: config.bucketName,
+        Delete: { Objects: chunk.map((k) => ({ Key: k })) },
+      })
+    );
+    console.log(`[R2] Deleted ${chunk.length} objects`);
+  }
 }

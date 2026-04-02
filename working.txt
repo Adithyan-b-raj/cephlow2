@@ -13,3 +13,18 @@ pnpm --filter @workspace/cert-app run dev &
 ## URLs
 - Frontend: http://localhost:5173 (or 5174 if 5173 is taken)
 - API:      http://localhost:3000
+
+
+What you need to do (one-time setup)
+Go to console.cloud.google.com → select your cephlow project
+APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID
+Application type: Web application
+Add Authorized redirect URIs:
+http://localhost:3001/api/auth/google/callback (dev)
+https://<your-api-render-domain>/api/auth/google/callback (prod)
+Copy the Client ID and Client Secret into .env:
+
+GOOGLE_CLIENT_ID=...
+GOOGLE_CLIENT_SECRET=...
+On Render/production, also set GOOGLE_REDIRECT_URI and FRONTEND_URL to the production URLs
+After this, existing users will see the "Connect Google" screen once, click it, consent, and never be asked again.

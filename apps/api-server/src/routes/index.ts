@@ -4,7 +4,6 @@ import sheetsRouter from "./sheets.js";
 import slidesRouter from "./slides.js";
 import batchesRouter from "./batches.js";
 import certificatesRouter from "./certificates.js";
-
 const router: IRouter = Router();
 
 router.use(healthRouter);

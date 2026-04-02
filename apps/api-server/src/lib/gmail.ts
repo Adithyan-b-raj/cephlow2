@@ -1,19 +1,13 @@
-// Gmail integration using Google access token from Firebase Auth
 import { google } from "googleapis";
+import { getAuthClientForUser } from "./googleAuth.js";
 
-function getAuthClient(accessToken: string) {
-  const oauth2Client = new google.auth.OAuth2();
-  oauth2Client.setCredentials({ access_token: accessToken });
-  return oauth2Client;
-}
-
-export function getGmailClient(accessToken: string) {
-  const auth = getAuthClient(accessToken);
+async function getGmailClient(uid: string) {
+  const auth = await getAuthClientForUser(uid);
   return google.gmail({ version: "v1", auth });
 }
 
 export async function sendEmail(
-  accessToken: string,
+  uid: string,
   {
     to,
     subject,
@@ -28,7 +22,7 @@ export async function sendEmail(
     pdfFilename?: string;
   }
 ) {
-  const gmail = getGmailClient(accessToken);
+  const gmail = await getGmailClient(uid);
 
   const boundary = "cert_boundary_" + Date.now();
   let message: string;

@@ -1,27 +1,20 @@
-// Google Drive & Slides integration using Google access token from Firebase Auth
 import { google } from "googleapis";
 import { Readable } from "stream";
 import QRCode from "qrcode";
+import { getAuthClientForUser } from "./googleAuth.js";
 
-function getAuthClient(accessToken: string) {
-  const oauth2Client = new google.auth.OAuth2();
-  oauth2Client.setCredentials({ access_token: accessToken });
-  return oauth2Client;
-}
-
-function getDriveClient(accessToken: string) {
-  const auth = getAuthClient(accessToken);
+async function getDriveClient(uid: string) {
+  const auth = await getAuthClientForUser(uid);
   return google.drive({ version: "v3", auth });
 }
 
-function getSlidesClient(accessToken: string) {
-  const auth = getAuthClient(accessToken);
+async function getSlidesClient(uid: string) {
+  const auth = await getAuthClientForUser(uid);
   return google.slides({ version: "v1", auth });
 }
 
-// List Google Slides files in Drive
-export async function listSlideTemplates(accessToken: string) {
-  const drive = getDriveClient(accessToken);
+export async function listSlideTemplates(uid: string) {
+  const drive = await getDriveClient(uid);
   const res = await drive.files.list({
     q: "mimeType='application/vnd.google-apps.presentation' and trashed=false",
     fields: "files(id,name,modifiedTime)",
@@ -35,9 +28,8 @@ export async function listSlideTemplates(accessToken: string) {
   }>;
 }
 
-// List Google Sheets files in Drive
-export async function listSheetFiles(accessToken: string) {
-  const drive = getDriveClient(accessToken);
+export async function listSheetFiles(uid: string) {
+  const drive = await getDriveClient(uid);
   const res = await drive.files.list({
     q: "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
     fields: "files(id,name,modifiedTime)",
@@ -51,12 +43,11 @@ export async function listSheetFiles(accessToken: string) {
   }>;
 }
 
-// Get placeholders from a Slides template (<<ColumnName>> format)
 export async function getSlidePlaceholders(
-  accessToken: string,
+  uid: string,
   templateId: string
 ): Promise<string[]> {
-  const slides = getSlidesClient(accessToken);
+  const slides = await getSlidesClient(uid);
   const res = await slides.presentations.get({
     presentationId: templateId,
     fields: "slides",
@@ -66,7 +57,6 @@ export async function getSlidePlaceholders(
 
   for (const slide of res.data.slides || []) {
     for (const element of slide.pageElements || []) {
-      // Detect placeholders in text content
       const textElements =
         (element.shape as any)?.text?.textElements || [];
       const text = textElements
@@ -76,7 +66,6 @@ export async function getSlidePlaceholders(
       while ((match = regex.exec(text)) !== null) {
         placeholders.add(`<<${match[1]}>>`);
       }
-      // Detect <<...>> shape titles, but skip <<qr_code>> — it's generated automatically
       if (element.title) {
         let titleMatch;
         while ((titleMatch = regex.exec(element.title)) !== null) {
@@ -90,18 +79,16 @@ export async function getSlidePlaceholders(
   return Array.from(placeholders);
 }
 
-// Create a new blank Google Slides presentation
 export async function createSlidePresentation(
-  accessToken: string,
+  uid: string,
   name: string
 ): Promise<{ id: string; name: string; url: string }> {
-  const slides = getSlidesClient(accessToken);
+  const slides = await getSlidesClient(uid);
   const res = await slides.presentations.create({
     requestBody: { title: name },
     fields: "presentationId,slides(objectId),pageSize",
   });
   const id = res.data.presentationId!;
-
   return {
     id,
     name: res.data.title || name,
@@ -109,12 +96,11 @@ export async function createSlidePresentation(
   };
 }
 
-// Add a <<qr_code>> placeholder shape to an existing presentation
 export async function addQrCodePlaceholder(
-  accessToken: string,
+  uid: string,
   presentationId: string
 ): Promise<void> {
-  const slides = getSlidesClient(accessToken);
+  const slides = await getSlidesClient(uid);
   const res = await slides.presentations.get({
     presentationId,
     fields: "slides(objectId),pageSize",
@@ -123,8 +109,8 @@ export async function addQrCodePlaceholder(
   const slideObjectId = res.data.slides?.[0]?.objectId;
   if (!slideObjectId) return;
 
-  const size = 914400;      // 1 inch in EMUs
-  const margin = 228600;    // 0.25 inch in EMUs
+  const size = 914400;
+  const margin = 228600;
   const pageSizeWidth = res.data.pageSize?.width?.magnitude;
   const pageSizeHeight = res.data.pageSize?.height?.magnitude;
   const slideWidth = (typeof pageSizeWidth === "number" && pageSizeWidth > 0) ? pageSizeWidth : 9144000;
@@ -209,9 +195,8 @@ export async function addQrCodePlaceholder(
   });
 }
 
-// Export a Google Slides presentation as a PDF buffer
-export async function exportSlidesToPdf(accessToken: string, fileId: string): Promise<Buffer> {
-  const drive = getDriveClient(accessToken);
+export async function exportSlidesToPdf(uid: string, fileId: string): Promise<Buffer> {
+  const drive = await getDriveClient(uid);
   const res = await drive.files.export(
     { fileId, mimeType: "application/pdf" },
     { responseType: "arraybuffer" }
@@ -219,13 +204,12 @@ export async function exportSlidesToPdf(accessToken: string, fileId: string): Pr
   return Buffer.from(res.data as ArrayBuffer);
 }
 
-// Create a new folder in Google Drive
 export async function createFolder(
-  accessToken: string,
+  uid: string,
   name: string,
   parentFolderId?: string | null
 ): Promise<string> {
-  const drive = getDriveClient(accessToken);
+  const drive = await getDriveClient(uid);
   const res = await drive.files.create({
     requestBody: {
       name,
@@ -237,16 +221,13 @@ export async function createFolder(
   return res.data.id!;
 }
 
-// Upload a PDF buffer to a specific folder in Drive
 export async function uploadPdf(
-  accessToken: string,
+  uid: string,
   name: string,
   pdfBuffer: Buffer,
   folderId: string
 ): Promise<{ fileId: string; url: string }> {
-  const drive = getDriveClient(accessToken);
-  
-  // Use a Blob or a simple buffer with media upload
+  const drive = await getDriveClient(uid);
   const res = await drive.files.create({
     requestBody: {
       name: name.endsWith(".pdf") ? name : `${name}.pdf`,
@@ -259,66 +240,50 @@ export async function uploadPdf(
     },
     fields: "id, webViewLink",
   });
-
   return {
     fileId: res.data.id!,
     url: res.data.webViewLink!,
   };
 }
 
-// Move a file to a specific folder
 export async function moveFileToFolder(
-  accessToken: string,
+  uid: string,
   fileId: string,
   folderId: string
 ) {
-  const drive = getDriveClient(accessToken);
-  // Retrieve the existing parents to remove
-  const file = await drive.files.get({
-    fileId: fileId,
-    fields: "parents",
-  });
+  const drive = await getDriveClient(uid);
+  const file = await drive.files.get({ fileId, fields: "parents" });
   const previousParents = (file.data.parents || []).join(",");
-
-  // Move the file to the new folder
   await drive.files.update({
-    fileId: fileId,
+    fileId,
     addParents: folderId,
     removeParents: previousParents,
     fields: "id, parents",
   });
 }
 
-// Make a file or folder public (anyone with the link can view)
-export async function makeFilePublic(
-  accessToken: string,
-  fileId: string
-) {
-  const drive = getDriveClient(accessToken);
+export async function makeFilePublic(uid: string, fileId: string) {
+  const drive = await getDriveClient(uid);
   await drive.permissions.create({
-    fileId: fileId,
-    requestBody: {
-      role: "reader",
-      type: "anyone",
-    },
+    fileId,
+    requestBody: { role: "reader", type: "anyone" },
   });
 }
 
-// Copy a Slides template and fill in <<placeholder>> values
 export async function generateCertificate(
-  accessToken: string,
+  uid: string,
   templateId: string,
   recipientName: string,
   replacements: Record<string, string>,
   folderId?: string | null,
   qrCodeUrl?: string | null
 ): Promise<{ fileId: string; url: string }> {
-  const drive = getDriveClient(accessToken);
-  const slides = getSlidesClient(accessToken);
+  const drive = await getDriveClient(uid);
+  const slides = await getSlidesClient(uid);
 
   const copy = await drive.files.copy({
     fileId: templateId,
-    requestBody: { 
+    requestBody: {
       name: `Certificate - ${recipientName}`,
       parents: folderId ? [folderId] : undefined,
     },
@@ -335,21 +300,14 @@ export async function generateCertificate(
     })
   );
 
-  // If a QR code URL is provided, we replace the {{qr_code}} placeholder with a real QR image.
   if (qrCodeUrl) {
     try {
-      // Use a public QR code generator API so Google Slides can fetch the image directly.
-      // This works both locally and on Render.
       const publicQrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUrl)}`;
-      
       requests.push({
         replaceAllShapesWithImage: {
           imageUrl: publicQrApiUrl,
           imageReplaceMethod: "CENTER_INSIDE",
-          containsText: {
-            text: "{{qr_code}}",
-            matchCase: true,
-          },
+          containsText: { text: "{{qr_code}}", matchCase: true },
         },
       });
     } catch (qrErr) {
@@ -364,7 +322,6 @@ export async function generateCertificate(
     });
   }
 
-  // Find shapes titled <<qr_code>> and replace with a QR code image
   const presentation = await slides.presentations.get({
     presentationId: fileId,
     fields: "slides(objectId,pageElements(objectId,title,size,transform))",
@@ -394,7 +351,6 @@ export async function generateCertificate(
     const targetUrl = qrCodeUrl || `https://docs.google.com/presentation/d/${fileId}`;
     const qrBuffer = await QRCode.toBuffer(targetUrl, { type: "png", width: 300, margin: 1 });
 
-    // Upload QR code PNG to Drive and make it publicly accessible
     const qrFileRes = await drive.files.create({
       requestBody: {
         name: `qr_${fileId}.png`,
@@ -416,7 +372,6 @@ export async function generateCertificate(
 
     const qrImageUrl = `https://drive.google.com/uc?id=${qrFileId}&export=view`;
 
-    // Delete each placeholder shape and insert the QR code image in its place
     const qrRequests: any[] = [];
     const qrImageObjectIds: string[] = [];
     for (let i = 0; i < qrShapes.length; i++) {
@@ -437,7 +392,6 @@ export async function generateCertificate(
       });
     }
 
-    // Bring QR images to front so they appear above any template images
     for (const objectId of qrImageObjectIds) {
       qrRequests.push({
         updatePageElementsZOrder: {

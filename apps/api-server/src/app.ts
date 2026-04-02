@@ -3,6 +3,7 @@ import cors from "cors";
 import { requireAuth } from "./middlewares/auth.js";
 import healthRouter from "./routes/health.js";
 import verifyRouter from "./routes/verify.js";
+import authRouter from "./routes/auth.js";
 import router from "./routes";
 
 const app: Express = express();
@@ -16,6 +17,9 @@ app.use("/api", healthRouter);
 
 // Certificate verification — public, no auth required
 app.use("/api", verifyRouter);
+
+// Auth routes — callback is unprotected; url/status routes self-apply requireAuth
+app.use("/api", authRouter);
 
 // All other routes require Firebase Auth
 app.use("/api", requireAuth, router);

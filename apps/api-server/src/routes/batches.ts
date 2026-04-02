@@ -3,7 +3,7 @@ import { batchesCollection, certificatesCollection, type Batch, type Certificate
 import { getSheetsClient } from "../lib/googleSheets.js";
 import { generateCertificate, exportSlidesToPdf, createFolder, uploadPdf, makeFilePublic } from "../lib/googleDrive.js";
 import { sendEmail } from "../lib/gmail.js";
-import { uploadPdfToR2, isR2Configured, getR2PublicUrl } from "../lib/cloudflareR2.js";
+import { uploadPdfToR2, isR2Configured, getR2PublicUrl, deleteR2Objects } from "../lib/cloudflareR2.js";
 import { isWhatsAppConfigured, sendWhatsAppDocument } from "../lib/whatsapp.js";
 
 // Column names commonly used for phone numbers (all lowercase, no spaces/underscores for comparison)
@@ -68,11 +68,6 @@ router.post("/batches", async (req, res) => {
     const userId = req.user?.uid;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const accessToken = req.googleAccessToken;
-    if (!accessToken) {
-      return res.status(401).json({ error: "Google access token required" });
-    }
-
     const {
       name,
       sheetId,
@@ -90,7 +85,7 @@ router.post("/batches", async (req, res) => {
     } = req.body;
 
     // Fetch the sheet data to create certificate records
-    const sheets = getSheetsClient(accessToken);
+    const sheets = await getSheetsClient(userId);
     const range = tabName ? tabName : "A:ZZ";
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: sheetId,
@@ -105,10 +100,10 @@ router.post("/batches", async (req, res) => {
     let driveFolderId = null;
     let pdfFolderId = null;
     try {
-      driveFolderId = await createFolder(accessToken, name);
+      driveFolderId = await createFolder(userId, name);
       // Create a subfolder for PDFs
       if (driveFolderId) {
-        pdfFolderId = await createFolder(accessToken, "pdf", driveFolderId);
+        pdfFolderId = await createFolder(userId, "pdf", driveFolderId);
       }
     } catch (err) {
       console.error("Failed to create Google Drive folders:", err);
@@ -207,11 +202,6 @@ router.post("/batches/:batchId/share-folder", async (req, res) => {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   const { batchId } = req.params;
-  const accessToken = req.googleAccessToken;
-  if (!accessToken) {
-    return res.status(401).json({ error: "Google access token required" });
-  }
-
   try {
     const batchDoc = await batchesCollection.doc(batchId).get();
     if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
@@ -225,7 +215,7 @@ router.post("/batches/:batchId/share-folder", async (req, res) => {
       return res.status(400).json({ error: "PDF folder does not exist for this batch" });
     }
 
-    await makeFilePublic(accessToken, batch.pdfFolderId);
+    await makeFilePublic(userId, batch.pdfFolderId);
 
     res.json({
       success: true,
@@ -243,11 +233,6 @@ router.post("/batches/:batchId/generate", async (req, res) => {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   const { batchId } = req.params;
-  const accessToken = req.googleAccessToken;
-  if (!accessToken) {
-    return res.status(401).json({ error: "Google access token required" });
-  }
-
   try {
     const batchRef = batchesCollection.doc(batchId);
     const batchDoc = await batchRef.get();
@@ -262,119 +247,124 @@ router.post("/batches/:batchId/generate", async (req, res) => {
     // Mark batch as generating
     await batchRef.update({ status: "generating" });
 
-    // Get certificates
-    const certsSnapshot = await certificatesCollection(batchId).get();
-    const certs = certsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Certificate[];
+    // Respond immediately so the frontend can start polling for per-cert updates
+    res.json({ success: true, message: "Generation started" });
 
-    let generated = 0;
-    let failed = 0;
+    // Process certificates in the background
+    (async () => {
+      // Get certificates
+      const certsSnapshot = await certificatesCollection(batchId).get();
+      const certs = certsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Certificate[];
 
-    for (const cert of certs) {
-      if (cert.status === "generated" || cert.status === "sent") {
-        generated++;
-        continue;
+      let generated = 0;
+      let failed = 0;
+
+      for (const cert of certs) {
+        if (cert.status === "generated" || cert.status === "sent") {
+          generated++;
+          continue;
+        }
+        try {
+          const rowData = (cert.rowData as Record<string, string>) || {};
+          const replacements: Record<string, string> = {};
+          for (const [placeholder, column] of Object.entries(batch.columnMap)) {
+            replacements[placeholder] = rowData[String(column)] || "";
+          }
+
+          const baseUrl = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
+          const qrCodeUrl = `${baseUrl}/verify/${batchId}/${cert.id}`;
+
+          // Pick template: use category-based routing if configured, else default
+          let certTemplateId = batch.templateId;
+          if (batch.categoryColumn && batch.categoryTemplateMap) {
+            const categoryValue = rowData[batch.categoryColumn];
+            if (categoryValue && batch.categoryTemplateMap[categoryValue]) {
+              certTemplateId = batch.categoryTemplateMap[categoryValue].templateId;
+            }
+          }
+
+          const { fileId: slideFileId, url: slideUrl } = await generateCertificate(
+            userId,
+            certTemplateId,
+            cert.recipientName,
+            replacements,
+            batch.driveFolderId,
+            qrCodeUrl
+          );
+
+          // Export PDF buffer (needed for Drive upload and/or R2 upload)
+          let pdfFileId = null;
+          let pdfUrl = null;
+          const pdfName = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}`;
+          const needsPdf = !!batch.pdfFolderId || isR2Configured();
+          let pdfBuffer: Buffer | null = null;
+
+          if (needsPdf) {
+            try {
+              pdfBuffer = await exportSlidesToPdf(userId, slideFileId);
+            } catch (pdfErr) {
+              console.error("Failed to export PDF for certificate:", cert.id, pdfErr);
+            }
+          }
+
+          // Upload to Google Drive
+          if (pdfBuffer && batch.pdfFolderId) {
+            try {
+              const pdfRes = await uploadPdf(userId, pdfName, pdfBuffer, batch.pdfFolderId);
+              pdfFileId = pdfRes.fileId;
+              pdfUrl = pdfRes.url;
+            } catch (pdfErr) {
+              console.error("Failed to upload PDF to Google Drive for certificate:", cert.id, pdfErr);
+            }
+          }
+
+          // Upload to Cloudflare R2 (folder = phone number)
+          let r2PdfUrl: string | null = null;
+          const r2Ready = isR2Configured();
+          console.log(`[R2] isR2Configured=${r2Ready} pdfBuffer=${!!pdfBuffer}`);
+          if (pdfBuffer && r2Ready) {
+            try {
+              const phoneNumber = extractPhoneNumber(rowData);
+              console.log(`[R2] phone detected: "${phoneNumber}", rowData keys: ${Object.keys(rowData).join(", ")}`);
+              const r2Folder = phoneNumber || cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_");
+              const r2Key = await uploadPdfToR2(r2Folder, pdfName, pdfBuffer);
+              r2PdfUrl = getR2PublicUrl(r2Key);
+            } catch (r2Err) {
+              console.error("[R2] Upload failed for certificate:", cert.id, r2Err);
+            }
+          }
+
+          await certificatesCollection(batchId).doc(cert.id).update({
+            status: "generated",
+            slideFileId,
+            slideUrl,
+            pdfFileId,
+            pdfUrl,
+            r2PdfUrl,
+            errorMessage: null,
+          });
+          generated++;
+
+          // Update generatedCount incrementally so the UI progress stays current
+          await batchRef.update({ generatedCount: generated });
+        } catch (err: any) {
+          await certificatesCollection(batchId).doc(cert.id).update({
+            status: "failed",
+            errorMessage: err.message,
+          });
+          failed++;
+        }
       }
-      try {
-        const rowData = (cert.rowData as Record<string, string>) || {};
-        const replacements: Record<string, string> = {};
-        for (const [placeholder, column] of Object.entries(batch.columnMap)) {
-          replacements[placeholder] = rowData[String(column)] || "";
-        }
 
-        const baseUrl = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
-        const qrCodeUrl = `${baseUrl}/verify/${batchId}/${cert.id}`;
-
-        // Pick template: use category-based routing if configured, else default
-        let certTemplateId = batch.templateId;
-        if (batch.categoryColumn && batch.categoryTemplateMap) {
-          const categoryValue = rowData[batch.categoryColumn];
-          if (categoryValue && batch.categoryTemplateMap[categoryValue]) {
-            certTemplateId = batch.categoryTemplateMap[categoryValue].templateId;
-          }
-        }
-
-        const { fileId: slideFileId, url: slideUrl } = await generateCertificate(
-          accessToken,
-          certTemplateId,
-          cert.recipientName,
-          replacements,
-          batch.driveFolderId,
-          qrCodeUrl
-        );
-
-        // Export PDF buffer (needed for Drive upload and/or R2 upload)
-        let pdfFileId = null;
-        let pdfUrl = null;
-        const pdfName = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}`;
-        const needsPdf = !!batch.pdfFolderId || isR2Configured();
-        let pdfBuffer: Buffer | null = null;
-
-        if (needsPdf) {
-          try {
-            pdfBuffer = await exportSlidesToPdf(accessToken, slideFileId);
-          } catch (pdfErr) {
-            console.error("Failed to export PDF for certificate:", cert.id, pdfErr);
-          }
-        }
-
-        // Upload to Google Drive
-        if (pdfBuffer && batch.pdfFolderId) {
-          try {
-            const pdfRes = await uploadPdf(accessToken, pdfName, pdfBuffer, batch.pdfFolderId);
-            pdfFileId = pdfRes.fileId;
-            pdfUrl = pdfRes.url;
-          } catch (pdfErr) {
-            console.error("Failed to upload PDF to Google Drive for certificate:", cert.id, pdfErr);
-          }
-        }
-
-        // Upload to Cloudflare R2 (folder = phone number)
-        let r2PdfUrl: string | null = null;
-        const r2Ready = isR2Configured();
-        console.log(`[R2] isR2Configured=${r2Ready} pdfBuffer=${!!pdfBuffer}`);
-        if (pdfBuffer && r2Ready) {
-          try {
-            const phoneNumber = extractPhoneNumber(rowData);
-            console.log(`[R2] phone detected: "${phoneNumber}", rowData keys: ${Object.keys(rowData).join(", ")}`);
-            const r2Folder = phoneNumber || cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_");
-            const r2Key = await uploadPdfToR2(r2Folder, pdfName, pdfBuffer);
-            r2PdfUrl = getR2PublicUrl(r2Key);
-          } catch (r2Err) {
-            console.error("[R2] Upload failed for certificate:", cert.id, r2Err);
-          }
-        }
-
-        await certificatesCollection(batchId).doc(cert.id).update({
-          status: "generated",
-          slideFileId,
-          slideUrl,
-          pdfFileId,
-          pdfUrl,
-          r2PdfUrl,
-          errorMessage: null,
-        });
-        generated++;
-      } catch (err: any) {
-        await certificatesCollection(batchId).doc(cert.id).update({
-          status: "failed",
-          errorMessage: err.message,
-        });
-        failed++;
-      }
-    }
-
-    const newStatus =
-      failed === 0 ? "generated" : generated > 0 ? "partial" : "draft";
-    await batchRef.update({ status: newStatus, generatedCount: generated });
-
-    res.json({
-      success: failed === 0,
-      message: `Generated ${generated} certificates. ${failed} failed.`,
-      processed: generated,
-      failed,
+      const newStatus =
+        failed === 0 ? "generated" : generated > 0 ? "partial" : "draft";
+      await batchRef.update({ status: newStatus, generatedCount: generated });
+    })().catch(async (err: any) => {
+      console.error("[GENERATE] Background processing failed:", err);
+      await batchesCollection.doc(batchId).update({ status: "draft" });
     });
   } catch (err: any) {
     await batchesCollection.doc(batchId).update({ status: "draft" });
@@ -388,10 +378,6 @@ router.post("/batches/:batchId/send", async (req, res) => {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   const { batchId } = req.params;
-  const accessToken = req.googleAccessToken;
-  if (!accessToken) {
-    return res.status(401).json({ error: "Google access token required" });
-  }
 
   try {
     const batchRef = batchesCollection.doc(batchId);
@@ -427,7 +413,7 @@ router.post("/batches/:batchId/send", async (req, res) => {
       try {
         let pdfBuffer: Buffer | undefined;
         if (cert.slideFileId) {
-          pdfBuffer = await exportSlidesToPdf(accessToken, cert.slideFileId);
+          pdfBuffer = await exportSlidesToPdf(userId, cert.slideFileId);
         }
         const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
 
@@ -446,7 +432,7 @@ router.post("/batches/:batchId/send", async (req, res) => {
           personalizedBody = personalizedBody.replace(new RegExp(`<<${col}>>`, "gi"), value);
         }
 
-        await sendEmail(accessToken, {
+        await sendEmail(userId, {
           to: cert.recipientEmail,
           subject: personalizedSubject,
           body: personalizedBody,
@@ -597,8 +583,6 @@ router.post("/batches/:batchId/certificates/:certId/send", async (req, res) => {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   const { batchId, certId } = req.params;
-  const accessToken = req.googleAccessToken;
-  if (!accessToken) return res.status(401).json({ error: "Google access token required" });
 
   try {
     const batchDoc = await batchesCollection.doc(batchId).get();
@@ -617,7 +601,7 @@ router.post("/batches/:batchId/certificates/:certId/send", async (req, res) => {
     const subject = reqSubject || batch.emailSubject || "Your Certificate";
     const body = reqBody || batch.emailBody || "Please find your certificate attached.";
 
-    const pdfBuffer = await exportSlidesToPdf(accessToken, cert.slideFileId);
+    const pdfBuffer = await exportSlidesToPdf(userId, cert.slideFileId);
     const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
 
     const rowData = (cert.rowData as Record<string, string>) || {};
@@ -633,7 +617,7 @@ router.post("/batches/:batchId/certificates/:certId/send", async (req, res) => {
       personalizedBody = personalizedBody.replace(new RegExp(`<<${col}>>`, "gi"), value);
     }
 
-    await sendEmail(accessToken, { to: cert.recipientEmail, subject: personalizedSubject, body: personalizedBody, pdfBuffer, pdfFilename });
+    await sendEmail(userId, { to: cert.recipientEmail, subject: personalizedSubject, body: personalizedBody, pdfBuffer, pdfFilename });
     await certificatesCollection(batchId).doc(certId).update({ status: "sent", sentAt: new Date(), errorMessage: null });
 
     // Update batch sentCount
@@ -719,6 +703,26 @@ router.delete("/batches/:batchId", async (req, res) => {
 
     // Delete all certificates in the batch
     const certsSnapshot = await certificatesCollection(batchId).get();
+
+    // Collect R2 keys to delete
+    if (isR2Configured()) {
+      const r2PublicBase = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
+      const r2Keys: string[] = [];
+      for (const doc of certsSnapshot.docs) {
+        const r2PdfUrl = (doc.data() as any).r2PdfUrl;
+        if (r2PdfUrl && r2PublicBase && r2PdfUrl.startsWith(r2PublicBase + "/")) {
+          r2Keys.push(r2PdfUrl.slice(r2PublicBase.length + 1));
+        }
+      }
+      if (r2Keys.length > 0) {
+        try {
+          await deleteR2Objects(r2Keys);
+        } catch (r2Err) {
+          console.error("[R2] Failed to delete objects during batch delete:", r2Err);
+        }
+      }
+    }
+
     const writeBatch = batchesCollection.firestore.batch();
     for (const doc of certsSnapshot.docs) {
       writeBatch.delete(doc.ref);

@@ -1,139 +1,109 @@
-import { createContext, useContext, useEffect, useRef, useState, useCallback, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, signInWithGoogle, signOut, type User } from "@/lib/firebase";
-import { setAuthTokenProvider, setGoogleTokenRefresher, setBaseUrl } from "@workspace/api-client-react";
-
-const GOOGLE_TOKEN_KEY = "google_access_token";
-const GOOGLE_TOKEN_EXPIRES_KEY = "google_access_token_expires_at";
-// Google OAuth tokens expire in 3600s; refresh 5 minutes early to avoid mid-request expiry
-const TOKEN_LIFETIME_MS = 55 * 60 * 1000;
+import { setAuthTokenProvider, setBaseUrl } from "@workspace/api-client-react";
 
 interface AuthContextType {
     user: User | null;
     loading: boolean;
-    googleAccessToken: string | null;
+    hasGoogleAuth: boolean;
     login: () => Promise<void>;
     logout: () => Promise<void>;
-    refreshGoogleToken: () => Promise<string | null>;
+    connectGoogle: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-function storeGoogleToken(
-    tokenRef: React.MutableRefObject<string | null>,
-    expiresAtRef: React.MutableRefObject<number | null>,
-    token: string | null,
-) {
-    tokenRef.current = token;
-    if (token) {
-        const expiresAt = Date.now() + TOKEN_LIFETIME_MS;
-        expiresAtRef.current = expiresAt;
-        sessionStorage.setItem(GOOGLE_TOKEN_KEY, token);
-        sessionStorage.setItem(GOOGLE_TOKEN_EXPIRES_KEY, String(expiresAt));
-    } else {
-        expiresAtRef.current = null;
-        sessionStorage.removeItem(GOOGLE_TOKEN_KEY);
-        sessionStorage.removeItem(GOOGLE_TOKEN_EXPIRES_KEY);
-    }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
-    const [googleAccessToken, setGoogleAccessToken] = useState<string | null>(
-        () => sessionStorage.getItem(GOOGLE_TOKEN_KEY)
-    );
-    const googleAccessTokenRef = useRef<string | null>(
-        sessionStorage.getItem(GOOGLE_TOKEN_KEY)
-    );
-    const googleTokenExpiresAtRef = useRef<number | null>(
-        (() => {
-            const stored = sessionStorage.getItem(GOOGLE_TOKEN_EXPIRES_KEY);
-            return stored ? Number(stored) : null;
-        })()
-    );
+    const [hasGoogleAuth, setHasGoogleAuth] = useState(false);
 
-    // Imperative helper so token + expiry always update together
-    const setGoogleToken = useCallback((token: string | null) => {
-        storeGoogleToken(googleAccessTokenRef, googleTokenExpiresAtRef, token);
-        setGoogleAccessToken(token);
-    }, []);
-
-    // Re-authenticate to get a fresh Google access token
-    const refreshGoogleToken = useCallback(async (): Promise<string | null> => {
-        try {
-            const result = await signInWithGoogle();
-            setGoogleToken(result.accessToken);
-            return result.accessToken;
-        } catch {
-            return null;
-        }
-    }, [setGoogleToken]);
-
-    // Configure the API client's auth token provider once
+    // Configure the API client to send the Firebase ID token on every request
     useEffect(() => {
         const apiUrl = import.meta.env.VITE_API_URL;
-        if (apiUrl) {
-            setBaseUrl(apiUrl);
-        }
+        if (apiUrl) setBaseUrl(apiUrl);
 
         setAuthTokenProvider(async () => {
             const currentUser = auth.currentUser;
-            const idToken = currentUser ? await currentUser.getIdToken() : null;
-            let token = googleAccessTokenRef.current;
-
-            // Proactively refresh if token is missing or expired (within 5-minute buffer)
-            const isExpired =
-                !googleTokenExpiresAtRef.current ||
-                Date.now() >= googleTokenExpiresAtRef.current;
-
-            if (currentUser && (!token || isExpired)) {
-                try {
-                    const result = await signInWithGoogle();
-                    token = result.accessToken;
-                    storeGoogleToken(googleAccessTokenRef, googleTokenExpiresAtRef, token);
-                } catch {
-                    // User may have blocked the popup; proceed with stale/null token
-                }
-            }
-
-            return { idToken, googleAccessToken: token };
+            return currentUser ? currentUser.getIdToken() : null;
         });
+    }, []);
 
-        // Reactive fallback: if a 401 slips through, refresh and let custom-fetch retry
-        setGoogleTokenRefresher(async () => {
-            try {
-                const result = await signInWithGoogle();
-                const token = result.accessToken;
-                storeGoogleToken(googleAccessTokenRef, googleTokenExpiresAtRef, token);
-                return token;
-            } catch {
-                return null;
+    // Check Google connection status after login
+    const checkGoogleAuth = useCallback(async () => {
+        try {
+            const idToken = await auth.currentUser?.getIdToken();
+            if (!idToken) return;
+            const apiUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "";
+            const res = await fetch(`${apiUrl}/api/auth/google/status`, {
+                headers: { Authorization: `Bearer ${idToken}` },
+            });
+            if (res.ok) {
+                const data = await res.json();
+                setHasGoogleAuth(data.connected);
             }
-        });
+        } catch {
+            setHasGoogleAuth(false);
+        }
     }, []);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             setUser(firebaseUser);
             setLoading(false);
+            if (firebaseUser) {
+                await checkGoogleAuth();
+            } else {
+                setHasGoogleAuth(false);
+            }
         });
         return unsubscribe;
+    }, [checkGoogleAuth]);
+
+    // Handle ?google_auth=success/error redirect from the OAuth callback
+    useEffect(() => {
+        const params = new URLSearchParams(window.location.search);
+        const result = params.get("google_auth");
+        if (result === "success") {
+            setHasGoogleAuth(true);
+            params.delete("google_auth");
+            const newUrl = window.location.pathname + (params.toString() ? `?${params}` : "");
+            window.history.replaceState({}, "", newUrl);
+        } else if (result === "error") {
+            params.delete("google_auth");
+            params.delete("reason");
+            const newUrl = window.location.pathname + (params.toString() ? `?${params}` : "");
+            window.history.replaceState({}, "", newUrl);
+        }
     }, []);
 
     const login = async () => {
-        const result = await signInWithGoogle();
-        setGoogleToken(result.accessToken);
+        await signInWithGoogle();
     };
 
     const logout = async () => {
         await signOut();
         setUser(null);
-        setGoogleToken(null);
+        setHasGoogleAuth(false);
+    };
+
+    // Redirect user to Google OAuth consent screen to grant API access
+    const connectGoogle = async () => {
+        const idToken = await auth.currentUser?.getIdToken();
+        if (!idToken) return;
+        const apiUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "";
+        const res = await fetch(`${apiUrl}/api/auth/google/url`, {
+            headers: { Authorization: `Bearer ${idToken}` },
+        });
+        if (res.ok) {
+            const { url } = await res.json();
+            window.location.href = url;
+        }
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, googleAccessToken, login, logout, refreshGoogleToken }}>
+        <AuthContext.Provider value={{ user, loading, hasGoogleAuth, login, logout, connectGoogle }}>
             {children}
         </AuthContext.Provider>
     );

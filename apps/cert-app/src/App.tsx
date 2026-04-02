@@ -38,8 +38,36 @@ function AuthenticatedRouter() {
   );
 }
 
+function ConnectGoogleScreen() {
+  const { connectGoogle, logout } = useAuth();
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center gap-6 p-8">
+      <div className="text-center space-y-2">
+        <h1 className="text-2xl font-bold">Connect Google Account</h1>
+        <p className="text-muted-foreground max-w-sm">
+          Grant access to your Google Drive, Sheets, Slides, and Gmail so certificates can be generated and sent on your behalf.
+        </p>
+      </div>
+      <div className="flex flex-col gap-3 w-full max-w-xs">
+        <button
+          onClick={connectGoogle}
+          className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+        >
+          Connect Google Account
+        </button>
+        <button
+          onClick={logout}
+          className="w-full rounded-md border px-4 py-2 text-sm font-medium hover:bg-accent"
+        >
+          Sign out
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AppRouter() {
-  const { user, loading } = useAuth();
+  const { user, loading, hasGoogleAuth } = useAuth();
   const [isVerifyRoute] = useRoute("/verify/:batchId/:certId");
 
   // Public certificate verification page — no auth required
@@ -53,10 +81,13 @@ function AppRouter() {
     );
   }
 
+  if (!user) return <Login />;
+  if (!hasGoogleAuth) return <ConnectGoogleScreen />;
+
   return (
     <Switch>
       <Route>
-        {!user ? <Login /> : <AuthenticatedRouter />}
+        <AuthenticatedRouter />
       </Route>
     </Switch>
   );
