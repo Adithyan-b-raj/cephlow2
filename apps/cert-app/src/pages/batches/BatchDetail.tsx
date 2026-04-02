@@ -217,7 +217,7 @@ export default function BatchDetail() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="outline"
             onClick={() => shareFolder({ batchId })}
@@ -292,9 +292,9 @@ export default function BatchDetail() {
             <TableHeader className="bg-secondary/50">
               <TableRow>
                 <TableHead>Recipient</TableHead>
-                <TableHead>Email</TableHead>
+                <TableHead className="hidden sm:table-cell">Email</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Sent At</TableHead>
+                <TableHead className="hidden md:table-cell">Sent At</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -307,7 +307,7 @@ export default function BatchDetail() {
                 batch.certificates.map(cert => (
                   <TableRow key={cert.id} className="hover:bg-muted/50 transition-colors">
                     <TableCell className="font-medium">{cert.recipientName}</TableCell>
-                    <TableCell className="text-muted-foreground">{cert.recipientEmail}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-muted-foreground">{cert.recipientEmail}</TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1">
                         <Badge variant="outline" className={getStatusColor(cert.status)}>
@@ -324,11 +324,11 @@ export default function BatchDetail() {
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
+                    <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
                       {cert.sentAt ? format(new Date(cert.sentAt), 'MMM d, h:mm a') : '-'}
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                      <div className="flex flex-wrap items-center justify-end gap-1.5">
                         {cert.slideUrl && (
                           <Button variant="ghost" size="sm" asChild className="hover-elevate">
                             <a href={cert.slideUrl} target="_blank" rel="noopener noreferrer">Slides</a>
