@@ -50,6 +50,15 @@ export function certificatesCollection(batchId: string) {
 // Fast lookup index: certIndex/{certId} = { batchId }
 export const certIndexCollection = db.collection("certIndex");
 
+// Student profiles: public pages auto-created on cert generation
+export const studentProfilesCollection = db.collection("studentProfiles");
+// Index: sanitized email → slug (for O(1) lookup)
+export const studentProfileIndexCollection = db.collection("studentProfileIndex");
+
+export function studentProfileCertsCollection(slug: string) {
+  return studentProfilesCollection.doc(slug).collection("certs");
+}
+
 // Type definitions (matching old Drizzle schema)
 export interface Batch {
   id: string;

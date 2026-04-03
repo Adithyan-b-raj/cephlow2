@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter, useRoute } from "wouter";
+import { Switch, Route, Router as WouterRouter, useRoute, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -12,6 +12,7 @@ import History from "@/pages/History";
 import Spending from "@/pages/Spending";
 import NewTemplate from "@/pages/templates/NewTemplate";
 import VerifyCertificate from "@/pages/VerifyCertificate";
+import StudentProfile from "@/pages/StudentProfile";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 
@@ -68,12 +69,23 @@ function ConnectGoogleScreen() {
   );
 }
 
+// App paths that should never be treated as student profile slugs
+const KNOWN_APP_PATHS = ["/login", "/batches", "/history", "/spending", "/templates", "/auth", "/verify"];
+
 function AppRouter() {
   const { user, loading, hasGoogleAuth } = useAuth();
+  const [location] = useLocation();
   const [isVerifyRoute] = useRoute("/verify/:batchId/:certId");
+  const [isProfileRoute] = useRoute("/:username");
 
   // Public certificate verification page — no auth required
   if (isVerifyRoute) return <VerifyCertificate />;
+
+  // Public student profile page — slug-like path not matching any app route
+  const isKnownPath =
+    location === "/" ||
+    KNOWN_APP_PATHS.some((p) => location === p || location.startsWith(p + "/"));
+  if (isProfileRoute && !isKnownPath) return <StudentProfile />;
 
   if (loading) {
     return (

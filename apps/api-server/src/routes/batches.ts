@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, batchesCollection, certificatesCollection, type Batch, type Certificate } from "@workspace/firebase";
+import { db, batchesCollection, certificatesCollection, type Certificate } from "@workspace/firebase";
 import { getSheetsClient } from "../lib/googleSheets.js";
 import { generateCertificate, exportSlidesToPdf, createFolder, uploadPdf, makeFilePublic } from "../lib/googleDrive.js";
 import { sendEmail } from "../lib/gmail.js";
@@ -38,6 +38,75 @@ function serializeDoc(data: Record<string, any>): Record<string, any> {
     }
   }
   return result;
+}
+
+// Derive a URL-safe slug from an email prefix
+function emailToSlug(email: string): string {
+  const prefix = email.split("@")[0] ?? "user";
+  return prefix
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "") || "user";
+}
+
+// Auto-create / update a student's public profile after cert generation
+async function upsertStudentProfile(params: {
+  email: string;
+  name: string;
+  certId: string;
+  batchId: string;
+  batchName: string;
+  r2PdfUrl: string | null;
+  pdfUrl: string | null;
+  slideUrl: string | null;
+  status: string;
+}) {
+  const { email, name, certId, batchId, batchName, r2PdfUrl, pdfUrl, slideUrl, status } = params;
+
+  // Sanitized email used as the index document key
+  const emailKey = email.toLowerCase().replace(/[^a-z0-9]/g, "_");
+  const indexRef = db.collection("studentProfileIndex").doc(emailKey);
+  const indexDoc = await indexRef.get();
+
+  let slug: string;
+
+  if (indexDoc.exists) {
+    slug = indexDoc.data()!.slug as string;
+  } else {
+    // Find an available slug (handle same-prefix collisions)
+    const baseSlug = emailToSlug(email);
+    slug = baseSlug;
+    let attempt = 2;
+    while (true) {
+      const existing = await db.collection("studentProfiles").doc(slug).get();
+      if (!existing.exists) break;
+      slug = `${baseSlug}-${attempt}`;
+      attempt++;
+    }
+    await db.collection("studentProfiles").doc(slug).set({ slug, name, email, updatedAt: new Date() });
+    await indexRef.set({ slug });
+  }
+
+  await db
+    .collection("studentProfiles")
+    .doc(slug)
+    .collection("certs")
+    .doc(certId)
+    .set(
+      {
+        certId,
+        batchId,
+        batchName,
+        recipientName: name,
+        r2PdfUrl: r2PdfUrl ?? null,
+        pdfUrl: pdfUrl ?? null,
+        slideUrl: slideUrl ?? null,
+        issuedAt: new Date(),
+        status,
+      },
+      { merge: true }
+    );
 }
 
 // List all batches
@@ -346,6 +415,22 @@ router.post("/batches/:batchId/generate", async (req, res) => {
             r2PdfUrl,
             errorMessage: null,
           });
+
+          // Auto-create/update student's public profile
+          if (cert.recipientEmail) {
+            upsertStudentProfile({
+              email: cert.recipientEmail,
+              name: cert.recipientName,
+              certId: cert.id,
+              batchId,
+              batchName: batch.name,
+              r2PdfUrl: r2PdfUrl ?? null,
+              pdfUrl: pdfUrl ?? null,
+              slideUrl: slideUrl ?? null,
+              status: "generated",
+            }).catch((err) => console.error("[PROFILE] upsert failed for", cert.recipientEmail, err));
+          }
+
           generated++;
 
           // Update generatedCount incrementally so the UI progress stays current
@@ -742,6 +827,29 @@ router.delete("/batches/:batchId", async (req, res) => {
         } catch (r2Err) {
           console.error("[R2] Failed to delete objects during batch delete:", r2Err);
         }
+      }
+    }
+
+    // Remove certs from student profiles, and clean up empty profiles
+    for (const doc of certsSnapshot.docs) {
+      const { recipientEmail, id: certId } = { id: doc.id, ...doc.data() } as any;
+      if (!recipientEmail) continue;
+      try {
+        const emailKey = (recipientEmail as string).toLowerCase().replace(/[^a-z0-9]/g, "_");
+        const indexDoc = await db.collection("studentProfileIndex").doc(emailKey).get();
+        if (!indexDoc.exists) continue;
+        const slug = indexDoc.data()!.slug as string;
+
+        await db.collection("studentProfiles").doc(slug).collection("certs").doc(certId).delete();
+
+        // If the profile has no certs left, delete the profile and its index entry
+        const remaining = await db.collection("studentProfiles").doc(slug).collection("certs").limit(1).get();
+        if (remaining.empty) {
+          await db.collection("studentProfiles").doc(slug).delete();
+          await db.collection("studentProfileIndex").doc(emailKey).delete();
+        }
+      } catch (profileErr) {
+        console.error("[PROFILE] cleanup failed for cert", doc.id, profileErr);
       }
     }
 

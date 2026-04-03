@@ -5,6 +5,7 @@ import healthRouter from "./routes/health.js";
 import verifyRouter from "./routes/verify.js";
 import authRouter from "./routes/auth.js";
 import webhooksRouter from "./routes/webhooks.js";
+import profilesRouter from "./routes/profiles.js";
 import router from "./routes";
 
 const app: Express = express();
@@ -18,6 +19,9 @@ app.use("/api", healthRouter);
 
 // Certificate verification — public, no auth required
 app.use("/api", verifyRouter);
+
+// Student profile pages — public, no auth required
+app.use("/api", profilesRouter);
 
 // Auth routes — callback is unprotected; url/status routes self-apply requireAuth
 app.use("/api", authRouter);
