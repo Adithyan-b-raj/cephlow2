@@ -13,7 +13,7 @@
 const PAGE_SIZE = 8; // max 8 certs per list page (2 slots reserved for Prev/Next)
 
 export default {
-  async fetch(req, env) {
+  async fetch(req, env, ctx) {
     const url = new URL(req.url);
 
     // ── 1. Webhook verification — Meta sends GET with hub.challenge ──
@@ -44,12 +44,14 @@ export default {
     // Forward status updates (delivered / read) to the API server
     if (!msg) {
       if (value?.statuses?.length && env.API_URL) {
-        // fire-and-forget — don't hold up the response to Meta
-        env.API_URL && fetch(`${env.API_URL}/api/webhooks/whatsapp`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        }).catch(() => {});
+        // waitUntil keeps the Worker alive until the fetch completes
+        ctx.waitUntil(
+          fetch(`${env.API_URL}/api/webhooks/whatsapp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+          }).catch(() => {})
+        );
       }
       return new Response('OK');
     }
