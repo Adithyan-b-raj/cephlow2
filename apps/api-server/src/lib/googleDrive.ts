@@ -79,6 +79,37 @@ export async function getSlidePlaceholders(
   return Array.from(placeholders);
 }
 
+export async function getSlidesInfo(
+  uid: string,
+  templateId: string
+): Promise<Array<{ index: number; objectId: string; thumbnailUrl: string | null }>> {
+  const slides = await getSlidesClient(uid);
+  const res = await slides.presentations.get({
+    presentationId: templateId,
+    fields: "slides(objectId)",
+  });
+  const slidePages = res.data.slides || [];
+  const result: Array<{ index: number; objectId: string; thumbnailUrl: string | null }> = [];
+
+  for (let i = 0; i < slidePages.length; i++) {
+    const objectId = slidePages[i].objectId!;
+    let thumbnailUrl: string | null = null;
+    try {
+      const thumbRes = await slides.presentations.pages.getThumbnail({
+        presentationId: templateId,
+        pageObjectId: objectId,
+        "thumbnailProperties.mimeType": "PNG",
+        "thumbnailProperties.thumbnailSize": "MEDIUM",
+      });
+      thumbnailUrl = thumbRes.data.contentUrl ?? null;
+    } catch {
+      // Thumbnail fetch can fail for blank slides; skip
+    }
+    result.push({ index: i, objectId, thumbnailUrl });
+  }
+  return result;
+}
+
 export async function createSlidePresentation(
   uid: string,
   name: string
@@ -276,7 +307,8 @@ export async function generateCertificate(
   recipientName: string,
   replacements: Record<string, string>,
   folderId?: string | null,
-  qrCodeUrl?: string | null
+  qrCodeUrl?: string | null,
+  slideIndex?: number | null
 ): Promise<{ fileId: string; url: string }> {
   const drive = await getDriveClient(uid);
   const slides = await getSlidesClient(uid);
@@ -290,6 +322,30 @@ export async function generateCertificate(
     fields: "id",
   });
   const fileId = copy.data.id!;
+
+  // If slideIndex is specified, delete all slides except the target one
+  if (slideIndex != null) {
+    const presData = await slides.presentations.get({
+      presentationId: fileId,
+      fields: "slides(objectId)",
+    });
+    const allSlides = presData.data.slides || [];
+    if (slideIndex >= 0 && slideIndex < allSlides.length && allSlides.length > 1) {
+      // Delete from last to first to preserve indices, skip the target
+      const deleteRequests: any[] = [];
+      for (let i = allSlides.length - 1; i >= 0; i--) {
+        if (i !== slideIndex) {
+          deleteRequests.push({ deleteObject: { objectId: allSlides[i].objectId } });
+        }
+      }
+      if (deleteRequests.length > 0) {
+        await slides.presentations.batchUpdate({
+          presentationId: fileId,
+          requestBody: { requests: deleteRequests },
+        });
+      }
+    }
+  }
 
   const requests: any[] = Object.entries(replacements).map(
     ([placeholder, value]) => ({

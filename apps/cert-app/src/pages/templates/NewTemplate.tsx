@@ -24,6 +24,7 @@ import {
   ChevronRight,
   QrCode,
   SkipForward,
+  Layers,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +45,7 @@ export default function NewTemplate() {
   const { toast } = useToast();
 
   const [templateName, setTemplateName] = useState("");
+  const [multiTemplate, setMultiTemplate] = useState(false);
   const [createdTemplate, setCreatedTemplate] = useState<CreatedFile | null>(null);
   const [createdSheet, setCreatedSheet] = useState<CreatedFile | null>(null);
 
@@ -105,6 +107,9 @@ export default function NewTemplate() {
     const sheetName = `${createdTemplate.name} – Data`;
     const detectedHeaders = placeholders.map((p) => p.replace(/^<<|>>$/g, ""));
     const requiredHeaders = ["Phone Number", "Email"];
+    if (multiTemplate) {
+      requiredHeaders.unshift("Role");
+    }
     const allHeaders = [...detectedHeaders];
     for (const rh of requiredHeaders) {
       if (!allHeaders.some((h) => h.toLowerCase() === rh.toLowerCase())) {
@@ -188,11 +193,43 @@ export default function NewTemplate() {
                     <Presentation className="w-6 h-6" />
                   </div>
                   <div>
-                    <CardTitle className="text-xl">Name your template</CardTitle>
+                    <CardTitle className="text-xl">Create a template</CardTitle>
                     <CardDescription>
-                      We'll create a blank Google Slides presentation for you to edit.
+                      Choose a template mode, name it, and we'll open Google Slides for you.
                     </CardDescription>
                   </div>
+                </div>
+
+                {/* Mode toggle */}
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setMultiTemplate(false)}
+                    className={`flex flex-col items-start gap-1.5 p-4 rounded-xl border-2 text-left transition-all ${
+                      !multiTemplate
+                        ? "border-primary bg-primary/5 ring-4 ring-primary/10"
+                        : "border-border/50 hover:border-primary/30"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Presentation className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-semibold">Single Template</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">One slide design for all recipients. Best for simple certificates.</span>
+                  </button>
+                  <button
+                    onClick={() => setMultiTemplate(true)}
+                    className={`flex flex-col items-start gap-1.5 p-4 rounded-xl border-2 text-left transition-all ${
+                      multiTemplate
+                        ? "border-primary bg-primary/5 ring-4 ring-primary/10"
+                        : "border-border/50 hover:border-primary/30"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-primary" />
+                      <span className="text-sm font-semibold">Multi Template</span>
+                    </div>
+                    <span className="text-xs text-muted-foreground">Multiple slides in one presentation for different roles. Adds a Role column to the sheet.</span>
+                  </button>
                 </div>
 
                 <div className="space-y-2">
@@ -210,7 +247,7 @@ export default function NewTemplate() {
                     <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{"<<Name>>"}</code>,{" "}
                     <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{"<<Email>>"}</code>, and{" "}
                     <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{"<<Phone Number>>"}</code>{" "}
-                    inside the slide. Phone Number and Email columns are always included in the spreadsheet.
+                    inside the slide.{multiTemplate ? " Add different designs on separate slides — each slide can be mapped to a role during batch creation." : " Phone Number and Email columns are always included in the spreadsheet."}
                   </p>
                 </div>
 
@@ -318,6 +355,7 @@ export default function NewTemplate() {
                         {(() => {
                           const detected = placeholders.map((p) => p.replace(/^<<|>>$/g, ""));
                           const required = ["Phone Number", "Email"];
+                          if (multiTemplate) required.unshift("Role");
                           const all = [...detected];
                           for (const rh of required) {
                             if (!all.some((h) => h.toLowerCase() === rh.toLowerCase())) {

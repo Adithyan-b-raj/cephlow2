@@ -2,11 +2,21 @@ import { Router, type IRouter } from "express";
 import {
   listSlideTemplates,
   getSlidePlaceholders,
+  getSlidesInfo,
   createSlidePresentation,
   addQrCodePlaceholder,
 } from "../lib/googleDrive.js";
 
 const router: IRouter = Router();
+
+router.get("/slides/:templateId/slides-info", async (req, res) => {
+  try {
+    const slidesInfo = await getSlidesInfo(req.user!.uid, req.params.templateId);
+    res.json({ slides: slidesInfo });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 router.get("/slides/templates", async (req, res) => {
   try {
