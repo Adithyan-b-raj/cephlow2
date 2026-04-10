@@ -151,6 +151,7 @@ router.post("/batches", async (req, res) => {
       emailBody,
       categoryColumn,
       categoryTemplateMap,
+      categorySlideMap,
     } = req.body;
 
     // Fetch the sheet data to create certificate records
@@ -194,6 +195,7 @@ router.post("/batches", async (req, res) => {
       emailBody: emailBody || null,
       categoryColumn: categoryColumn || null,
       categoryTemplateMap: categoryTemplateMap || null,
+      categorySlideMap: categorySlideMap || null,
       status: "draft",
       driveFolderId,
       pdfFolderId,
@@ -346,9 +348,25 @@ router.post("/batches/:batchId/generate", async (req, res) => {
           const baseUrl = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
           const qrCodeUrl = `${baseUrl}/verify/${batchId}/${cert.id}`;
 
-          // Pick template: use category-based routing if configured, else default
+          // Pick template & slide index: use categorySlideMap for multi-slide,
+          // categoryTemplateMap for multi-presentation, else default
           let certTemplateId = batch.templateId;
-          if (batch.categoryColumn && batch.categoryTemplateMap) {
+          let certSlideIndex: number | null = null;
+
+          if (batch.categoryColumn && batch.categorySlideMap) {
+            // Multi-slide mode: same template, different slide per category
+            const categoryValue = rowData[batch.categoryColumn] || "";
+            if (categoryValue && categoryValue in batch.categorySlideMap) {
+              certSlideIndex = batch.categorySlideMap[categoryValue];
+            } else if ("_default" in batch.categorySlideMap) {
+              // Use default mapping (sentinel key)
+              certSlideIndex = batch.categorySlideMap["_default"];
+            } else {
+              // Fallback to first slide
+              certSlideIndex = 0;
+            }
+          } else if (batch.categoryColumn && batch.categoryTemplateMap) {
+            // Legacy multi-presentation mode
             const categoryValue = rowData[batch.categoryColumn];
             if (categoryValue && batch.categoryTemplateMap[categoryValue]) {
               certTemplateId = batch.categoryTemplateMap[categoryValue].templateId;
@@ -361,7 +379,8 @@ router.post("/batches/:batchId/generate", async (req, res) => {
             cert.recipientName,
             replacements,
             batch.driveFolderId,
-            qrCodeUrl
+            qrCodeUrl,
+            certSlideIndex
           );
 
           // Export PDF buffer (needed for Drive upload and/or R2 upload)
