@@ -1,30 +1,26 @@
-# Track Specification: Implement Payment System
+# Track Specification: Implement Prepaid Wallet & Billing System
 
 ## Overview
-This track involves integrating a payment system (e.g., Stripe) into the Cephlow2 platform to allow for monetizing certificate issuance.
+This track involves integrating Cashfree Payments to build a robust prepaid wallet system for the Cephlow platform. Users will top up a central balance, which is then verified and deducted upfront before any certificate generation or WhatsApp distribution batch begins.
 
 ## User Stories
-- As an administrator, I want to charge for certificate generation batches.
-- As an administrator, I want to see the payment status of my batches.
-- As a participant, I should only receive my certificate once payment is confirmed (if applicable).
+- As an event administrator, I want to add funds to my Cephlow wallet via UPI and Cards using Cashfree.
+- As an event administrator, I want to view my current balance and a ledger of my transactions (top-ups and batch deductions).
+- As the backend system, I must verify that a user has sufficient wallet balance before allowing a batch generation process to consume server resources.
 
 ## Functional Requirements
-- Integrate Stripe for payment processing.
-- Create backend endpoints for payment intent creation.
-- Implement webhooks to handle payment status updates (e.g., success, failure).
-- Update the Firestore data model to store payment-related information in the `batches` collection.
-- Create a frontend payment form using Stripe Elements.
-- Display payment status on the batch detail page.
-- Gate the certificate generation and sending process based on payment status.
+- Integrate Cashfree for payment order creation (backend) and checkout rendering (frontend).
+- Build a Firestore data model utilizing `userProfiles` for the current balance and an immutable `ledgers` collection for transaction history.
+- Implement secure webhooks to handle Cashfree payment success and automatically credit the user's wallet.
+- Gate the certificate generation trigger based on the calculation: `(csv_row_count * flat_rate) <= currentBalance`.
 
 ## Technical Requirements
-- Use `@stripe/stripe-js` and `@stripe/react-stripe-js` on the frontend.
-- Use `stripe` Node.js library on the backend.
-- Securely store Stripe API keys in environment variables.
-- Ensure all payment flows follow security best practices (no raw card data on the server).
+- Use `@cashfreepayments/cashfree-js` on the React frontend.
+- Use `cashfree-pg-sdk-nodejs` on the Node.js backend.
+- Execute all financial state changes using Firestore `runTransaction` to ensure atomicity and prevent race conditions.
+- Securely verify all incoming Cashfree webhook signatures (SHA-256) before interacting with the database.
 
 ## Acceptance Criteria
-- Administrators can successfully pay for a batch using a test card.
-- Batch status updates correctly after a successful payment.
-- Certificate generation only starts after the payment is marked as successful.
-- Payment failures are handled gracefully with appropriate feedback to the user.
+- Administrators can successfully load funds into their wallet using the Cashfree Sandbox environment.
+- The system correctly calculates the batch cost and writes a single deduction entry to the ledger upon the user clicking "Generate".
+- Batch generation is strictly blocked and the user is prompted to top up if their wallet balance is insufficient.

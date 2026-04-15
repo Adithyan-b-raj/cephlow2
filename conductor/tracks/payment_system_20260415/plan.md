@@ -1,55 +1,58 @@
-# Implementation Plan: Implement Payment System
+# Implementation Plan: Implement Prepaid Wallet System
 
-## Phase 1: Research and Infrastructure Setup
-Goal: Select the payment provider, configure environment variables, and prepare the project for integration.
+## Phase 1: Gateway Setup & Core Backend
+Goal: Configure Cashfree sandbox environments and build the backend endpoint to generate secure payment sessions.
 
-- [ ] Task: Select Payment Provider (Stripe) and Configure Environment Variables
-    - [ ] Research and confirm Stripe as the primary provider.
-    - [ ] Define and add `STRIPE_SECRET_KEY` and `STRIPE_PUBLISHABLE_KEY` to the `.env` file.
-    - [ ] Update the Tech Stack document to include Stripe.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Research and Infrastructure Setup' (Protocol in workflow.md)
+- [ ] Task: Cashfree Infrastructure Setup
+    - [ ] Register a Cashfree Merchant account, apply for KYC using the MSME Udyam certificate, and switch to the Sandbox environment.
+    - [ ] Generate Sandbox API Keys and add `CASHFREE_APP_ID` and `CASHFREE_SECRET_KEY` to the `.env` file.
+    - [ ] Update the project's Tech Stack documentation to reflect Cashfree and the Prepaid Wallet model.
+- [ ] Task: Implement Order Creation Endpoint
+    - [ ] Install `cashfree-pg-sdk-nodejs`.
+    - [ ] Write Zod schemas to validate the wallet top-up request payload (e.g., amount, userId).
+    - [ ] Implement `POST /api/payments/create-order` to interface with Cashfree and return a `payment_session_id`.
+- [ ] Task: Conductor - User Manual Verification 'Phase 1: Gateway Setup & Core Backend'
 
-## Phase 2: Backend Integration
-Goal: Implement the core payment logic and webhook handling on the server.
+## Phase 2: Frontend Wallet UI & Checkout
+Goal: Build the user interface for tracking balances and executing the Cashfree checkout flow.
 
-- [ ] Task: Define Payment Data Model and API Schemas
-    - [ ] Write Zod schemas for payment intent requests and responses in `@workspace/api-zod`.
-    - [ ] Update the `Batch` interface in `@workspace/firebase` to include payment status fields.
-- [ ] Task: Implement Payment Intent Endpoint
-    - [ ] Write unit tests for the `/api/payments/create-intent` endpoint.
-    - [ ] Implement the endpoint in `api-server` using the Stripe SDK.
-    - [ ] Verify that the endpoint returns a valid client secret.
-- [ ] Task: Implement Stripe Webhook Handler
-    - [ ] Write unit tests for the Stripe webhook handler.
-    - [ ] Implement a webhook route to listen for `payment_intent.succeeded` and `payment_intent.payment_failed` events.
-    - [ ] Update the Firestore `batches` status based on the webhook events.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Backend Integration' (Protocol in workflow.md)
+- [ ] Task: Build the Wallet Dashboard
+    - [ ] Create a `WalletOverview` component that fetches and displays the `currentBalance` from the `userProfiles` collection.
+    - [ ] Create a `LedgerTable` component to display the financial history from the `ledgers` collection.
+- [ ] Task: Integrate Cashfree JS SDK
+    - [ ] Install `@cashfreepayments/cashfree-js`.
+    - [ ] Build a `TopUpModal` component allowing users to select or input a credit amount.
+    - [ ] Implement the Cashfree checkout trigger using the `payment_session_id` retrieved from the Phase 1 backend endpoint.
+- [ ] Task: Conductor - User Manual Verification 'Phase 2: Frontend Wallet UI & Checkout'
 
-## Phase 3: Frontend Integration
-Goal: Create the user interface for payments and integrate the API client.
+## Phase 3: The Top-Up Webhook & Ledger Architecture
+Goal: Safely catch successful payments asynchronously and update the user's balance in Firestore.
 
-- [ ] Task: Update API Client and Hooks
-    - [ ] Regenerate the API client and React Query hooks using `orval`.
-- [ ] Task: Implement Payment Form Component
-    - [ ] Write tests for the Stripe payment form component.
-    - [ ] Create a reusable `PaymentForm` component using shadcn/ui and Stripe Elements.
-- [ ] Task: Integrate Payment Flow in New Batch Wizard
-    - [ ] Write tests for the payment step in the `NewBatch` wizard.
-    - [ ] Add a payment step to the `NewBatch.tsx` wizard that triggers intent creation and handles payment completion.
-- [ ] Task: Display Payment Status in Batch Detail
-    - [ ] Write tests for the batch detail payment status display.
-    - [ ] Update `BatchDetail.tsx` to show the current payment status and allow for retry if failed.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Frontend Integration' (Protocol in workflow.md)
+- [ ] Task: Implement Cashfree Webhook Handler
+    - [ ] Create a `POST /api/webhooks/cashfree` route.
+    - [ ] Implement standard SHA-256 signature verification to ensure the webhook legitimately originated from Cashfree.
+    - [ ] Write the atomic Firestore `runTransaction` to handle the `SUCCESS` payload.
+    - [ ] Database Logic: Increment the balance in `userProfiles` AND insert a corresponding document into `ledgers` (type: `wallet_topup`).
+- [ ] Task: Conductor - User Manual Verification 'Phase 3: Top-Up Webhook & Ledger Architecture'
 
-## Phase 4: Payment Gating and Final Polish
-Goal: Ensure that generation and sending are gated by payment and perform final testing.
+## Phase 4: Upfront Billing & Generation Gating
+Goal: Act as the financial tollbooth, charging the user for the entire batch before the server begins generating certificates.
 
-- [ ] Task: Implement Generation Gating
-    - [ ] Write unit tests for the generation gating logic.
-    - [ ] Update the backend `POST /api/batches/:batchId/generate` route to check for successful payment status.
-- [ ] Task: Implement Sending Gating
-    - [ ] Write unit tests for the sending gating logic.
-    - [ ] Update the backend `POST /api/batches/:batchId/send` routes to check for successful payment status.
-- [ ] Task: Final System Verification
-    - [ ] Perform a full end-to-end test of the payment and generation flow.
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Payment Gating and Final Polish' (Protocol in workflow.md)
+- [ ] Task: Implement Upfront Deduction Logic
+    - [ ] Update the existing `POST /api/batches/:batchId/generate` endpoint.
+    - [ ] Logic: Calculate the total batch cost (`row_count * rate`).
+    - [ ] Logic: Execute a `runTransaction` to check if `currentBalance >= cost`.
+    - [ ] Execution: If valid, deduct the balance, write to `ledgers` (type: `batch_deduction`), and initiate generation. If invalid, throw an HTTP 402 Payment Required error.
+- [ ] Task: Frontend Generation Gating
+    - [ ] Update the `NewBatch` wizard to display the calculated upfront cost to the user before they confirm.
+    - [ ] Implement a blocking "Insufficient Funds" UI state that disables the generate button and prompts the `TopUpModal` if the balance is too low.
+- [ ] Task: Conductor - User Manual Verification 'Phase 4: Upfront Billing & Generation Gating'
+
+## Phase 5: Automated Refund Pipeline (Deferred / Later Add-on)
+Goal: Catch failed WhatsApp deliveries via Meta webhooks and safely credit the exact amount back to the user's wallet. (Note: To be executed only after Phases 1-4 are stable in production).
+
+- [ ] Task: Upgrade Message Tracking for Idempotency
+    - [ ] Ensure the `dispatches` (or `certificates`) tracking table includes `meta_message_id` and a `refundStatus` flag (default: `'none'`).
+- [ ] Task: Implement Meta Webhook Receiver & Ledger Credit
+    - [ ] Create `POST /api/webhooks/meta-status` to listen for delivery failures.
+    - [ ] Write an idempotent Firestore `runTransaction` that checks if `refundStatus === 'refunded'` before incrementing the `userProfiles` balance and writing to `ledgers` (type: `meta_refund`).
