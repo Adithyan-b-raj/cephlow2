@@ -3,6 +3,7 @@ import {
   listSlideTemplates,
   getSlidePlaceholders,
   getSlidesInfo,
+  getSlidePresentation,
   createSlidePresentation,
   addQrCodePlaceholder,
 } from "../lib/googleDrive.js";
@@ -29,7 +30,13 @@ router.get("/slides/templates", async (req, res) => {
 
 router.post("/slides/templates", async (req, res) => {
   try {
-    const { name } = req.body;
+    const { name, existingSlideId } = req.body;
+    
+    if (existingSlideId) {
+      const result = await getSlidePresentation(req.user!.uid, existingSlideId);
+      return res.status(200).json(result);
+    }
+    
     if (!name) return res.status(400).json({ error: "name is required" });
     const result = await createSlidePresentation(req.user!.uid, name);
     return res.status(201).json(result);

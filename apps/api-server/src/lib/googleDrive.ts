@@ -17,30 +17,32 @@ export async function listSlideTemplates(uid: string) {
   const drive = await getDriveClient(uid);
   const res = await drive.files.list({
     q: "mimeType='application/vnd.google-apps.presentation' and trashed=false",
-    fields: "files(id,name,modifiedTime)",
+    fields: "files(id,name,modifiedTime,thumbnailLink)",
     orderBy: "modifiedTime desc",
     pageSize: 50,
   });
-  return (res.data.files || []) as Array<{
-    id: string;
-    name: string;
-    modifiedTime?: string;
-  }>;
+  return (res.data.files || []).map(f => ({
+    id: f.id!,
+    name: f.name!,
+    modifiedTime: f.modifiedTime,
+    thumbnailUrl: (f as any).thumbnailLink,
+  }));
 }
 
 export async function listSheetFiles(uid: string) {
   const drive = await getDriveClient(uid);
   const res = await drive.files.list({
     q: "mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
-    fields: "files(id,name,modifiedTime)",
+    fields: "files(id,name,modifiedTime,thumbnailLink)",
     orderBy: "modifiedTime desc",
     pageSize: 50,
   });
-  return (res.data.files || []) as Array<{
-    id: string;
-    name: string;
-    modifiedTime?: string;
-  }>;
+  return (res.data.files || []).map(f => ({
+    id: f.id!,
+    name: f.name!,
+    modifiedTime: f.modifiedTime,
+    thumbnailUrl: (f as any).thumbnailLink,
+  }));
 }
 
 export async function getSlidePlaceholders(
@@ -108,6 +110,23 @@ export async function getSlidesInfo(
     result.push({ index: i, objectId, thumbnailUrl });
   }
   return result;
+}
+
+export async function getSlidePresentation(
+  uid: string,
+  presentationId: string
+): Promise<{ id: string; name: string; url: string }> {
+  const slides = await getSlidesClient(uid);
+  const res = await slides.presentations.get({
+    presentationId,
+    fields: "presentationId,title",
+  });
+  const id = res.data.presentationId!;
+  return {
+    id,
+    name: res.data.title || "Untitled",
+    url: `https://docs.google.com/presentation/d/${id}/edit`,
+  };
 }
 
 export async function createSlidePresentation(
