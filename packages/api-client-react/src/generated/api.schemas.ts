@@ -180,6 +180,35 @@ export interface CreateOrderResponse {
   order_id: string;
 }
 
+export interface WalletBalanceResponse {
+  currentBalance: number;
+}
+
+export type LedgerEntryType =
+  (typeof LedgerEntryType)[keyof typeof LedgerEntryType];
+
+export const LedgerEntryType = {
+  topup: "topup",
+  batch_deduction: "batch_deduction",
+  refund: "refund",
+} as const;
+
+export type LedgerEntryMetadata = { [key: string]: unknown };
+
+export interface LedgerEntry {
+  id: string;
+  type: LedgerEntryType;
+  amount: number;
+  balanceAfter: number;
+  description: string;
+  metadata?: LedgerEntryMetadata;
+  createdAt: string;
+}
+
+export interface WalletHistoryResponse {
+  ledgers: LedgerEntry[];
+}
+
 export type GetSheetDataParams = {
   tabName?: string;
 };

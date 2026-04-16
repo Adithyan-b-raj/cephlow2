@@ -1,11 +1,70 @@
+import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Wallet as WalletIcon, IndianRupee, History, Plus } from "lucide-react";
+import { Wallet as WalletIcon, IndianRupee, History, Plus, Loader2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+// @ts-ignore
+import { load } from "@cashfreepayments/cashfree-js";
+import {
+  useGetWalletBalance,
+  useGetWalletHistory,
+  useCreateOrder,
+} from "@workspace/api-client-react";
+import { format } from "date-fns";
 
 export default function Wallet() {
-  // TODO: Fetch from actual endpoints in Phase 2
-  const currentBalance = 0;
-  const isLoading = false;
-  const ledgerHistory: any[] = [];
+  const { data: balanceData, isLoading: isLoadingBalance, refetch: refetchBalance } = useGetWalletBalance();
+  const { data: historyData, isLoading: isLoadingHistory, refetch: refetchHistory } = useGetWalletHistory();
+  const { mutateAsync: createOrder } = useCreateOrder();
+
+  const [isTopUpOpen, setIsTopUpOpen] = useState(false);
+  const [topUpAmount, setTopUpAmount] = useState<string>("500");
+  const [isProcessingTopUp, setIsProcessingTopUp] = useState(false);
+
+  const currentBalance = balanceData?.currentBalance ?? 0;
+  const ledgerHistory = historyData?.ledgers || [];
+
+  const handleTopUp = async () => {
+    const amount = Number(topUpAmount);
+    if (isNaN(amount) || amount <= 0) return;
+
+    try {
+      setIsProcessingTopUp(true);
+      const { payment_session_id } = await createOrder({ data: { amount } });
+
+      const cashfree = await load({
+        mode: "sandbox", 
+      });
+
+      const checkoutOptions: any = {
+        paymentSessionId: payment_session_id,
+        redirectTarget: "_modal",
+      };
+
+      await cashfree.checkout(checkoutOptions);
+      
+      console.log("Payment flow closed by user or completed.");
+      setIsTopUpOpen(false);
+      
+      setTimeout(() => {
+        refetchBalance();
+        refetchHistory();
+      }, 3000);
+      
+    } catch (error) {
+      console.error("Failed to initiate top-up:", error);
+    } finally {
+      setIsProcessingTopUp(false);
+    }
+  };
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -16,16 +75,57 @@ export default function Wallet() {
             Manage your credits for certificate generation and WhatsApp delivery.
           </p>
         </div>
-        <button
-          className="flex items-center justify-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm"
-          onClick={() => {
-            // TODO: Open TopUpModal
-            alert("TopUp Modal coming soon in Phase 2!");
-          }}
-        >
-          <Plus className="w-4 h-4" />
-          Add Credits
-        </button>
+
+        <Dialog open={isTopUpOpen} onOpenChange={setIsTopUpOpen}>
+          <DialogTrigger asChild>
+            <Button className="flex items-center gap-2 shadow-sm">
+              <Plus className="w-4 h-4" />
+              Add Credits
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Top-up Wallet</DialogTitle>
+              <DialogDescription>
+                Add funds to your prepaid wallet securely via Cashfree.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="py-4 space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Amount (INR)</label>
+                <Input
+                  type="number"
+                  placeholder="e.g. 500"
+                  value={topUpAmount}
+                  onChange={(e) => setTopUpAmount(e.target.value)}
+                  min="1"
+                  className="text-lg"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {[100, 500, 1000].map((amt) => (
+                  <Button
+                    key={amt}
+                    variant="outline"
+                    type="button"
+                    onClick={() => setTopUpAmount(amt.toString())}
+                  >
+                    ₹{amt}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pb-2">
+              <Button variant="ghost" onClick={() => setIsTopUpOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleTopUp} disabled={isProcessingTopUp}>
+                {isProcessingTopUp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Proceed to Pay
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
@@ -39,7 +139,7 @@ export default function Wallet() {
           <CardContent>
             <div className="flex items-baseline gap-1">
               <span className="text-4xl font-display font-bold">
-                {isLoading ? "..." : `₹${currentBalance.toFixed(2)}`}
+                {isLoadingBalance ? "..." : `₹${currentBalance.toFixed(2)}`}
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
@@ -61,7 +161,7 @@ export default function Wallet() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {isLoadingHistory ? (
               <div className="h-32 flex items-center justify-center text-muted-foreground">Loading history...</div>
             ) : ledgerHistory.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -74,8 +174,40 @@ export default function Wallet() {
                 </p>
               </div>
             ) : (
-              <div className="rounded-md border">
-                {/* TODO: Implement LedgerTable Component */}
+              <div className="rounded-md border overflow-hidden">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-muted text-muted-foreground">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Date</th>
+                      <th className="px-4 py-3 font-medium">Description</th>
+                      <th className="px-4 py-3 font-medium">Type</th>
+                      <th className="px-4 py-3 font-medium text-right">Amount</th>
+                      <th className="px-4 py-3 font-medium text-right">Balance</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {ledgerHistory.map((ledger: any) => (
+                      <tr key={ledger.id} className="border-t">
+                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                          {format(new Date(ledger.createdAt), "dd MMM yyyy, HH:mm")}
+                        </td>
+                        <td className="px-4 py-3">{ledger.description}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize
+                            ${ledger.type === 'topup' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
+                            {ledger.type.replace('_', ' ')}
+                          </span>
+                        </td>
+                        <td className={`px-4 py-3 text-right font-medium ${ledger.type === 'topup' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {ledger.type === 'topup' ? '+' : '-'}₹{ledger.amount.toFixed(2)}
+                        </td>
+                        <td className="px-4 py-3 text-right text-muted-foreground font-medium">
+                          ₹{ledger.balanceAfter.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             )}
           </CardContent>

@@ -16,14 +16,14 @@ Goal: Configure Cashfree sandbox environments and build the backend endpoint to 
 ## Phase 2: Frontend Wallet UI & Checkout
 Goal: Build the user interface for tracking balances and executing the Cashfree checkout flow.
 
-- [ ] Task: Build the Wallet Dashboard
-    - [ ] Create a `WalletOverview` component that fetches and displays the `currentBalance` from the `userProfiles` collection.
-    - [ ] Create a `LedgerTable` component to display the financial history from the `ledgers` collection.
-- [ ] Task: Integrate Cashfree JS SDK
-    - [ ] Install `@cashfreepayments/cashfree-js`.
-    - [ ] Build a `TopUpModal` component allowing users to select or input a credit amount.
-    - [ ] Implement the Cashfree checkout trigger using the `payment_session_id` retrieved from the Phase 1 backend endpoint.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Frontend Wallet UI & Checkout'
+- [x] Task: Build the Wallet Dashboard
+    - [x] Create a `WalletOverview` component that fetches and displays the `currentBalance` from the `userProfiles` collection.
+    - [x] Create a `LedgerTable` component to display the financial history from the `ledgers` collection.
+- [x] Task: Integrate Cashfree JS SDK
+    - [x] Install `@cashfreepayments/cashfree-js`.
+    - [x] Build a `TopUpModal` component allowing users to select or input a credit amount.
+    - [x] Implement the Cashfree checkout trigger using the `payment_session_id` retrieved from the Phase 1 backend endpoint.
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Frontend Wallet UI & Checkout'
 
 ## Phase 3: The Top-Up Webhook & Ledger Architecture
 Goal: Safely catch successful payments asynchronously and update the user's balance in Firestore.

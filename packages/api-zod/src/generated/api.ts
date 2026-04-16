@@ -288,3 +288,27 @@ export const CreateOrderResponse = zod.object({
   payment_session_id: zod.string(),
   order_id: zod.string(),
 });
+
+/**
+ * @summary Get the current wallet balance for the user
+ */
+export const GetWalletBalanceResponse = zod.object({
+  currentBalance: zod.number(),
+});
+
+/**
+ * @summary Get the ledger history for the user's wallet
+ */
+export const GetWalletHistoryResponse = zod.object({
+  ledgers: zod.array(
+    zod.object({
+      id: zod.string(),
+      type: zod.enum(["topup", "batch_deduction", "refund"]),
+      amount: zod.number(),
+      balanceAfter: zod.number(),
+      description: zod.string(),
+      metadata: zod.record(zod.string(), zod.unknown()).optional(),
+      createdAt: zod.date(),
+    }),
+  ),
+});
