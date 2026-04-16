@@ -102,8 +102,14 @@ export interface Certificate {
   slideUrl?: string | null;
   pdfFileId?: string | null;
   pdfUrl?: string | null;
+  r2PdfUrl?: string | null;
   sentAt?: Date | null;
   errorMessage?: string | null;
   rowData?: Record<string, string> | null;
+  isPaid?: boolean;
+  requiresVisualRegen?: boolean;
   createdAt: Date;
+  updatedAt?: Date | string;
+  whatsappStatus?: string | null;
 }
+

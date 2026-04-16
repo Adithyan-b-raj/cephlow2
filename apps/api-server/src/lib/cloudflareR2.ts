@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, DeleteObjectCommand, DeleteObjectsCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand, DeleteObjectsCommand, CopyObjectCommand } from "@aws-sdk/client-s3";
 
 function getConfig() {
   return {
@@ -80,6 +80,25 @@ export async function uploadPdfToR2(
 }
 
 /**
+ * Copy an existing R2 object to a new key.
+ */
+export async function copyR2Object(sourceKey: string, destKey: string): Promise<void> {
+  const config = getConfig();
+  if (!config.accountId || !config.accessKeyId || !config.secretAccessKey || !config.bucketName) {
+    throw new Error("Cloudflare R2 credentials are not fully configured");
+  }
+  const client = getR2Client(config);
+  await client.send(
+    new CopyObjectCommand({
+      Bucket: config.bucketName,
+      CopySource: encodeURIComponent(`${config.bucketName}/${sourceKey}`),
+      Key: destKey,
+    })
+  );
+  console.log(`[R2] Copied object from ${sourceKey} to ${destKey}`);
+}
+
+/**
  * Delete a single object from R2 by its key.
  */
 export async function deleteR2Object(key: string): Promise<void> {
@@ -88,8 +107,12 @@ export async function deleteR2Object(key: string): Promise<void> {
     throw new Error("Cloudflare R2 credentials are not fully configured");
   }
   const client = getR2Client(config);
-  await client.send(new DeleteObjectCommand({ Bucket: config.bucketName, Key: key }));
-  console.log(`[R2] Deleted object: ${key}`);
+  try {
+    await client.send(new DeleteObjectCommand({ Bucket: config.bucketName, Key: key }));
+    console.log(`[R2] Deleted object: ${key}`);
+  } catch (err: any) {
+    console.warn(`[R2] Failed to delete object ${key}:`, err.message);
+  }
 }
 
 /**
@@ -114,3 +137,4 @@ export async function deleteR2Objects(keys: string[]): Promise<void> {
     console.log(`[R2] Deleted ${chunk.length} objects`);
   }
 }
+

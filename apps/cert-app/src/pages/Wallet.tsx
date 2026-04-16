@@ -24,7 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 export default function Wallet() {
   const { data: balanceData, isLoading: isLoadingBalance, refetch: refetchBalance } = useGetWalletBalance();
   const { data: historyData, isLoading: isLoadingHistory, refetch: refetchHistory } = useGetWalletHistory();
-  const { mutateAsync: createOrder } = useCreateOrder();
+  const { mutateAsync: createOrder } = useCreateOrder() as any;
   const { toast } = useToast();
 
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
@@ -40,7 +40,7 @@ export default function Wallet() {
 
     try {
       setIsProcessingTopUp(true);
-      const { payment_session_id } = await createOrder({ data: { amount } });
+      const { payment_session_id } = await createOrder({ data: { amount } } as any);
 
       const cashfree = await load({
         mode: "sandbox", 
@@ -79,7 +79,7 @@ export default function Wallet() {
         <div>
           <h1 className="text-3xl font-display font-bold tracking-tight">Prepaid Wallet</h1>
           <p className="text-muted-foreground mt-1">
-            Manage your credits for certificate generation and WhatsApp delivery.
+            Manage your credits for certificate generation.
           </p>
         </div>
 

@@ -468,3 +468,18 @@ export async function generateCertificate(
     url: `https://docs.google.com/presentation/d/${fileId}`,
   };
 }
+
+export async function deleteFile(uid: string, fileId: string) {
+  try {
+    const drive = await getDriveClient(uid);
+    await drive.files.delete({ fileId });
+    console.log(`[DRIVE] Deleted file: ${fileId}`);
+  } catch (err: any) {
+    if (err.code === 404) {
+      console.warn(`[DRIVE] File ${fileId} not found, skipping deletion.`);
+    } else {
+      console.error(`[DRIVE] Failed to delete file ${fileId}:`, err.message);
+    }
+  }
+}
+
