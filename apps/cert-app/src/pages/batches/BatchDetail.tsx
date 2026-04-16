@@ -76,13 +76,31 @@ export default function BatchDetail() {
     }
   });
 
+  const RATE = Number(import.meta.env.VITE_CERT_GENERATION_RATE || 1);
+  const totalCost = (batch?.totalCount || 0) * RATE;
+
+
   const { mutate: generateCerts, isPending: isGenerating } = useGenerateBatch({
     mutation: {
       onSuccess: () => {
         toast({ title: "Generation started!" });
         refetch();
       },
-      onError: (err: any) => toast({ title: "Generation failed", description: err.message, variant: "destructive" })
+      onError: (err: any) => {
+        const isLowBalance = err.status === 402;
+        toast({ 
+          title: isLowBalance ? "Insufficient Balance" : "Generation failed", 
+          description: isLowBalance 
+            ? "Your wallet balance is too low to generate this batch. Please add credits to continue."
+            : (err.data?.error || "An unexpected error occurred"),
+          variant: "destructive",
+          action: isLowBalance ? (
+            <Button variant="outline" size="sm" onClick={() => window.location.href = '/wallet'}>
+              Top Up
+            </Button>
+          ) : undefined
+        });
+      }
     }
   });
 
@@ -234,7 +252,7 @@ export default function BatchDetail() {
             className="hover-elevate bg-background"
           >
             {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
-            Generate Certificates
+            Generate ({batch.totalCount} Certs · ₹{totalCost})
           </Button>
           <Button
             onClick={handleOpenSend}

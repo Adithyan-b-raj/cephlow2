@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { userProfilesCollection, ledgersCollection } from "@workspace/firebase";
+import { db, userProfilesCollection, ledgersCollection } from "@workspace/firebase";
 
 const router = Router();
 

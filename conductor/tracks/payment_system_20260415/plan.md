@@ -7,11 +7,11 @@ Goal: Configure Cashfree sandbox environments and build the backend endpoint to 
     - [x] Register a Cashfree Merchant account, apply for KYC using the MSME Udyam certificate, and switch to the Sandbox environment.
     - [x] Generate Sandbox API Keys and add `CASHFREE_APP_ID` and `CASHFREE_SECRET_KEY` to the `.env` file.
     - [x] Update the project's Tech Stack documentation to reflect Cashfree and the Prepaid Wallet model.
-- [ ] Task: Implement Order Creation Endpoint
-    - [ ] Install `cashfree-pg-sdk-nodejs`.
-    - [ ] Write Zod schemas to validate the wallet top-up request payload (e.g., amount, userId).
-    - [ ] Implement `POST /api/payments/create-order` to interface with Cashfree and return a `payment_session_id`.
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Gateway Setup & Core Backend'
+- [x] Task: Implement Order Creation Endpoint
+    - [x] Install `cashfree-pg` (v5 SDK).
+    - [x] Write Zod schemas to validate the wallet top-up request payload (e.g., amount).
+    - [x] Implement `POST /api/payments/create-order` using the instance-based Cashfree SDK to return a `payment_session_id`.
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Gateway Setup & Core Backend'
 
 ## Phase 2: Frontend Wallet UI & Checkout
 Goal: Build the user interface for tracking balances and executing the Cashfree checkout flow.
@@ -38,15 +38,15 @@ Goal: Safely catch successful payments asynchronously and update the user's bala
 ## Phase 4: Upfront Billing & Generation Gating
 Goal: Act as the financial tollbooth, charging the user for the entire batch before the server begins generating certificates.
 
-- [ ] Task: Implement Upfront Deduction Logic
-    - [ ] Update the existing `POST /api/batches/:batchId/generate` endpoint.
-    - [ ] Logic: Calculate the total batch cost (`row_count * rate`).
-    - [ ] Logic: Execute a `runTransaction` to check if `currentBalance >= cost`.
-    - [ ] Execution: If valid, deduct the balance, write to `ledgers` (type: `batch_deduction`), and initiate generation. If invalid, throw an HTTP 402 Payment Required error.
-- [ ] Task: Frontend Generation Gating
-    - [ ] Update the `NewBatch` wizard to display the calculated upfront cost to the user before they confirm.
-    - [ ] Implement a blocking "Insufficient Funds" UI state that disables the generate button and prompts the `TopUpModal` if the balance is too low.
-- [ ] Task: Conductor - User Manual Verification 'Phase 4: Upfront Billing & Generation Gating'
+- [x] Task: Implement Upfront Deduction Logic
+    - [x] Update the existing `POST /api/batches/:batchId/generate` endpoint.
+    - [x] Logic: Calculate the total batch cost (`totalCount * rate`).
+    - [x] Logic: Execute a `runTransaction` to check if `currentBalance >= cost`.
+    - [x] Execution: If valid, deduct the balance, write to `ledgers` (type: `generation_deduction`), and initiate generation. If invalid, throw an HTTP 402 Payment Required error.
+- [x] Task: Frontend Generation Gating
+    - [x] Update the `BatchDetail` page to display the calculated upfront cost in the "Generate" button.
+    - [x] Implement a clean "Insufficient Balance" toast with a "Top Up" link that blocks execution if the balance is too low.
+- [x] Task: Conductor - User Manual Verification 'Phase 4: Upfront Billing & Generation Gating'
 
 ## Phase 5: Automated Refund Pipeline (Deferred / Later Add-on)
 Goal: Catch failed WhatsApp deliveries via Meta webhooks and safely credit the exact amount back to the user's wallet. (Note: To be executed only after Phases 1-4 are stable in production).

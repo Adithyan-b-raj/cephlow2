@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { db, batchesCollection, certificatesCollection, type Certificate } from "@workspace/firebase";
+import { db, batchesCollection, certificatesCollection, userProfilesCollection, ledgersCollection, type Certificate } from "@workspace/firebase";
 import { getSheetsClient } from "../lib/googleSheets.js";
 import { generateCertificate, exportSlidesToPdf, createFolder, uploadPdf, makeFilePublic } from "../lib/googleDrive.js";
 import { sendEmail } from "../lib/gmail.js";
@@ -315,8 +315,48 @@ router.post("/batches/:batchId/generate", async (req, res) => {
       return res.status(403).json({ error: "Access denied" });
     }
 
-    // Mark batch as generating
-    await batchRef.update({ status: "generating" });
+    // Mark batch as generating with financial gate
+    const RATE = Number(process.env.VITE_CERT_GENERATION_RATE || 1);
+    
+    await db.runTransaction(async (t) => {
+      const bDoc = await t.get(batchRef);
+      if (!bDoc.exists) throw new Error("Batch not found");
+      const bData = bDoc.data() as any;
+      
+      if (bData.status === "generating") throw new Error("Batch is already generating");
+      if (bData.status === "sending") throw new Error("Batch is currently being sent");
+      
+      const totalCount = bData.totalCount || 0;
+      const cost = totalCount * RATE;
+      
+      const pDoc = await t.get(userProfilesCollection.doc(userId));
+      const pData = pDoc.data() as any;
+      const currentBalance = pData?.currentBalance || 0;
+      
+      if (currentBalance < cost) {
+         const err = new Error(`Insufficient funds: ₹${cost.toFixed(2)} required, but wallet balance is only ₹${currentBalance.toFixed(2)}.`) as any;
+         err.statusCode = 402;
+         throw err;
+      }
+      
+      // Deduct
+      t.update(userProfilesCollection.doc(userId), {
+        currentBalance: currentBalance - cost
+      });
+      
+      // Ledger
+      const ledgerRef = ledgersCollection(userId).doc(`gen_${batchId}_${Date.now()}`);
+      t.set(ledgerRef, {
+        amount: -cost,
+        type: "generation_deduction",
+        description: `Generation cost for batch: ${bData.name}`,
+        metadata: { batchId, totalCount, rate: RATE },
+        createdAt: new Date().toISOString()
+      });
+      
+      // Update batch
+      t.update(batchRef, { status: "generating" });
+    });
 
     // Respond immediately so the frontend can start polling for per-cert updates
     res.json({ success: true, message: "Generation started" });
@@ -471,8 +511,15 @@ router.post("/batches/:batchId/generate", async (req, res) => {
       await batchesCollection.doc(batchId).update({ status: "draft" });
     });
   } catch (err: any) {
-    await batchesCollection.doc(batchId).update({ status: "draft" });
-    res.status(500).json({ error: err.message });
+    console.error("[GENERATE] Initial request failed:", err);
+    // Only revert status to draft if we haven't already marked it as generating 
+    // (the transaction would have failed if it didn't pass, so it should still be draft if we hit here early)
+    try {
+      await batchesCollection.doc(batchId).update({ status: "draft" });
+    } catch {}
+
+    const status = err.statusCode || 500;
+    res.status(status).json({ error: err.message });
   }
 });
 
