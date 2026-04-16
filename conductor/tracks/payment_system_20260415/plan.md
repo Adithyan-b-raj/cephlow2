@@ -28,12 +28,12 @@ Goal: Build the user interface for tracking balances and executing the Cashfree 
 ## Phase 3: The Top-Up Webhook & Ledger Architecture
 Goal: Safely catch successful payments asynchronously and update the user's balance in Firestore.
 
-- [ ] Task: Implement Cashfree Webhook Handler
-    - [ ] Create a `POST /api/webhooks/cashfree` route.
-    - [ ] Implement standard SHA-256 signature verification to ensure the webhook legitimately originated from Cashfree.
-    - [ ] Write the atomic Firestore `runTransaction` to handle the `SUCCESS` payload.
-    - [ ] Database Logic: Increment the balance in `userProfiles` AND insert a corresponding document into `ledgers` (type: `wallet_topup`).
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Top-Up Webhook & Ledger Architecture'
+- [x] Task: Implement Cashfree Webhook Handler
+    - [x] Create a `POST /api/webhooks/cashfree` route.
+    - [x] Implement standard SHA-256 signature verification to ensure the webhook legitimately originated from Cashfree.
+    - [x] Write the atomic Firestore `runTransaction` to handle the `SUCCESS` payload.
+    - [x] Database Logic: Increment the balance in `userProfiles` AND insert a corresponding document into `ledgers` (type: `wallet_topup`).
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Top-Up Webhook & Ledger Architecture'
 
 ## Phase 4: Upfront Billing & Generation Gating
 Goal: Act as the financial tollbooth, charging the user for the entire batch before the server begins generating certificates.

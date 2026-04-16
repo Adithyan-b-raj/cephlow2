@@ -3,6 +3,12 @@ import { db, certificatesCollection } from "@workspace/firebase";
 
 const router = Router();
 
+import { Cashfree, CFEnvironment } from "cashfree-pg";
+
+(Cashfree as any).XClientId = process.env.CASHFREE_APP_ID || "";
+(Cashfree as any).XClientSecret = process.env.CASHFREE_SECRET_KEY || "";
+(Cashfree as any).XEnvironment = CFEnvironment.SANDBOX;
+
 // GET /api/webhooks/whatsapp — Meta webhook verification challenge
 router.get("/webhooks/whatsapp", (req, res) => {
   const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
@@ -67,3 +73,85 @@ router.post("/webhooks/whatsapp", async (req, res) => {
 });
 
 export default router;
+
+// POST /api/webhooks/cashfree — Cashfree payment status webhook
+router.post("/webhooks/cashfree", async (req, res) => {
+  try {
+    const signature = req.headers["x-webhook-signature"] as string;
+    const timestamp = req.headers["x-webhook-timestamp"] as string;
+    const rawBody = (req as any).rawBody as string;
+
+    if (!signature || !timestamp || !rawBody) {
+      return res.status(400).json({ error: "Missing webhook headers/body" });
+    }
+
+    try {
+      (Cashfree as any).PGVerifyWebhookSignature(signature, rawBody, timestamp);
+    } catch (err: any) {
+      console.error("[Cashfree Webhook] Invalid signature:", err.message);
+      return res.status(401).json({ error: "Invalid signature" });
+    }
+
+    const payload = req.body;
+    
+    // Process PAYMENT_SUCCESS_WEBHOOK
+    if (payload.type === "PAYMENT_SUCCESS_WEBHOOK") {
+      const order = payload.data?.order;
+      const payment = payload.data?.payment;
+      const customer = payload.data?.customer_details;
+
+      if (!order?.order_id || !payment?.payment_amount || !customer?.customer_id) {
+         console.warn("[Cashfree Webhook] Missing order details in payload", payload);
+         return res.status(200).send("OK");
+      }
+
+      const customerId = customer.customer_id;
+      const amount = payment.payment_amount;
+      const orderId = order.order_id;
+      
+      const ledgerRef = db.collection("userProfiles").doc(customerId).collection("ledgers").doc(orderId);
+      const profileRef = db.collection("userProfiles").doc(customerId);
+
+      await db.runTransaction(async (t) => {
+        const ledgerSnap = await t.get(ledgerRef);
+        if (ledgerSnap.exists) {
+           console.log(`[Cashfree Webhook] Order ${orderId} already processed.`);
+           return;
+        }
+
+        const profileSnap = await t.get(profileRef);
+        let currentBalance = 0;
+        if (profileSnap.exists) {
+           const profileData = profileSnap.data();
+           currentBalance = typeof profileData?.currentBalance === 'number' ? profileData.currentBalance : 0;
+        }
+
+        const newBalance = currentBalance + amount;
+
+        t.set(profileRef, { 
+           currentBalance: newBalance 
+        }, { merge: true });
+
+        t.set(ledgerRef, {
+           id: orderId,
+           type: "topup",
+           amount: amount,
+           balanceAfter: newBalance,
+           description: `Wallet top-up (Order: ${orderId})`,
+           metadata: {
+             payment_id: payment.cf_payment_id || null,
+             payment_method: payment.payment_group || null
+           },
+           createdAt: new Date().toISOString()
+        });
+      });
+
+      console.log(`[Cashfree Webhook] Successfully credited ₹${amount} to ${customerId} (Order: ${orderId})`);
+    }
+
+    res.status(200).send("OK");
+  } catch (err: any) {
+    console.error("[Cashfree Webhook] Error processing:", err);
+    res.status(500).json({ error: "Webhook processing failed" });
+  }
+});
