@@ -354,13 +354,21 @@ router.post("/batches/:batchId/sync", async (req, res) => {
       const email = rowData[emailColumn] || "";
       const name = rowData[nameColumn] || "Unknown";
 
-      // Match primarily by email if available, otherwise by name
-      // Only match certificates that haven't been claimed by a previous row in this sync
-      const matchIndex = availableCerts.findIndex((c) => {
-        if (email && c.recipientEmail === email) return true;
-        if (!email && name && c.recipientName === name) return true;
-        return false;
-      });
+      // Match strategy:
+      // 1. Exact match on both Name and Email
+      // 2. Fallback to Email match (if Name was updated)
+      // 3. Fallback to Name match (if Email was updated)
+      let matchIndex = availableCerts.findIndex(
+        (c) => c.recipientEmail === email && c.recipientName === name
+      );
+
+      if (matchIndex === -1 && email) {
+        matchIndex = availableCerts.findIndex((c) => c.recipientEmail === email);
+      }
+
+      if (matchIndex === -1 && name && name !== "Unknown") {
+        matchIndex = availableCerts.findIndex((c) => c.recipientName === name);
+      }
 
       if (matchIndex > -1) {
         const matchingCert = availableCerts[matchIndex];
@@ -386,7 +394,7 @@ router.post("/batches/:batchId/sync", async (req, res) => {
         if (hasVisualChanged && (matchingCert.status === "generated" || matchingCert.status === "sent" || matchingCert.status === "outdated")) {
           updateData.status = "outdated";
           updateData.requiresVisualRegen = true;
-        } else if (hasMetadataChanged && (matchingCert.status === "generated" || matchingCert.status === "sent")) {
+        } else if (hasMetadataChanged && (matchingCert.status === "generated" || matchingCert.status === "sent" || matchingCert.status === "outdated")) {
           // If only metadata changed, still mark as outdated but we can skip Slide edits
           updateData.status = "outdated";
           updateData.requiresVisualRegen = false;
@@ -466,9 +474,15 @@ router.post("/batches/:batchId/generate", async (req, res) => {
     }
 
     const unpaidCerts = targetCerts.filter(c => !c.isPaid);
+    const visualRegenCerts = targetCerts.filter(c => c.isPaid && c.status === "outdated" && c.requiresVisualRegen);
+    
     const unpaidCount = unpaidCerts.length;
+    const visualRegenCount = visualRegenCerts.length;
+    
     const RATE = Number(process.env.VITE_CERT_GENERATION_RATE || 1);
-    const cost = unpaidCount * RATE;
+    const REGEN_RATE = Number(process.env.VITE_CERT_REGENERATION_RATE || 0.2);
+    
+    const cost = (unpaidCount * RATE) + (visualRegenCount * REGEN_RATE);
     
     await db.runTransaction(async (t) => {
       const bDoc = await t.get(batchRef);
@@ -497,8 +511,8 @@ router.post("/batches/:batchId/generate", async (req, res) => {
         t.set(ledgerRef, {
           amount: -cost,
           type: "generation_deduction",
-          description: `Generation cost for batch: ${bData.name}`,
-          metadata: { batchId, unpaidCount, rate: RATE, isPartial: true },
+          description: `Generation cost for batch: ${bData.name} (${unpaidCount} new, ${visualRegenCount} visual updates)`,
+          metadata: { batchId, unpaidCount, visualRegenCount, rate: RATE, regenRate: REGEN_RATE, isPartial: true },
           createdAt: new Date().toISOString()
         });
 

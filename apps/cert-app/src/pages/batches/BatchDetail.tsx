@@ -92,13 +92,19 @@ export default function BatchDetail() {
     ? (batch?.certificates || []).filter((c: any) => selectedCertIds.includes(c.id))
     : (batch?.certificates || []);
   const unpaidCount = targetCerts.filter((c: any) => !c.isPaid).length;
+  const visualRegenCount = targetCerts.filter((c: any) => c.isPaid && c.status === "outdated" && c.requiresVisualRegen).length;
+  const infoRegenCount = targetCerts.filter((c: any) => c.isPaid && c.status === "outdated" && !c.requiresVisualRegen).length;
+
   const RATE = Number(import.meta.env.VITE_CERT_GENERATION_RATE || 1);
-  const totalCost = unpaidCount * RATE;
+  const REGEN_RATE = Number(import.meta.env.VITE_CERT_REGENERATION_RATE || 0.2);
+  const totalCost = (unpaidCount * RATE) + (visualRegenCount * REGEN_RATE);
 
   const generateBtnText = (unpaidCount > 0 ? `Generate Selected (${selectedCertIds.length})` : `Regenerate Selected (${selectedCertIds.length})`);
 
   const { data: balanceData, refetch: refetchBalance } = useGetWalletBalance();
   const currentBalance = balanceData?.currentBalance ?? 0;
+  
+  // Dynamic capacity based on what's available
   const generationLimit = Math.floor(currentBalance / RATE);
 
   const { mutate: generateCerts, isPending: isGenerating } = useGenerateSmartBatch({
@@ -266,7 +272,13 @@ export default function BatchDetail() {
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-3xl font-display font-bold">{batch.name}</h1>
-            <Badge className={`uppercase ${getStatusColor(batch.status)}`}>{batch.status}</Badge>
+            <Badge className={`uppercase ${getStatusColor(batch.status)}`}>
+              {batch.status.toLowerCase() === 'outdated' ? (
+                batch.certificates?.some((c: any) => c.status === 'outdated' && c.requiresVisualRegen) 
+                  ? "Outdated (Visual)" 
+                  : "Outdated (Info)"
+              ) : batch.status}
+            </Badge>
           </div>
           <p className="text-muted-foreground flex items-center gap-4 text-sm">
             <span>Created {format(new Date(batch.createdAt), 'MMM d, yyyy')}</span>
@@ -431,11 +443,19 @@ export default function BatchDetail() {
                         <Badge variant="outline" className={getStatusColor(cert.status)}>
                           {cert.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
                           {cert.status === 'generating' && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-                          {cert.status === 'outdated' && <AlertCircle className="w-3 h-3 mr-1" />}
+                          {cert.status.toLowerCase() === 'outdated' && (
+                            <>
+                              {cert.requiresVisualRegen ? (
+                                <><AlertCircle className="w-3 h-3 mr-1" /> Outdated (Visual)</>
+                              ) : (
+                                <><Loader2 className="w-3 h-3 mr-1" /> Outdated (Info)</>
+                              )}
+                            </>
+                          )}
                           {cert.status === 'generated' && <CheckCircle2 className="w-3 h-3 mr-1" />}
                           {cert.status === 'sent' && <MailCheck className="w-3 h-3 mr-1" />}
                           {cert.status === 'failed' && <XCircle className="w-3 h-3 mr-1" />}
-                          {cert.status}
+                          {cert.status.toLowerCase() !== 'outdated' && cert.status}
                         </Badge>
                         {cert.status === 'failed' && cert.errorMessage && (
                           <span className="text-[11px] text-muted-foreground max-w-[200px] truncate" title={cert.errorMessage}>

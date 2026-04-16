@@ -34,8 +34,8 @@ export default function Wallet() {
   const currentBalance = balanceData?.currentBalance ?? 0;
   const ledgerHistory = historyData?.ledgers || [];
   
-  const genRate = Number(import.meta.env.VITE_CERT_GENERATION_RATE || 1);
-  const generationLimit = Math.floor(currentBalance / genRate);
+  const RATE = Number(import.meta.env.VITE_CERT_GENERATION_RATE || 1);
+  const generationLimit = Math.floor(currentBalance / RATE);
 
   const handleTopUp = async () => {
     const amount = Number(topUpAmount);
@@ -172,7 +172,7 @@ export default function Wallet() {
               </span>
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              Certificates you can generate (₹{genRate} / cert)
+              Current Generation Limit. Info-only updates are free!
             </p>
           </CardContent>
         </Card>
