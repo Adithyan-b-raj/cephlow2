@@ -14,17 +14,29 @@ function normalizeColumnName(name: string): string {
   return name.toLowerCase().replace(/[\s_\-]/g, "");
 }
 
+function normalizePhoneNumber(raw: string): string {
+  const cleaned = raw.replace(/\D/g, "").replace(/^0+/, "");
+  // If exactly 10 digits, it's likely an Indian number without country code
+  if (cleaned.length === 10) {
+    return `91${cleaned}`;
+  }
+  return cleaned;
+}
+
 function extractPhoneNumber(rowData: Record<string, string>): string {
   const configuredColumn = process.env.R2_PHONE_COLUMN;
+  let raw = "";
   if (configuredColumn && rowData[configuredColumn]) {
-    return rowData[configuredColumn];
-  }
-  for (const key of Object.keys(rowData)) {
-    if (PHONE_COLUMN_NAMES.includes(normalizeColumnName(key))) {
-      return rowData[key];
+    raw = rowData[configuredColumn];
+  } else {
+    for (const key of Object.keys(rowData)) {
+      if (PHONE_COLUMN_NAMES.includes(normalizeColumnName(key))) {
+        raw = rowData[key];
+        break;
+      }
     }
   }
-  return "";
+  return normalizePhoneNumber(raw);
 }
 
 const router: IRouter = Router();
@@ -846,8 +858,7 @@ router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
     for (const cert of toSend) {
       try {
         const rowData = (cert.rowData as Record<string, string>) || {};
-        const rawPhone = extractPhoneNumber(rowData);
-        const phone = rawPhone.replace(/\D/g, "").replace(/^0+/, "");
+        const phone = extractPhoneNumber(rowData);
 
         if (!phone) {
           await certificatesCollection(batchId).doc(cert.id).update({
@@ -995,8 +1006,7 @@ router.post("/batches/:batchId/certificates/:certId/send-whatsapp", async (req, 
 
     const rowData = (cert.rowData as Record<string, string>) || {};
     const { var1Template, var2Template } = req.body;
-    const rawPhone = extractPhoneNumber(rowData);
-    const phone = rawPhone.replace(/\D/g, "").replace(/^0+/, "");
+    const phone = extractPhoneNumber(rowData);
 
     if (!phone) return res.status(400).json({ error: "No phone number found for this certificate" });
 

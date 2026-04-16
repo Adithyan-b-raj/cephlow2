@@ -1,7 +1,6 @@
 import { google } from "googleapis";
 import { Readable } from "stream";
 import QRCode from "qrcode";
-import JSZip from "jszip";
 import { getAuthClientForUser } from "./googleAuth.js";
 
 async function getDriveClient(uid: string) {
@@ -333,64 +332,17 @@ export async function generateCertificate(
   const drive = await getDriveClient(uid);
   const slides = await getSlidesClient(uid);
 
-  // --- Helper: XML-escape a string ---
-  const escapeXml = (str: string) =>
-    str
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&apos;");
-
-  // --- Step 1: Export template as .pptx ---
-  const pptxExport = await drive.files.export(
-    {
-      fileId: templateId,
-      mimeType:
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    },
-    { responseType: "arraybuffer" }
-  );
-
-  // --- Step 2: Open .pptx, replace placeholder text in slide XML ---
-  // AutoFit lives in <a:bodyPr><a:normAutofit/></a:bodyPr>
-  // Text lives in <a:t><<Name>></a:t>
-  // Replacing text in <a:t> never touches <a:normAutofit>, so AutoFit is preserved!
-  const zip = await JSZip.loadAsync(pptxExport.data as ArrayBuffer);
-
-  const slideFiles = Object.keys(zip.files).filter((f) =>
-    /^ppt\/slides\/slide\d+\.xml$/.test(f)
-  );
-
-  for (const slideFile of slideFiles) {
-    let xml = await zip.file(slideFile)!.async("string");
-    for (const [placeholder, value] of Object.entries(replacements)) {
-      const xmlPlaceholder = escapeXml(placeholder);
-      const xmlValue = escapeXml(value);
-      xml = xml.split(xmlPlaceholder).join(xmlValue);
-    }
-    zip.file(slideFile, xml);
-  }
-
-  // --- Step 3: Generate modified .pptx and upload as Google Slides ---
-  const modifiedPptx = await zip.generateAsync({ type: "nodebuffer" });
-
-  const uploadRes = await drive.files.create({
+  const copy = await drive.files.copy({
+    fileId: templateId,
     requestBody: {
       name: `Certificate - ${recipientName}`,
-      mimeType: "application/vnd.google-apps.presentation",
       parents: folderId ? [folderId] : undefined,
-    },
-    media: {
-      mimeType:
-        "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-      body: Readable.from(modifiedPptx),
     },
     fields: "id",
   });
-  const fileId = uploadRes.data.id!;
+  const fileId = copy.data.id!;
 
-  // --- Step 4: If slideIndex specified, delete other slides via Slides API ---
+  // If slideIndex is specified, delete all slides except the target one
   if (slideIndex != null) {
     const presData = await slides.presentations.get({
       presentationId: fileId,
@@ -398,6 +350,7 @@ export async function generateCertificate(
     });
     const allSlides = presData.data.slides || [];
     if (slideIndex >= 0 && slideIndex < allSlides.length && allSlides.length > 1) {
+      // Delete from last to first to preserve indices, skip the target
       const deleteRequests: any[] = [];
       for (let i = allSlides.length - 1; i >= 0; i--) {
         if (i !== slideIndex) {
@@ -413,11 +366,94 @@ export async function generateCertificate(
     }
   }
 
-  // --- Step 5: Handle QR code placement via Slides API ---
-  const presentation = await slides.presentations.get({
+  const presentationData = await slides.presentations.get({
     presentationId: fileId,
-    fields: "slides(objectId,pageElements(objectId,title,size,transform))",
+    fields: "slides(objectId,pageElements(objectId,title,size,transform,shape(text(textElements(textRun(content,style(fontSize(magnitude,unit))))))))",
   });
+
+  const fontScaleRequests: any[] = [];
+  const EMU_PER_PT = 12700;
+  const CHAR_WIDTH_FACTOR = 0.50; // Base factor for average sans-serif fonts
+
+  // Calculates a weighted length for a string to better estimate its visual width
+  const getEffectiveLength = (text: string) => {
+    let len = 0;
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      if (/[A-Z]/.test(char) || ['w', 'm', 'W', 'M'].includes(char)) len += 1.3;
+      else if (['i', 'j', 'l', 'f', 't', 'r', '1', '.', ',', ';', ':', '\'', '"'].includes(char)) len += 0.4;
+      else if (char === ' ') len += 0.4;
+      else len += 1.0;
+    }
+    return len;
+  };
+
+  for (const slide of presentationData.data.slides || []) {
+    for (const element of slide.pageElements || []) {
+      const textElements = element.shape?.text?.textElements || [];
+      const content = textElements.map((te: any) => te.textRun?.content || "").join("");
+      
+      for (const [placeholder, value] of Object.entries(replacements)) {
+        if (content.includes(placeholder)) {
+          const shapeWidth = (element.size?.width?.magnitude || 0) / EMU_PER_PT;
+          const foundElement = textElements.find((te: any) => te.textRun?.style?.fontSize?.magnitude);
+          const currentFontSize = foundElement?.textRun?.style?.fontSize?.magnitude || 12;
+          
+          const effectiveLen = getEffectiveLength(value);
+          const estimatedWidth = effectiveLen * currentFontSize * CHAR_WIDTH_FACTOR;
+          const availableWidth = shapeWidth * 0.90; // 10% safety margin
+
+          if (estimatedWidth > availableWidth) {
+            const scaledFontSize = Math.max(6, Math.floor(currentFontSize * (availableWidth / estimatedWidth)));
+            fontScaleRequests.push({
+              updateTextStyle: {
+                objectId: element.objectId,
+                style: {
+                  fontSize: { magnitude: scaledFontSize, unit: "PT" },
+                },
+                fields: "fontSize",
+                textRange: { type: "ALL" },
+              },
+            });
+          }
+        }
+      }
+    }
+  }
+
+  const requests: any[] = [
+    ...Object.entries(replacements).map(([placeholder, value]) => ({
+      replaceAllText: {
+        containsText: { text: placeholder, matchCase: true },
+        replaceText: value,
+      },
+    })),
+    ...fontScaleRequests
+  ];
+
+  if (qrCodeUrl) {
+    try {
+      const publicQrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUrl)}`;
+      requests.push({
+        replaceAllShapesWithImage: {
+          imageUrl: publicQrApiUrl,
+          imageReplaceMethod: "CENTER_INSIDE",
+          containsText: { text: "{{qr_code}}", matchCase: true },
+        },
+      });
+    } catch (qrErr) {
+      console.error("Failed to process QR code:", qrErr);
+    }
+  }
+
+  if (requests.length > 0) {
+    await slides.presentations.batchUpdate({
+      presentationId: fileId,
+      requestBody: { requests },
+    });
+  }
+
+  const presentation = presentationData; // Reuse the data fetched earlier
 
   const qrShapes: Array<{
     objectId: string;
