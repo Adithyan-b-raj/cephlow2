@@ -19,11 +19,13 @@ import {
   useCreateOrder,
 } from "@workspace/api-client-react";
 import { format } from "date-fns";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Wallet() {
   const { data: balanceData, isLoading: isLoadingBalance, refetch: refetchBalance } = useGetWalletBalance();
   const { data: historyData, isLoading: isLoadingHistory, refetch: refetchHistory } = useGetWalletHistory();
   const { mutateAsync: createOrder } = useCreateOrder();
+  const { toast } = useToast();
 
   const [isTopUpOpen, setIsTopUpOpen] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState<string>("500");
@@ -59,8 +61,13 @@ export default function Wallet() {
         refetchHistory();
       }, 3000);
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("Failed to initiate top-up:", error);
+      toast({
+        title: "Top-up failed",
+        description: error.data?.error || "Could not connect to the payment gateway. Please try again later.",
+        variant: "destructive",
+      });
     } finally {
       setIsProcessingTopUp(false);
     }

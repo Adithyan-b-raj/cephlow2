@@ -5,9 +5,11 @@ const router = Router();
 
 import { Cashfree, CFEnvironment } from "cashfree-pg";
 
-(Cashfree as any).XClientId = process.env.CASHFREE_APP_ID || "";
-(Cashfree as any).XClientSecret = process.env.CASHFREE_SECRET_KEY || "";
-(Cashfree as any).XEnvironment = CFEnvironment.SANDBOX;
+const cashfree = new Cashfree(
+  CFEnvironment.SANDBOX,
+  process.env.CASHFREE_APP_ID || "",
+  process.env.CASHFREE_SECRET_KEY || "",
+);
 
 // GET /api/webhooks/whatsapp — Meta webhook verification challenge
 router.get("/webhooks/whatsapp", (req, res) => {
@@ -72,44 +74,52 @@ router.post("/webhooks/whatsapp", async (req, res) => {
   }
 });
 
-export default router;
-
 // POST /api/webhooks/cashfree — Cashfree payment status webhook
 router.post("/webhooks/cashfree", async (req, res) => {
+  console.log("[Cashfree Webhook] Received request");
   try {
     const signature = req.headers["x-webhook-signature"] as string;
     const timestamp = req.headers["x-webhook-timestamp"] as string;
     const rawBody = (req as any).rawBody as string;
 
+    console.log("[Cashfree Webhook] Headers:", { signature, timestamp });
+    // console.log("[Cashfree Webhook] Raw Body:", rawBody); // Log only if needed, can be very large
+
     if (!signature || !timestamp || !rawBody) {
+      console.error("[Cashfree Webhook] Missing signature, timestamp, or rawBody");
       return res.status(400).json({ error: "Missing webhook headers/body" });
     }
 
     try {
-      (Cashfree as any).PGVerifyWebhookSignature(signature, rawBody, timestamp);
+      (cashfree as any).PGVerifyWebhookSignature(signature, rawBody, timestamp);
+      console.log("[Cashfree Webhook] Signature verified successfully");
     } catch (err: any) {
-      console.error("[Cashfree Webhook] Invalid signature:", err.message);
+      console.error("[Cashfree Webhook] Invalid signature verification failed:", err.message);
       return res.status(401).json({ error: "Invalid signature" });
     }
 
     const payload = req.body;
+    console.log("[Cashfree Webhook] Payload type:", payload.type);
     
     // Process PAYMENT_SUCCESS_WEBHOOK
     if (payload.type === "PAYMENT_SUCCESS_WEBHOOK") {
-      const order = payload.data?.order;
-      const payment = payload.data?.payment;
-      const customer = payload.data?.customer_details;
-
-      if (!order?.order_id || !payment?.payment_amount || !customer?.customer_id) {
-         console.warn("[Cashfree Webhook] Missing order details in payload", payload);
+      const { order, payment, customer_details } = payload.data || {};
+      
+      if (!order?.order_id || !payment?.payment_status || !customer_details?.customer_id) {
+         console.warn("[Cashfree Webhook] Missing order details, status, or customer in payload:", JSON.stringify(payload, null, 2));
          return res.status(200).send("OK");
       }
 
-      const customerId = customer.customer_id;
-      const amount = payment.payment_amount;
       const orderId = order.order_id;
+      const amount = payment.payment_amount; // Use payment_amount from payment object
+      const customerId = customer_details.customer_id; // customer_details is sibling to order
+      
+      console.log(`[Cashfree Webhook] Processing success for Order: ${orderId}, Amount: ${amount}, User: ${customerId}`);
+
+
       
       const ledgerRef = db.collection("userProfiles").doc(customerId).collection("ledgers").doc(orderId);
+
       const profileRef = db.collection("userProfiles").doc(customerId);
 
       await db.runTransaction(async (t) => {
@@ -155,3 +165,6 @@ router.post("/webhooks/cashfree", async (req, res) => {
     res.status(500).json({ error: "Webhook processing failed" });
   }
 });
+
+export default router;
+

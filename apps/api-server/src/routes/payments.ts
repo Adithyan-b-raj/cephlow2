@@ -2,9 +2,11 @@ import { Router } from "express";
 import { Cashfree, CFEnvironment } from "cashfree-pg";
 import { CreateOrderBody } from "@workspace/api-zod";
 
-(Cashfree as any).XClientId = process.env.CASHFREE_APP_ID || "";
-(Cashfree as any).XClientSecret = process.env.CASHFREE_SECRET_KEY || "";
-(Cashfree as any).XEnvironment = CFEnvironment.SANDBOX;
+const cashfree = new Cashfree(
+  CFEnvironment.SANDBOX,
+  process.env.CASHFREE_APP_ID || "",
+  process.env.CASHFREE_SECRET_KEY || "",
+);
 
 const router = Router();
 
@@ -28,7 +30,7 @@ router.post("/payments/create-order", async (req, res) => {
       },
     };
 
-    const response = await (Cashfree as any).PGCreateOrder("2023-08-01", request);
+    const response = await (cashfree as any).PGCreateOrder(request);
     
     if (response.data && response.data.payment_session_id) {
       return res.json({
