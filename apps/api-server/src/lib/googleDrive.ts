@@ -366,14 +366,33 @@ export async function generateCertificate(
     }
   }
 
-  const requests: any[] = Object.entries(replacements).map(
-    ([placeholder, value]) => ({
-      replaceAllText: {
-        containsText: { text: placeholder, matchCase: true },
-        replaceText: value,
-      },
-    })
-  );
+  const presentationData = await slides.presentations.get({
+    presentationId: fileId,
+    fields: "slides(objectId,pageElements(objectId,title,size,transform,shape(text(textElements(textRun(content))))))",
+  });
+
+  const autofitObjectIds = new Set<string>();
+
+  for (const slide of presentationData.data.slides || []) {
+    for (const element of slide.pageElements || []) {
+      const textElements = element.shape?.text?.textElements || [];
+      const content = textElements.map((te: any) => te.textRun?.content || "").join("");
+      
+      for (const placeholder of Object.keys(replacements)) {
+        if (content.includes(placeholder)) {
+          autofitObjectIds.add(element.objectId!);
+          break; // Move to next element once we know this one needs autofit
+        }
+      }
+    }
+  }
+
+  const requests: any[] = Object.entries(replacements).map(([placeholder, value]) => ({
+    replaceAllText: {
+      containsText: { text: placeholder, matchCase: true },
+      replaceText: value,
+    },
+  }));
 
   if (qrCodeUrl) {
     try {
@@ -397,10 +416,7 @@ export async function generateCertificate(
     });
   }
 
-  const presentation = await slides.presentations.get({
-    presentationId: fileId,
-    fields: "slides(objectId,pageElements(objectId,title,size,transform))",
-  });
+  const presentation = presentationData; // Reuse the data fetched earlier
 
   const qrShapes: Array<{
     objectId: string;
@@ -479,6 +495,23 @@ export async function generateCertificate(
     await slides.presentations.batchUpdate({
       presentationId: fileId,
       requestBody: { requests: qrRequests },
+    });
+  }
+
+  // Forcefully re-enable Google Slides native TEXT_AUTOFIT for the modified shapes
+  if (autofitObjectIds.size > 0) {
+    const autofitRequests = Array.from(autofitObjectIds).map((objectId) => ({
+      updateShapeProperties: {
+        objectId,
+        shapeProperties: {
+          autofit: { autofitType: "TEXT_AUTOFIT" },
+        },
+        fields: "autofit.autofitType",
+      },
+    }));
+    await slides.presentations.batchUpdate({
+      presentationId: fileId,
+      requestBody: { requests: autofitRequests },
     });
   }
 
