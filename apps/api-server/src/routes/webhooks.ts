@@ -83,7 +83,6 @@ router.post("/webhooks/cashfree", async (req, res) => {
     const rawBody = (req as any).rawBody as string;
 
     console.log("[Cashfree Webhook] Headers:", { signature, timestamp });
-    // console.log("[Cashfree Webhook] Raw Body:", rawBody); // Log only if needed, can be very large
 
     if (!signature || !timestamp || !rawBody) {
       console.error("[Cashfree Webhook] Missing signature, timestamp, or rawBody");
@@ -115,11 +114,8 @@ router.post("/webhooks/cashfree", async (req, res) => {
       const customerId = customer_details.customer_id; // customer_details is sibling to order
       
       console.log(`[Cashfree Webhook] Processing success for Order: ${orderId}, Amount: ${amount}, User: ${customerId}`);
-
-
       
       const ledgerRef = db.collection("userProfiles").doc(customerId).collection("ledgers").doc(orderId);
-
       const profileRef = db.collection("userProfiles").doc(customerId);
 
       await db.runTransaction(async (t) => {
@@ -159,12 +155,11 @@ router.post("/webhooks/cashfree", async (req, res) => {
       console.log(`[Cashfree Webhook] Successfully credited ₹${amount} to ${customerId} (Order: ${orderId})`);
     }
 
-    res.status(200).send("OK");
+    return res.status(200).send("OK");
   } catch (err: any) {
     console.error("[Cashfree Webhook] Error processing:", err);
-    res.status(500).json({ error: "Webhook processing failed" });
+    return res.status(500).json({ error: "Webhook processing failed" });
   }
 });
 
 export default router;
-

@@ -6,6 +6,7 @@
     "codegen": "orval --config ./orval.config.ts"
   },
   "devDependencies": {
+    "@types/node": "catalog:",
     "orval": "^8.5.2"
   }
 }

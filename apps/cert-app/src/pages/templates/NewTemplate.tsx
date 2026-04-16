@@ -68,7 +68,7 @@ export default function NewTemplate() {
     refetch: refetchPlaceholders,
     isFetched: placeholdersFetched,
   } = useGetSlidePlaceholders(createdTemplate?.id ?? "", {
-    query: { enabled: false },
+    query: { enabled: false } as any,
   });
 
   const placeholders = placeholdersRes?.placeholders ?? [];
