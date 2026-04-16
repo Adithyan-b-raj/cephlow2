@@ -3,10 +3,10 @@
 ## Phase 1: Gateway Setup & Core Backend
 Goal: Configure Cashfree sandbox environments and build the backend endpoint to generate secure payment sessions.
 
-- [ ] Task: Cashfree Infrastructure Setup
-    - [ ] Register a Cashfree Merchant account, apply for KYC using the MSME Udyam certificate, and switch to the Sandbox environment.
-    - [ ] Generate Sandbox API Keys and add `CASHFREE_APP_ID` and `CASHFREE_SECRET_KEY` to the `.env` file.
-    - [ ] Update the project's Tech Stack documentation to reflect Cashfree and the Prepaid Wallet model.
+- [x] Task: Cashfree Infrastructure Setup
+    - [x] Register a Cashfree Merchant account, apply for KYC using the MSME Udyam certificate, and switch to the Sandbox environment.
+    - [x] Generate Sandbox API Keys and add `CASHFREE_APP_ID` and `CASHFREE_SECRET_KEY` to the `.env` file.
+    - [x] Update the project's Tech Stack documentation to reflect Cashfree and the Prepaid Wallet model.
 - [ ] Task: Implement Order Creation Endpoint
     - [ ] Install `cashfree-pg-sdk-nodejs`.
     - [ ] Write Zod schemas to validate the wallet top-up request payload (e.g., amount, userId).

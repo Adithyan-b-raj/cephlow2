@@ -23,6 +23,8 @@ import type {
   BatchOperationResponse,
   CertificateListResponse,
   CreateBatchRequest,
+  CreateOrderRequest,
+  CreateOrderResponse,
   CreateSheetRequest,
   CreateSlideTemplateRequest,
   CreatedFileResponse,
@@ -808,12 +810,12 @@ export const useCreateBatch = <
 /**
  * @summary Get a batch with its certificates
  */
-export const getGetBatchUrl = (batchId: string) => {
+export const getGetBatchUrl = (batchId: number) => {
   return `/api/batches/${batchId}`;
 };
 
 export const getBatch = async (
-  batchId: string,
+  batchId: number,
   options?: RequestInit,
 ): Promise<BatchDetail> => {
   return customFetch<BatchDetail>(getGetBatchUrl(batchId), {
@@ -822,7 +824,7 @@ export const getBatch = async (
   });
 };
 
-export const getGetBatchQueryKey = (batchId: string) => {
+export const getGetBatchQueryKey = (batchId: number) => {
   return [`/api/batches/${batchId}`] as const;
 };
 
@@ -830,7 +832,7 @@ export const getGetBatchQueryOptions = <
   TData = Awaited<ReturnType<typeof getBatch>>,
   TError = ErrorType<unknown>,
 >(
-  batchId: string,
+  batchId: number,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getBatch>>,
@@ -871,7 +873,7 @@ export function useGetBatch<
   TData = Awaited<ReturnType<typeof getBatch>>,
   TError = ErrorType<unknown>,
 >(
-  batchId: string,
+  batchId: number,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getBatch>>,
@@ -891,99 +893,14 @@ export function useGetBatch<
 }
 
 /**
- * @summary Delete a batch and all its certificates
- */
-export const deleteBatch = async (
-  batchId: string,
-  options?: SecondParameter<typeof customFetch>
-) => {
-  return customFetch<{ success: boolean }>(
-    `/api/batches/${batchId}`,
-    { ...options, method: "DELETE" }
-  );
-};
-
-export const useDeleteBatch = <
-  TError = ErrorType<unknown>,
-  TContext = unknown
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof deleteBatch>>,
-    TError,
-    { batchId: string },
-    TContext
-  >;
-}) => {
-  const { mutation: mutationOptions } = options ?? {};
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof deleteBatch>>,
-    { batchId: string }
-  > = ({ batchId }) => deleteBatch(batchId);
-
-  return useMutation<
-    Awaited<ReturnType<typeof deleteBatch>>,
-    TError,
-    { batchId: string },
-    TContext
-  >({ mutationFn, ...mutationOptions });
-};
-
-/**
- * @summary Share the PDF folder (make it public)
- */
-export const shareBatchFolder = async (
-  batchId: string,
-  options?: SecondParameter<typeof customFetch>
-) => {
-  return customFetch<{ success: boolean; shareLink: string }>(
-    `/api/batches/${batchId}/share-folder`,
-    {
-      ...options,
-      method: "POST",
-    }
-  );
-};
-
-export const useShareBatchFolder = <
-  TError = ErrorType<unknown>,
-  TContext = unknown
->(options?: {
-  mutation?: UseMutationOptions<
-    Awaited<ReturnType<typeof shareBatchFolder>>,
-    TError,
-    { batchId: string },
-    TContext
-  >;
-}) => {
-  const { mutation: mutationOptions } = options ?? {};
-
-  const mutationFn: MutationFunction<
-    Awaited<ReturnType<typeof shareBatchFolder>>,
-    { batchId: string }
-  > = (props) => {
-    const { batchId } = props;
-
-    return shareBatchFolder(batchId);
-  };
-
-  return useMutation<
-    Awaited<ReturnType<typeof shareBatchFolder>>,
-    TError,
-    { batchId: string },
-    TContext
-  >({ mutationFn, ...mutationOptions });
-};
-
-/**
  * @summary Generate certificates for a batch
  */
-export const getGenerateBatchUrl = (batchId: string) => {
+export const getGenerateBatchUrl = (batchId: number) => {
   return `/api/batches/${batchId}/generate`;
 };
 
 export const generateBatch = async (
-  batchId: string,
+  batchId: number,
   options?: RequestInit,
 ): Promise<BatchOperationResponse> => {
   return customFetch<BatchOperationResponse>(getGenerateBatchUrl(batchId), {
@@ -999,14 +916,14 @@ export const getGenerateBatchMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof generateBatch>>,
     TError,
-    { batchId: string },
+    { batchId: number },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof generateBatch>>,
   TError,
-  { batchId: string },
+  { batchId: number },
   TContext
 > => {
   const mutationKey = ["generateBatch"];
@@ -1020,7 +937,7 @@ export const getGenerateBatchMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof generateBatch>>,
-    { batchId: string }
+    { batchId: number }
   > = (props) => {
     const { batchId } = props ?? {};
 
@@ -1033,6 +950,7 @@ export const getGenerateBatchMutationOptions = <
 export type GenerateBatchMutationResult = NonNullable<
   Awaited<ReturnType<typeof generateBatch>>
 >;
+
 export type GenerateBatchMutationError = ErrorType<unknown>;
 
 /**
@@ -1045,14 +963,14 @@ export const useGenerateBatch = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof generateBatch>>,
     TError,
-    { batchId: string },
+    { batchId: number },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof generateBatch>>,
   TError,
-  { batchId: string },
+  { batchId: number },
   TContext
 > => {
   return useMutation(getGenerateBatchMutationOptions(options));
@@ -1061,12 +979,12 @@ export const useGenerateBatch = <
 /**
  * @summary Send generated certificates via email
  */
-export const getSendBatchUrl = (batchId: string) => {
+export const getSendBatchUrl = (batchId: number) => {
   return `/api/batches/${batchId}/send`;
 };
 
 export const sendBatch = async (
-  batchId: string,
+  batchId: number,
   sendBatchRequest: SendBatchRequest,
   options?: RequestInit,
 ): Promise<BatchOperationResponse> => {
@@ -1085,14 +1003,14 @@ export const getSendBatchMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof sendBatch>>,
     TError,
-    { batchId: string; data: BodyType<SendBatchRequest> },
+    { batchId: number; data: BodyType<SendBatchRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof sendBatch>>,
   TError,
-  { batchId: string; data: BodyType<SendBatchRequest> },
+  { batchId: number; data: BodyType<SendBatchRequest> },
   TContext
 > => {
   const mutationKey = ["sendBatch"];
@@ -1106,7 +1024,7 @@ export const getSendBatchMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof sendBatch>>,
-    { batchId: string; data: BodyType<SendBatchRequest> }
+    { batchId: number; data: BodyType<SendBatchRequest> }
   > = (props) => {
     const { batchId, data } = props ?? {};
 
@@ -1132,14 +1050,14 @@ export const useSendBatch = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof sendBatch>>,
     TError,
-    { batchId: string; data: BodyType<SendBatchRequest> },
+    { batchId: number; data: BodyType<SendBatchRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof sendBatch>>,
   TError,
-  { batchId: string; data: BodyType<SendBatchRequest> },
+  { batchId: number; data: BodyType<SendBatchRequest> },
   TContext
 > => {
   return useMutation(getSendBatchMutationOptions(options));
@@ -1241,3 +1159,89 @@ export function useListCertificates<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Create a Cashfree order for wallet top-up
+ */
+export const getCreateOrderUrl = () => {
+  return `/api/payments/create-order`;
+};
+
+export const createOrder = async (
+  createOrderRequest: CreateOrderRequest,
+  options?: RequestInit,
+): Promise<CreateOrderResponse> => {
+  return customFetch<CreateOrderResponse>(getCreateOrderUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createOrderRequest),
+  });
+};
+
+export const getCreateOrderMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createOrder>>,
+    TError,
+    { data: BodyType<CreateOrderRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createOrder>>,
+  TError,
+  { data: BodyType<CreateOrderRequest> },
+  TContext
+> => {
+  const mutationKey = ["createOrder"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createOrder>>,
+    { data: BodyType<CreateOrderRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createOrder(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateOrderMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createOrder>>
+>;
+export type CreateOrderMutationBody = BodyType<CreateOrderRequest>;
+export type CreateOrderMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a Cashfree order for wallet top-up
+ */
+export const useCreateOrder = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createOrder>>,
+    TError,
+    { data: BodyType<CreateOrderRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createOrder>>,
+  TError,
+  { data: BodyType<CreateOrderRequest> },
+  TContext
+> => {
+  return useMutation(getCreateOrderMutationOptions(options));
+};

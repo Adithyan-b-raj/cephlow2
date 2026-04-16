@@ -24,6 +24,7 @@ how all the pieces connect, what every environment variable means, and how to ad
 15. [Deployment](#15-deployment)
 16. [Running Locally](#16-running-locally)
 17. [How to Add New Features](#17-how-to-add-new-features)
+18. [Cashfree Payment Gateway & Prepaid Wallet](#18-cashfree-payment-gateway--prepaid-wallet)
 
 ---
 
@@ -179,6 +180,14 @@ R2 is an S3-compatible object storage where PDFs are uploaded for public access 
 | `R2_PUBLIC_URL` | Public base URL for your bucket | Cloudflare → R2 → your bucket → Settings → Public access |
 | `PUBLIC_BASE_URL` | Your deployed frontend URL | Used for QR code links, e.g. `https://yourapp.com` |
 | `R2_PHONE_COLUMN` | (Optional) exact column header for phone numbers | If your sheet uses a non-standard column name |
+
+### Cashfree API (Payment Gateway & Prepaid Wallet)
+Required for the prepaid wallet system used for batch generation limits.
+
+| Variable | What it is | Where to get it |
+|---|---|---|
+| `CASHFREE_APP_ID` | Cashfree API App ID | Cashfree Dashboard → Developers → API Keys |
+| `CASHFREE_SECRET_KEY` | Cashfree API Secret Key | Same place |
 
 ### WhatsApp Business Cloud API
 | Variable | What it is | Where to get it |
@@ -1046,3 +1055,22 @@ Change these two spots to change how files are organized.
 | Add a Firestore collection | `packages/firebase/src/index.ts` |
 | Change how API calls are made | `packages/api-client-react/src/custom-fetch.ts` |
 | Add env vars | `.env` at root + document in this file |
+
+---
+
+## 18. Cashfree Payment Gateway & Prepaid Wallet
+
+The project uses **Cashfree** to implement a prepaid wallet architecture. This acts as a financial tollbooth, requiring users to top up their wallet and spend credits to generate certificates.
+
+### Data Model Updates
+- **`userProfiles` collection:** Tracks `currentBalance` for the user.
+- **`ledgers` collection:** Records all financial transactions (`wallet_topup`, `batch_deduction`, `meta_refund`) for an immutable financial history.
+
+### Wallet Workflow
+1. **Top-Up:** A user clicks "Add Credits" and enters an amount.
+2. **Order Creation:** The backend (`POST /api/payments/create-order`) registers the intent with Cashfree and returns a `payment_session_id`.
+3. **Checkout:** The frontend utilizes the Cashfree JS SDK to show the payment modal using the session ID.
+4. **Webhook Confirmation:** Cashfree asynchronously sends a webhook upon success (`POST /api/webhooks/cashfree`). The backend verifies the SHA-256 signature and securely credits the user's `currentBalance` in Firestore while logging a `wallet_topup` ledger entry.
+
+### Upfront Batch Deductions
+Before a batch can begin generation (`POST /api/batches/:batchId/generate`), the backend calculates the batch cost (`row_count * rate`). By using an atomic Firestore transaction (`runTransaction`), it checks if `currentBalance >= cost`. If valid, it deducts the amount, logs a `batch_deduction`, and begins generating the certificates. If invalid, it throws a `402 Payment Required` error, and the UI prompts the user to top up.
