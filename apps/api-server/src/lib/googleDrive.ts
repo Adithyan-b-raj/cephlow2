@@ -1,4 +1,4 @@
-import { google } from "googleapis";
+﻿import { google } from "googleapis";
 import { Readable } from "stream";
 import QRCode from "qrcode";
 import { getAuthClientForUser } from "./googleAuth.js";
@@ -342,7 +342,6 @@ export async function generateCertificate(
   });
   const fileId = copy.data.id!;
 
-  // If slideIndex is specified, delete all slides except the target one
   if (slideIndex != null) {
     const presData = await slides.presentations.get({
       presentationId: fileId,
@@ -350,7 +349,6 @@ export async function generateCertificate(
     });
     const allSlides = presData.data.slides || [];
     if (slideIndex >= 0 && slideIndex < allSlides.length && allSlides.length > 1) {
-      // Delete from last to first to preserve indices, skip the target
       const deleteRequests: any[] = [];
       for (let i = allSlides.length - 1; i >= 0; i--) {
         if (i !== slideIndex) {
@@ -368,49 +366,62 @@ export async function generateCertificate(
 
   const presentationData = await slides.presentations.get({
     presentationId: fileId,
-    fields: "slides(objectId,pageElements(objectId,title,size,transform,shape(text(textElements(textRun(content,style(fontSize(magnitude,unit))))))))",
+    fields: "slides(objectId,pageElements(objectId,title,size,transform,shape(text(textElements))))",
   });
 
   const fontScaleRequests: any[] = [];
   const EMU_PER_PT = 12700;
-  const CHAR_WIDTH_FACTOR = 0.50; // Base factor for average sans-serif fonts
+  // Increased from 0.55 to 0.62 for more conservative estimation to prevent wrapping
+  const CHAR_WIDTH_FACTOR = 0.62;
+  // Google Slides default inset: 91440 EMU per side (~7.2pt each)
+  const DEFAULT_INSET_EMU = 91440;
 
-  // Calculates a weighted length for a string to better estimate its visual width
   const getEffectiveLength = (text: string) => {
     let len = 0;
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
-      if (/[A-Z]/.test(char) || ['w', 'm', 'W', 'M'].includes(char)) len += 1.3;
-      else if (['i', 'j', 'l', 'f', 't', 'r', '1', '.', ',', ';', ':', '\'', '"'].includes(char)) len += 0.4;
-      else if (char === ' ') len += 0.4;
+      if (['W', 'M'].includes(char)) len += 1.4;
+      else if (/[A-Z]/.test(char)) len += 1.2;
+      else if (['w', 'm'].includes(char)) len += 1.2;
+      else if (['i', 'j', 'l', 'f', '1', '.', ',', ';', ':', "'", '"', '|'].includes(char)) len += 0.35;
+      else if (['t', 'r'].includes(char)) len += 0.6;
+      else if (char === ' ') len += 0.35;
       else len += 1.0;
     }
     return len;
   };
 
+  const processedObjectIds = new Set<string>();
   for (const slide of presentationData.data.slides || []) {
     for (const element of slide.pageElements || []) {
       const textElements = element.shape?.text?.textElements || [];
       const content = textElements.map((te: any) => te.textRun?.content || "").join("");
-      
+
       for (const [placeholder, value] of Object.entries(replacements)) {
-        if (content.includes(placeholder)) {
-          const shapeWidth = (element.size?.width?.magnitude || 0) / EMU_PER_PT;
-          const foundElement = textElements.find((te: any) => te.textRun?.style?.fontSize?.magnitude);
-          const currentFontSize = foundElement?.textRun?.style?.fontSize?.magnitude || 12;
-          
+        if (content.includes(placeholder) && !processedObjectIds.has(element.objectId!)) {
+          const shapeWidthEmu = element.size?.width?.magnitude || 0;
+          // Subtract left+right insets from the available drawing width
+          const shapeWidth = (shapeWidthEmu - DEFAULT_INSET_EMU * 2) / EMU_PER_PT;
+          // Font size priority: explicit run override > fallback
+          const runFontEl = textElements.find((te: any) => te.textRun?.style?.fontSize?.magnitude);
+          const currentFontSize =
+            runFontEl?.textRun?.style?.fontSize?.magnitude ||
+            28; // Fallback confirmed from user's template
+
           const effectiveLen = getEffectiveLength(value);
           const estimatedWidth = effectiveLen * currentFontSize * CHAR_WIDTH_FACTOR;
-          const availableWidth = shapeWidth * 0.90; // 10% safety margin
+          const availableWidth = shapeWidth * 0.90; // Increased margin to 10% for safer fitting
+
+
 
           if (estimatedWidth > availableWidth) {
             const scaledFontSize = Math.max(6, Math.floor(currentFontSize * (availableWidth / estimatedWidth)));
+
+            processedObjectIds.add(element.objectId!);
             fontScaleRequests.push({
               updateTextStyle: {
                 objectId: element.objectId,
-                style: {
-                  fontSize: { magnitude: scaledFontSize, unit: "PT" },
-                },
+                style: { fontSize: { magnitude: scaledFontSize, unit: "PT" } },
                 fields: "fontSize",
                 textRange: { type: "ALL" },
               },
@@ -428,7 +439,7 @@ export async function generateCertificate(
         replaceText: value,
       },
     })),
-    ...fontScaleRequests
+    ...fontScaleRequests,
   ];
 
   if (qrCodeUrl) {
@@ -453,7 +464,7 @@ export async function generateCertificate(
     });
   }
 
-  const presentation = presentationData; // Reuse the data fetched earlier
+  const presentation = presentationData;
 
   const qrShapes: Array<{
     objectId: string;
