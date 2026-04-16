@@ -11,6 +11,7 @@ import {
   useSendCertWhatsapp,
   useGenerateSmartBatch,
   useSyncBatch,
+  useGetWalletBalance,
 } from "@workspace/api-client-react";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -94,13 +95,18 @@ export default function BatchDetail() {
   const RATE = Number(import.meta.env.VITE_CERT_GENERATION_RATE || 1);
   const totalCost = unpaidCount * RATE;
 
-  const generateBtnText = (unpaidCount > 0 ? `Generate Selected (₹${totalCost})` : `Regenerate Selected (Free)`);
+  const generateBtnText = (unpaidCount > 0 ? `Generate Selected (${selectedCertIds.length})` : `Regenerate Selected (${selectedCertIds.length})`);
+
+  const { data: balanceData, refetch: refetchBalance } = useGetWalletBalance();
+  const currentBalance = balanceData?.currentBalance ?? 0;
+  const generationLimit = Math.floor(currentBalance / RATE);
 
   const { mutate: generateCerts, isPending: isGenerating } = useGenerateSmartBatch({
     mutation: {
       onSuccess: () => {
         toast({ title: "Generation started!" });
         refetch();
+        refetchBalance();
       },
       onError: (err: any) => {
         const isLowBalance = err.status === 402;
@@ -304,16 +310,21 @@ export default function BatchDetail() {
             {isSharing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Share2 className="w-4 h-4 mr-2" />}
             Share PDFs
           </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => generateCerts({ batchId, selectedCertIds })}
-            disabled={isGenerating || batch.status === 'generating' || selectedCertIds.length === 0}
-            className="hover-elevate bg-background"
-          >
-            {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
-            {generateBtnText}
-          </Button>
+          <div className="relative flex items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => generateCerts({ batchId, selectedCertIds })}
+              disabled={isGenerating || batch.status === 'generating' || selectedCertIds.length === 0}
+              className="hover-elevate bg-background relative"
+            >
+              {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
+              {generateBtnText}
+            </Button>
+            <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1 text-[10px] text-muted-foreground whitespace-nowrap">
+              Generation Limit: {generationLimit.toLocaleString()}
+            </span>
+          </div>
           <Button
             onClick={handleOpenSend}
             disabled={isSending || batch.status === 'sending' || batch.generatedCount === 0}

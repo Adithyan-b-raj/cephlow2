@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Wallet as WalletIcon, IndianRupee, History, Plus, Loader2 } from "lucide-react";
+import { Wallet as WalletIcon, IndianRupee, History, Plus, Loader2, FileBadge } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -33,6 +33,9 @@ export default function Wallet() {
 
   const currentBalance = balanceData?.currentBalance ?? 0;
   const ledgerHistory = historyData?.ledgers || [];
+  
+  const genRate = Number(import.meta.env.VITE_CERT_GENERATION_RATE || 1);
+  const generationLimit = Math.floor(currentBalance / genRate);
 
   const handleTopUp = async () => {
     const amount = Number(topUpAmount);
@@ -151,6 +154,25 @@ export default function Wallet() {
             </div>
             <p className="text-xs text-muted-foreground mt-2">
               Used for generation and delivery fees
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-border bg-card/60 backdrop-blur-sm shadow-sm relative overflow-hidden">
+          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+            <FileBadge className="w-24 h-24" />
+          </div>
+          <CardHeader className="pb-2 space-y-1">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Generation Limit</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-baseline gap-1">
+              <span className="text-4xl font-display font-bold">
+                {isLoadingBalance ? "..." : generationLimit.toLocaleString()}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground mt-2">
+              Certificates you can generate (₹{genRate} / cert)
             </p>
           </CardContent>
         </Card>
