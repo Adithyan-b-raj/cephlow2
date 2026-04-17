@@ -441,17 +441,69 @@ export async function generateCertificate(
     })),
     ...fontScaleRequests,
   ];
-
   if (qrCodeUrl) {
     try {
-      const publicQrApiUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(qrCodeUrl)}`;
+      const baseUrl = (process.env.PUBLIC_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
+      const internalQrApiUrl = `${baseUrl}/api/qr?data=${encodeURIComponent(qrCodeUrl)}`;
+      
+      // Method 1: Replace text placeholders containing {{qr_code}}
       requests.push({
         replaceAllShapesWithImage: {
-          imageUrl: publicQrApiUrl,
+          imageUrl: internalQrApiUrl,
           imageReplaceMethod: "CENTER_INSIDE",
           containsText: { text: "{{qr_code}}", matchCase: true },
         },
       });
+
+      // Method 2: Replace placeholder shapes with Alt Text/Title = <<qr_code>>
+      const qrShapes: Array<{
+        objectId: string;
+        slideObjectId: string;
+        size: any;
+        transform: any;
+      }> = [];
+
+      for (const slide of presentationData.data.slides || []) {
+        for (const element of slide.pageElements || []) {
+          if (element.title === "<<qr_code>>") {
+            qrShapes.push({
+              objectId: element.objectId!,
+              slideObjectId: slide.objectId!,
+              size: element.size,
+              transform: element.transform,
+            });
+          }
+        }
+      }
+
+      if (qrShapes.length > 0) {
+        const qrImageObjectIds: string[] = [];
+        for (let i = 0; i < qrShapes.length; i++) {
+          const shape = qrShapes[i];
+          const newObjectId = `qr_img_${i}_${Date.now()}`;
+          qrImageObjectIds.push(newObjectId);
+          requests.push({ deleteObject: { objectId: shape.objectId } });
+          requests.push({
+            createImage: {
+              objectId: newObjectId,
+              url: internalQrApiUrl,
+              elementProperties: {
+                pageObjectId: shape.slideObjectId,
+                size: shape.size,
+                transform: shape.transform,
+              },
+            },
+          });
+        }
+        for (const objectId of qrImageObjectIds) {
+          requests.push({
+            updatePageElementsZOrder: {
+              pageElementObjectIds: [objectId],
+              operation: "BRING_TO_FRONT",
+            },
+          });
+        }
+      }
     } catch (qrErr) {
       console.error("Failed to process QR code:", qrErr);
     }
@@ -461,88 +513,6 @@ export async function generateCertificate(
     await slides.presentations.batchUpdate({
       presentationId: fileId,
       requestBody: { requests },
-    });
-  }
-
-  const presentation = presentationData;
-
-  const qrShapes: Array<{
-    objectId: string;
-    slideObjectId: string;
-    size: any;
-    transform: any;
-  }> = [];
-
-  for (const slide of presentation.data.slides || []) {
-    for (const element of slide.pageElements || []) {
-      if (element.title === "<<qr_code>>") {
-        qrShapes.push({
-          objectId: element.objectId!,
-          slideObjectId: slide.objectId!,
-          size: element.size,
-          transform: element.transform,
-        });
-      }
-    }
-  }
-
-  if (qrShapes.length > 0) {
-    const targetUrl = qrCodeUrl || `https://docs.google.com/presentation/d/${fileId}`;
-    const qrBuffer = await QRCode.toBuffer(targetUrl, { type: "png", width: 300, margin: 1 });
-
-    const qrFileRes = await drive.files.create({
-      requestBody: {
-        name: `qr_${fileId}.png`,
-        parents: folderId ? [folderId] : undefined,
-        mimeType: "image/png",
-      },
-      media: {
-        mimeType: "image/png",
-        body: Readable.from(qrBuffer),
-      },
-      fields: "id",
-    });
-    const qrFileId = qrFileRes.data.id!;
-
-    await drive.permissions.create({
-      fileId: qrFileId,
-      requestBody: { role: "reader", type: "anyone" },
-    });
-
-    const qrImageUrl = `https://drive.google.com/uc?id=${qrFileId}&export=view`;
-
-    const qrRequests: any[] = [];
-    const qrImageObjectIds: string[] = [];
-    for (let i = 0; i < qrShapes.length; i++) {
-      const shape = qrShapes[i];
-      const newObjectId = `qr_img_${i}_${Date.now()}`;
-      qrImageObjectIds.push(newObjectId);
-      qrRequests.push({ deleteObject: { objectId: shape.objectId } });
-      qrRequests.push({
-        createImage: {
-          objectId: newObjectId,
-          url: qrImageUrl,
-          elementProperties: {
-            pageObjectId: shape.slideObjectId,
-            size: shape.size,
-            transform: shape.transform,
-          },
-        },
-      });
-    }
-
-    for (const objectId of qrImageObjectIds) {
-      qrRequests.push({
-        updatePageElementsZOrder: {
-          pageElementObjectIds: [objectId],
-          operation: "BRING_TO_FRONT",
-        },
-      });
-    }
-
-    await slides.presentations.batchUpdate({
-      presentationId: fileId,
-      requestBody: { requests: qrRequests },
     });
   }
 

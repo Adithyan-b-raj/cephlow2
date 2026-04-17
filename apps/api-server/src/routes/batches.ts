@@ -548,10 +548,13 @@ router.post("/batches/:batchId/generate", async (req, res) => {
       let generated = 0;
       let failed = 0;
 
-      for (const cert of targetCerts) {
-        try {
-          // Update status to generating immediately for feedback
-          await certificatesCollection(batchId).doc(cert.id).update({ status: "generating" });
+      const CONCURRENCY = parseInt(process.env.CONCURRENCY_LIMIT || "4", 10);
+      for (let i = 0; i < targetCerts.length; i += CONCURRENCY) {
+        const chunk = targetCerts.slice(i, i + CONCURRENCY);
+        await Promise.all(chunk.map(async (cert) => {
+          try {
+            // Update status to generating immediately for feedback
+            await certificatesCollection(batchId).doc(cert.id).update({ status: "generating" });
 
           const rowData = (cert.rowData as Record<string, string>) || {};
           const replacements: Record<string, string> = {};
@@ -701,6 +704,7 @@ router.post("/batches/:batchId/generate", async (req, res) => {
           await batchRef.update({ failedCount: FieldValue.increment(1) });
           failed++;
         }
+        }));
       }
 
       const newStatus =
@@ -759,12 +763,15 @@ router.post("/batches/:batchId/send", async (req, res) => {
     let sent = 0;
     let failed = 0;
 
-    for (const cert of toSend) {
-      try {
-        let pdfBuffer: Buffer | undefined;
-        if (cert.slideFileId) {
-          pdfBuffer = await exportSlidesToPdf(userId, cert.slideFileId);
-        }
+    const CONCURRENCY = parseInt(process.env.CONCURRENCY_LIMIT || "4", 10);
+    for (let i = 0; i < toSend.length; i += CONCURRENCY) {
+      const chunk = toSend.slice(i, i + CONCURRENCY);
+      await Promise.all(chunk.map(async (cert) => {
+        try {
+          let pdfBuffer: Buffer | undefined;
+          if (cert.slideFileId) {
+            pdfBuffer = await exportSlidesToPdf(userId, cert.slideFileId);
+          }
         const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
 
         const rowData = (cert.rowData as Record<string, string>) || {};
@@ -800,6 +807,7 @@ router.post("/batches/:batchId/send", async (req, res) => {
         });
         failed++;
       }
+      }));
     }
 
     const alreadySent = allCerts.filter((c) => c.status === "sent").length;
@@ -859,54 +867,59 @@ router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
     let sent = 0;
     let failed = 0;
 
-    for (const cert of toSend) {
-      try {
-        const rowData = (cert.rowData as Record<string, string>) || {};
-        const phone = extractPhoneNumber(rowData);
+    const CONCURRENCY = parseInt(process.env.CONCURRENCY_LIMIT || "4", 10);
+    for (let i = 0; i < toSend.length; i += CONCURRENCY) {
+      const chunk = toSend.slice(i, i + CONCURRENCY);
+      await Promise.all(chunk.map(async (cert) => {
+        try {
+          const rowData = (cert.rowData as Record<string, string>) || {};
+          const phone = extractPhoneNumber(rowData);
 
-        if (!phone) {
+          if (!phone) {
+            await certificatesCollection(batchId).doc(cert.id).update({
+              status: "failed",
+              errorMessage: "No phone number found in row data",
+            });
+            failed++;
+            return;
+          }
+
+
+          let var1 = var1Template || cert.recipientName;
+          let var2 = var2Template || batch.name;
+          for (const [col, value] of Object.entries(rowData)) {
+            var1 = var1.replace(new RegExp(`<<${col}>>`, "gi"), value);
+            var2 = var2.replace(new RegExp(`<<${col}>>`, "gi"), value);
+          }
+
+          const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+          const wamid = await sendWhatsAppDocument(
+            phone,
+            (cert as any).r2PdfUrl,
+            pdfFilename,
+            var1,
+            var2,
+          );
+
+          await certificatesCollection(batchId).doc(cert.id).update({
+            status: "sent",
+            sentAt: new Date(),
+            errorMessage: null,
+            whatsappMessageId: wamid || null,
+            whatsappStatus: "sent",
+          });
+          if (wamid) {
+            await db.collection("waMessages").doc(wamid).set({ batchId, certId: cert.id });
+          }
+          sent++;
+        } catch (err: any) {
           await certificatesCollection(batchId).doc(cert.id).update({
             status: "failed",
-            errorMessage: "No phone number found in row data",
+            errorMessage: err.message,
           });
           failed++;
-          continue;
         }
-
-        let var1 = var1Template || cert.recipientName;
-        let var2 = var2Template || batch.name;
-        for (const [col, value] of Object.entries(rowData)) {
-          var1 = var1.replace(new RegExp(`<<${col}>>`, "gi"), value);
-          var2 = var2.replace(new RegExp(`<<${col}>>`, "gi"), value);
-        }
-
-        const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
-        const wamid = await sendWhatsAppDocument(
-          phone,
-          (cert as any).r2PdfUrl,
-          pdfFilename,
-          var1,
-          var2,
-        );
-
-        await certificatesCollection(batchId).doc(cert.id).update({
-          status: "sent",
-          sentAt: new Date(),
-          errorMessage: null,
-          whatsappMessageId: wamid || null,
-          whatsappStatus: "sent",
-        });
-        if (wamid) {
-          await db.collection("waMessages").doc(wamid).set({ batchId, certId: cert.id });
-        }
-        sent++;
-      } catch (err: any) {
-        await certificatesCollection(batchId).doc(cert.id).update({
-          status: "failed",
-          errorMessage: err.message,
-        });
-        failed++;
-      }
+      }));
     }
 
     const alreadySent = allCerts.filter((c) => c.status === "sent").length;
