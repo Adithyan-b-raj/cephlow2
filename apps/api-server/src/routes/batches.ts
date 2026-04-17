@@ -15,11 +15,15 @@ function normalizeColumnName(name: string): string {
 }
 
 function normalizePhoneNumber(raw: string): string {
+  const isExplicitInternational = raw.trim().startsWith("+");
   const cleaned = raw.replace(/\D/g, "").replace(/^0+/, "");
-  // If exactly 10 digits, it's likely an Indian number without country code
-  if (cleaned.length === 10) {
+  
+  // If the user didn't provide a '+' AND it's exactly 10 digits, 
+  // we assume it's a local Indian number and add '91'.
+  if (!isExplicitInternational && cleaned.length === 10) {
     return `91${cleaned}`;
   }
+  
   return cleaned;
 }
 
