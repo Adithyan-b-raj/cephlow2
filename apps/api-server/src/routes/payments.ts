@@ -2,8 +2,10 @@ import { Router } from "express";
 import { Cashfree, CFEnvironment } from "cashfree-pg";
 import { CreateOrderBody } from "@workspace/api-zod";
 
+const env = process.env.VITE_CASHFREE_ENV === "PRODUCTION" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX;
+
 const cashfree = new Cashfree(
-  CFEnvironment.SANDBOX,
+  env,
   process.env.CASHFREE_APP_ID || "",
   process.env.CASHFREE_SECRET_KEY || "",
 );
