@@ -19,12 +19,16 @@ declare global {
  */
 export async function requireAuth(req: Request, res: Response, next: NextFunction) {
     const authHeader = req.headers.authorization;
-
-    if (!authHeader?.startsWith("Bearer ")) {
-        return res.status(401).json({ error: "Missing or invalid Authorization header" });
+    let idToken = "";
+    if (authHeader?.startsWith("Bearer ")) {
+        idToken = authHeader.split("Bearer ")[1];
+    } else if (req.query.token) {
+        idToken = req.query.token as string;
     }
 
-    const idToken = authHeader.split("Bearer ")[1];
+    if (!idToken) {
+        return res.status(401).json({ error: "Missing or invalid token" });
+    }
 
     try {
         const decoded = await auth.verifyIdToken(idToken);

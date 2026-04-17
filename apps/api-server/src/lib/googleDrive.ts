@@ -1,9 +1,9 @@
-﻿import { google } from "googleapis";
+import { google } from "googleapis";
 import { Readable } from "stream";
 import QRCode from "qrcode";
 import { getAuthClientForUser } from "./googleAuth.js";
 
-async function getDriveClient(uid: string) {
+export async function getDriveClient(uid: string) {
   const auth = await getAuthClientForUser(uid);
   return google.drive({ version: "v3", auth });
 }
@@ -25,7 +25,7 @@ export async function listSlideTemplates(uid: string) {
     id: f.id!,
     name: f.name!,
     modifiedTime: f.modifiedTime,
-    thumbnailUrl: (f as any).thumbnailLink,
+    thumbnailUrl: `/api/slides/thumbnail/${f.id}`,
   }));
 }
 
@@ -41,7 +41,7 @@ export async function listSheetFiles(uid: string) {
     id: f.id!,
     name: f.name!,
     modifiedTime: f.modifiedTime,
-    thumbnailUrl: (f as any).thumbnailLink,
+    thumbnailUrl: `/api/slides/thumbnail/${f.id}`,
   }));
 }
 

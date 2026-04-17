@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useMutation } from "@tanstack/react-query";
@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { auth } from "@/lib/firebase";
 
 const STEPS = [
   "Name Your Template",
@@ -51,6 +52,13 @@ export default function NewTemplate() {
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [createdTemplate, setCreatedTemplate] = useState<CreatedFile | null>(null);
   const [createdSheet, setCreatedSheet] = useState<CreatedFile | null>(null);
+  const [authToken, setAuthToken] = useState<string>("");
+
+  useEffect(() => {
+    auth.currentUser?.getIdToken().then(token => {
+      if (token) setAuthToken(token);
+    });
+  }, []);
 
   const { data: templatesRes, isLoading: templatesLoading } = useListSlideTemplates();
 
@@ -319,7 +327,7 @@ export default function NewTemplate() {
                             >
                               {tpl.thumbnailUrl ? (
                                 <img
-                                  src={tpl.thumbnailUrl}
+                                  src={`${tpl.thumbnailUrl}${authToken ? `?token=${authToken}` : ""}`}
                                   alt={tpl.name}
                                   className="w-full aspect-[4/3] object-cover rounded-lg border border-border/50"
                                 />
