@@ -1,9 +1,13 @@
 import { defineConfig, InputTransformerFn } from "orval";
 import path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const root = path.resolve(__dirname, "..", "..");
-const apiClientReactSrc = path.resolve(root, "lib", "api-client-react", "src");
-const apiZodSrc = path.resolve(root, "lib", "api-zod", "src");
+const apiClientReactSrc = path.resolve(root, "packages", "api-client-react", "src");
+const apiZodSrc = path.resolve(root, "packages", "api-zod", "src");
 
 // Our exports make assumptions about the title of the API being "Api" (i.e. generated output is `api.ts`).
 const titleTransformer: InputTransformerFn = (config) => {

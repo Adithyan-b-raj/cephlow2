@@ -17,6 +17,8 @@ tags:
     description: Certificate batch operations
   - name: certificates
     description: Individual certificate operations
+  - name: payments
+    description: Payment gateway operations
 
 paths:
   /healthz:
@@ -251,6 +253,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CertificateListResponse"
+
+  /payments/create-order:
+    post:
+      operationId: createOrder
+      tags: [payments]
+      summary: Create a Cashfree order for wallet top-up
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+      responses:
+        "200":
+          description: Order created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateOrderResponse"
 
 components:
   schemas:
@@ -558,3 +579,19 @@ components:
         total:
           type: integer
       required: [certificates, total]
+
+    CreateOrderRequest:
+      type: object
+      properties:
+        amount:
+          type: number
+      required: [amount]
+
+    CreateOrderResponse:
+      type: object
+      properties:
+        payment_session_id:
+          type: string
+        order_id:
+          type: string
+      required: [payment_session_id, order_id]

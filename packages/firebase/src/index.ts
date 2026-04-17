@@ -59,6 +59,14 @@ export function studentProfileCertsCollection(slug: string) {
   return studentProfilesCollection.doc(slug).collection("certs");
 }
 
+// User profiles for issuers (stores balance for Prepaid Wallet)
+export const userProfilesCollection = db.collection("userProfiles");
+
+// Ledgers for financial history
+export function ledgersCollection(userId: string) {
+  return userProfilesCollection.doc(userId).collection("ledgers");
+}
+
 // Type definitions (matching old Drizzle schema)
 export interface Batch {
   id: string;
@@ -94,8 +102,14 @@ export interface Certificate {
   slideUrl?: string | null;
   pdfFileId?: string | null;
   pdfUrl?: string | null;
+  r2PdfUrl?: string | null;
   sentAt?: Date | null;
   errorMessage?: string | null;
   rowData?: Record<string, string> | null;
+  isPaid?: boolean;
+  requiresVisualRegen?: boolean;
   createdAt: Date;
+  updatedAt?: Date | string;
+  whatsappStatus?: string | null;
 }
+

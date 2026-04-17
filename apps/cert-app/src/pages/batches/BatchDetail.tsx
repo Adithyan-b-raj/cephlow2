@@ -3,14 +3,19 @@ import { useRoute } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetBatch,
-  useGenerateBatch,
   useSendBatch,
   useShareBatchFolder,
   getGetBatchQueryKey,
   useSendBatchWhatsapp,
   useSendCertEmail,
   useSendCertWhatsapp,
+  useGenerateSmartBatch,
+  useSyncBatch,
+  useGetWalletBalance,
 } from "@workspace/api-client-react";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,13 +24,15 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Play, Send, MailCheck, Loader2, FileText, CheckCircle2, XCircle, Clock, Share2, ExternalLink, QrCode, Copy, Check, MessageCircle, CheckCheck, Truck } from "lucide-react";
+import { Play, Send, MailCheck, Loader2, FileText, CheckCircle2, XCircle, Clock, Share2, ExternalLink, QrCode, Copy, Check, MessageCircle, CheckCheck, Truck, RefreshCcw, Grid, Layout, Mail, Layers, Presentation, FileSpreadsheet, AlertCircle } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
 
 function QrCodePopover({ batchId, certId }: { batchId: string; certId: string }) {
   const [copied, setCopied] = useState(false);
   const verifyUrl = `${window.location.origin}/verify/${batchId}/${certId}`;
+  // Add a timestamp for cache busting if available
   const qrSrc = `/api/verify/${batchId}/${certId}/qr`;
 
   const copyUrl = () => {
@@ -59,6 +66,8 @@ function QrCodePopover({ batchId, certId }: { batchId: string; certId: string })
   );
 }
 
+
+
 export default function BatchDetail() {
   const [, params] = useRoute("/batches/:id");
   const batchId = params?.id ?? "";
@@ -66,25 +75,79 @@ export default function BatchDetail() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
-  const { data: batch, isLoading, refetch } = useGetBatch(batchId, {
+  const { data: batch, isLoading, refetch } = useGetBatch(batchId as any, {
     query: {
       enabled: !!batchId,
-      refetchInterval: (query) => {
+      refetchInterval: (query: any) => {
         const status = (query.state.data as any)?.status;
         return status === "generating" || status === "sending" ? 2000 : false;
       }
-    }
+    } as any
   });
 
-  const { mutate: generateCerts, isPending: isGenerating } = useGenerateBatch({
+  const [selectedCertIds, setSelectedCertIds] = useState<string[]>([]);
+
+  // Calculate unpaid count from selected certificates
+  const targetCerts = selectedCertIds.length > 0 
+    ? (batch?.certificates || []).filter((c: any) => selectedCertIds.includes(c.id))
+    : (batch?.certificates || []);
+  const unpaidCount = targetCerts.filter((c: any) => !c.isPaid).length;
+  const visualRegenCount = targetCerts.filter((c: any) => c.isPaid && c.status === "outdated" && c.requiresVisualRegen).length;
+  const infoRegenCount = targetCerts.filter((c: any) => c.isPaid && c.status === "outdated" && !c.requiresVisualRegen).length;
+
+  const RATE = Number(import.meta.env.VITE_CERT_GENERATION_RATE || 1);
+  const REGEN_RATE = Number(import.meta.env.VITE_CERT_REGENERATION_RATE || 0.2);
+  const totalCost = (unpaidCount * RATE) + (visualRegenCount * REGEN_RATE);
+
+  const generateBtnText = (unpaidCount > 0 ? `Generate Selected (${selectedCertIds.length})` : `Regenerate Selected (${selectedCertIds.length})`);
+
+  const { data: balanceData, refetch: refetchBalance } = useGetWalletBalance();
+  const currentBalance = balanceData?.currentBalance ?? 0;
+  
+  // Dynamic capacity based on what's available
+  const generationLimit = Math.floor(currentBalance / RATE);
+
+  const { mutate: generateCerts, isPending: isGenerating } = useGenerateSmartBatch({
     mutation: {
       onSuccess: () => {
         toast({ title: "Generation started!" });
         refetch();
+        refetchBalance();
       },
-      onError: (err: any) => toast({ title: "Generation failed", description: err.message, variant: "destructive" })
+      onError: (err: any) => {
+        const isLowBalance = err.status === 402;
+        toast({ 
+          title: isLowBalance ? "Insufficient Balance" : "Generation failed", 
+          description: isLowBalance 
+            ? "Your wallet balance is too low to generate this batch. Please add credits to continue."
+            : (err.data?.error || "An unexpected error occurred"),
+          variant: "destructive",
+          action: isLowBalance ? (
+            <Button variant="outline" size="sm" onClick={() => window.location.href = '/wallet'}>
+              Top Up
+            </Button>
+          ) : undefined
+        });
+      }
     }
   });
+
+  const { mutate: syncData, isPending: isSyncing } = useSyncBatch({
+    mutation: {
+      onSuccess: (data: any) => {
+        toast({ 
+          title: "Batch Synced!", 
+          description: data.message || "Spreadsheet data synced successfully." 
+        });
+        refetch();
+      },
+      onError: (err: any) => toast({ title: "Sync failed", description: err.message || err.data?.error, variant: "destructive" })
+    }
+  });
+
+
+
+
 
   const { mutate: sendCerts, isPending: isSending } = useSendBatch({
     mutation: {
@@ -99,7 +162,7 @@ export default function BatchDetail() {
 
   const { mutate: shareFolder, isPending: isSharing } = useShareBatchFolder({
     mutation: {
-      onSuccess: (data) => {
+      onSuccess: (data: any) => {
         toast({ 
           title: "Folder Shared!", 
           description: "Anyone with the link can now view the PDF certificates.",
@@ -136,11 +199,10 @@ export default function BatchDetail() {
   const [waVar2, setWaVar2] = useState("");
 
   // Individual certificate send
-  type CertRow = typeof batch extends { certificates: infer C } ? (C extends (infer T)[] ? T : never) : never;
-  const [indivEmailCert, setIndivEmailCert] = useState<CertRow | null>(null);
+  const [indivEmailCert, setIndivEmailCert] = useState<any | null>(null);
   const [indivEmailSubject, setIndivEmailSubject] = useState("");
   const [indivEmailBody, setIndivEmailBody] = useState("");
-  const [indivWaCert, setIndivWaCert] = useState<CertRow | null>(null);
+  const [indivWaCert, setIndivWaCert] = useState<any | null>(null);
   const [indivWaVar1, setIndivWaVar1] = useState("");
   const [indivWaVar2, setIndivWaVar2] = useState("");
 
@@ -166,13 +228,13 @@ export default function BatchDetail() {
     },
   });
 
-  const handleOpenIndivEmail = (cert: CertRow) => {
+  const handleOpenIndivEmail = (cert: any) => {
     setIndivEmailCert(cert);
     setIndivEmailSubject((batch as any).emailSubject || "");
     setIndivEmailBody((batch as any).emailBody || "");
   };
 
-  const handleOpenIndivWa = (cert: CertRow) => {
+  const handleOpenIndivWa = (cert: any) => {
     setIndivWaCert(cert);
     setIndivWaVar1((batch as any).nameColumn ? `<<${(batch as any).nameColumn}>>` : "");
     setIndivWaVar2((batch as any).name || "");
@@ -197,6 +259,8 @@ export default function BatchDetail() {
     switch (status) {
       case 'sent': return 'bg-foreground text-background border-foreground';
       case 'generated': return 'bg-secondary text-secondary-foreground border-border';
+      case 'generating': return 'bg-blue-50 text-blue-600 border-blue-200';
+      case 'outdated': return 'bg-amber-50 text-amber-600 border-amber-200';
       case 'failed': return 'bg-background text-foreground border-foreground';
       default: return 'bg-background text-muted-foreground border-border';
     }
@@ -208,7 +272,13 @@ export default function BatchDetail() {
         <div>
           <div className="flex items-center gap-3 mb-2">
             <h1 className="text-3xl font-display font-bold">{batch.name}</h1>
-            <Badge className={`uppercase ${getStatusColor(batch.status)}`}>{batch.status}</Badge>
+            <Badge className={`uppercase ${getStatusColor(batch.status)}`}>
+              {batch.status.toLowerCase() === 'outdated' ? (
+                batch.certificates?.some((c: any) => c.status === 'outdated' && c.requiresVisualRegen) 
+                  ? "Outdated (Visual)" 
+                  : "Outdated (Info)"
+              ) : batch.status}
+            </Badge>
           </div>
           <p className="text-muted-foreground flex items-center gap-4 text-sm">
             <span>Created {format(new Date(batch.createdAt), 'MMM d, yyyy')}</span>
@@ -218,24 +288,55 @@ export default function BatchDetail() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+
           <Button
             variant="outline"
+            size="sm"
+            asChild
+            className="hover-elevate bg-background"
+            title="Edit Google Sheet"
+          >
+            <a href={`https://docs.google.com/spreadsheets/d/${batch.sheetId}/edit`} target="_blank" rel="noopener noreferrer">
+              <FileSpreadsheet className="w-4 h-4 mr-2 text-green-600" />
+              Edit Sheet
+            </a>
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => syncData({ batchId })}
+            disabled={isSyncing || batch.status === 'generating'}
+            className="hover-elevate bg-background"
+            title="Pull latest data from Google Sheet"
+          >
+            {isSyncing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <RefreshCcw className="w-4 h-4 mr-2" />}
+            Sync Data
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => shareFolder({ batchId })}
-            disabled={isSharing || !batch.pdfFolderId}
+            disabled={isSharing || !(batch as any).pdfFolderId}
             className="hover-elevate bg-background"
           >
             {isSharing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Share2 className="w-4 h-4 mr-2" />}
-            Share PDF Folder
+            Share PDFs
           </Button>
-          <Button
-            variant="outline"
-            onClick={() => generateCerts({ batchId })}
-            disabled={isGenerating || batch.status === 'generating'}
-            className="hover-elevate bg-background"
-          >
-            {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
-            Generate Certificates
-          </Button>
+          <div className="relative flex items-center">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => generateCerts({ batchId, selectedCertIds })}
+              disabled={isGenerating || batch.status === 'generating' || selectedCertIds.length === 0}
+              className="hover-elevate bg-background relative"
+            >
+              {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
+              {generateBtnText}
+            </Button>
+            <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1 text-[10px] text-muted-foreground whitespace-nowrap">
+              Generation Limit: {generationLimit.toLocaleString()}
+            </span>
+          </div>
           <Button
             onClick={handleOpenSend}
             disabled={isSending || batch.status === 'sending' || batch.generatedCount === 0}
@@ -291,6 +392,18 @@ export default function BatchDetail() {
           <Table>
             <TableHeader className="bg-secondary/50">
               <TableRow>
+                <TableHead className="w-[50px] text-center">
+                  <Checkbox 
+                    checked={batch.certificates?.length > 0 && selectedCertIds.length === batch.certificates.length}
+                    onCheckedChange={(checked) => {
+                      if (checked) {
+                        setSelectedCertIds(batch.certificates?.map((c: any) => c.id) || []);
+                      } else {
+                        setSelectedCertIds([]);
+                      }
+                    }}
+                  />
+                </TableHead>
                 <TableHead>Recipient</TableHead>
                 <TableHead className="hidden sm:table-cell">Email</TableHead>
                 <TableHead>Status</TableHead>
@@ -301,21 +414,48 @@ export default function BatchDetail() {
             <TableBody>
               {batch.certificates.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={5} className="h-32 text-center text-muted-foreground">No recipients found.</TableCell>
+                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No recipients found.</TableCell>
                 </TableRow>
               ) : (
-                batch.certificates.map(cert => (
+                batch.certificates.map((cert: any) => (
                   <TableRow key={cert.id} className="hover:bg-muted/50 transition-colors">
-                    <TableCell className="font-medium">{cert.recipientName}</TableCell>
+                    <TableCell className="text-center">
+                      <Checkbox 
+                        checked={selectedCertIds.includes(cert.id)}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setSelectedCertIds(prev => [...prev, cert.id]);
+                          } else {
+                            setSelectedCertIds(prev => prev.filter(id => id !== cert.id));
+                          }
+                        }}
+                      />
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      <div className="flex items-center gap-2">
+                        {cert.recipientName}
+                        {cert.isPaid && <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">Paid</Badge>}
+                      </div>
+                    </TableCell>
                     <TableCell className="hidden sm:table-cell text-muted-foreground">{cert.recipientEmail}</TableCell>
                     <TableCell>
                       <div className="flex flex-col gap-1">
                         <Badge variant="outline" className={getStatusColor(cert.status)}>
                           {cert.status === 'pending' && <Clock className="w-3 h-3 mr-1" />}
+                          {cert.status === 'generating' && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
+                          {cert.status.toLowerCase() === 'outdated' && (
+                            <>
+                              {cert.requiresVisualRegen ? (
+                                <><AlertCircle className="w-3 h-3 mr-1" /> Outdated (Visual)</>
+                              ) : (
+                                <><Loader2 className="w-3 h-3 mr-1" /> Outdated (Info)</>
+                              )}
+                            </>
+                          )}
                           {cert.status === 'generated' && <CheckCircle2 className="w-3 h-3 mr-1" />}
                           {cert.status === 'sent' && <MailCheck className="w-3 h-3 mr-1" />}
                           {cert.status === 'failed' && <XCircle className="w-3 h-3 mr-1" />}
-                          {cert.status}
+                          {cert.status.toLowerCase() !== 'outdated' && cert.status}
                         </Badge>
                         {cert.status === 'failed' && cert.errorMessage && (
                           <span className="text-[11px] text-muted-foreground max-w-[200px] truncate" title={cert.errorMessage}>
@@ -348,12 +488,12 @@ export default function BatchDetail() {
                       <div className="flex flex-wrap items-center justify-end gap-1.5">
                         {cert.slideUrl && (
                           <Button variant="ghost" size="sm" asChild className="hover-elevate">
-                            <a href={cert.slideUrl} target="_blank" rel="noopener noreferrer">Slides</a>
+                            <a href={`${cert.slideUrl}${cert.slideUrl.includes('?') ? '&' : '?'}v=${cert.updatedAt ? encodeURIComponent(cert.updatedAt) : Date.now()}`} target="_blank" rel="noopener noreferrer">Slides</a>
                           </Button>
                         )}
                         {(cert.r2PdfUrl || cert.pdfUrl) && (
                           <Button variant="outline" size="sm" asChild className="hover-elevate">
-                            <a href={(cert.r2PdfUrl || cert.pdfUrl) as string} target="_blank" rel="noopener noreferrer">PDF</a>
+                            <a href={`${(cert.r2PdfUrl || cert.pdfUrl)}${(cert.r2PdfUrl || cert.pdfUrl).includes('?') ? '&' : '?'}v=${cert.updatedAt ? encodeURIComponent(cert.updatedAt) : Date.now()}`} target="_blank" rel="noopener noreferrer">PDF</a>
                           </Button>
                         )}
                         {(cert.status === 'generated' || cert.status === 'sent' || cert.status === 'failed') && cert.slideUrl && (
@@ -528,7 +668,7 @@ export default function BatchDetail() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setSendModalOpen(false)}>Cancel</Button>
             <Button
-              onClick={() => sendCerts({ batchId, data: { emailSubject, emailBody } })}
+              onClick={() => sendCerts({ batchId: batchId as any, data: { emailSubject, emailBody } })}
               disabled={isSending || !emailSubject || !emailBody}
             >
               {isSending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
@@ -717,6 +857,8 @@ export default function BatchDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+
     </div>
   );
 }

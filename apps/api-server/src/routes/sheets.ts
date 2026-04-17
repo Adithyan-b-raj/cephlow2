@@ -12,18 +12,18 @@ router.post("/sheets", async (req, res) => {
       return res.status(400).json({ error: "headers must be a non-empty array" });
     }
     const result = await createSpreadsheetWithHeaders(req.user!.uid, name, headers);
-    res.status(201).json(result);
+    return res.status(201).json(result);
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
 router.get("/sheets", async (req, res) => {
   try {
     const files = await listSheetFiles(req.user!.uid);
-    res.json({ sheets: files });
+    return res.json({ sheets: files });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -62,9 +62,9 @@ router.get("/sheets/:sheetId/data", async (req, res) => {
       return obj;
     });
 
-    res.json({ headers, rows: dataRows, totalRows: dataRows.length });
+    return res.json({ headers, rows: dataRows, totalRows: dataRows.length });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 

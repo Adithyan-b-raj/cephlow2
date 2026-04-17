@@ -6,6 +6,7 @@ import {
   useCreateSlideTemplate,
   useGetSlidePlaceholders,
   useCreateSheet,
+  useListSlideTemplates,
   customFetch,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -46,8 +47,17 @@ export default function NewTemplate() {
 
   const [templateName, setTemplateName] = useState("");
   const [multiTemplate, setMultiTemplate] = useState(false);
+  const [sourceMode, setSourceMode] = useState<"new" | "existing">("new");
+  const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [createdTemplate, setCreatedTemplate] = useState<CreatedFile | null>(null);
   const [createdSheet, setCreatedSheet] = useState<CreatedFile | null>(null);
+
+  const { data: templatesRes, isLoading: templatesLoading } = useListSlideTemplates();
+
+  const extractSlideId = (input: string) => {
+    const match = input.match(/\/presentation\/d\/([a-zA-Z0-9-_]+)/);
+    return match ? match[1] : input.trim();
+  };
 
   const { mutate: createSlide, isPending: creatingSlide } = useCreateSlideTemplate({
     mutation: {
@@ -68,7 +78,7 @@ export default function NewTemplate() {
     refetch: refetchPlaceholders,
     isFetched: placeholdersFetched,
   } = useGetSlidePlaceholders(createdTemplate?.id ?? "", {
-    query: { enabled: false },
+    query: { enabled: false } as any,
   });
 
   const placeholders = placeholdersRes?.placeholders ?? [];
@@ -86,8 +96,16 @@ export default function NewTemplate() {
   });
 
   const handleCreateSlide = () => {
-    if (!templateName.trim()) return;
-    createSlide({ data: { name: templateName.trim() } });
+    if (sourceMode === "new") {
+      if (!templateName.trim()) return;
+      createSlide({ data: { name: templateName.trim() } });
+    } else {
+      if (!selectedTemplateId) {
+        toast({ title: "No template selected", description: "Please choose a slide presentation from the list", variant: "destructive" });
+        return;
+      }
+      createSlide({ data: { existingSlideId: selectedTemplateId } } as any);
+    }
   };
 
   const handleFetchPlaceholders = async () => {
@@ -193,11 +211,35 @@ export default function NewTemplate() {
                     <Presentation className="w-6 h-6" />
                   </div>
                   <div>
-                    <CardTitle className="text-xl">Create a template</CardTitle>
+                    <CardTitle className="text-xl">Template Configuration</CardTitle>
                     <CardDescription>
-                      Choose a template mode, name it, and we'll open Google Slides for you.
+                      Choose how you want to start your certificate template.
                     </CardDescription>
                   </div>
+                </div>
+
+                {/* Source Mode Toggle */}
+                <div className="flex p-1 bg-secondary/50 rounded-xl">
+                  <button
+                    onClick={() => setSourceMode("new")}
+                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+                      sourceMode === "new"
+                        ? "bg-background shadow-sm text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Create New
+                  </button>
+                  <button
+                    onClick={() => setSourceMode("existing")}
+                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+                      sourceMode === "existing"
+                        ? "bg-background shadow-sm text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Use Existing
+                  </button>
                 </div>
 
                 {/* Mode toggle */}
@@ -232,34 +274,86 @@ export default function NewTemplate() {
                   </button>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="template-name">Template name</Label>
-                  <Input
-                    id="template-name"
-                    placeholder="e.g. Completion Certificate 2024"
-                    value={templateName}
-                    onChange={(e) => setTemplateName(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleCreateSlide()}
-                    className="h-11"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    Use placeholders like{" "}
-                    <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{"<<Name>>"}</code>,{" "}
-                    <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{"<<Email>>"}</code>, and{" "}
-                    <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{"<<Phone Number>>"}</code>{" "}
-                    inside the slide.{multiTemplate ? " Add different designs on separate slides — each slide can be mapped to a role during batch creation." : " Phone Number and Email columns are always included in the spreadsheet."}
-                  </p>
-                </div>
+                {sourceMode === "new" ? (
+                  <div className="space-y-2">
+                    <Label htmlFor="template-name">Template name</Label>
+                    <Input
+                      id="template-name"
+                      placeholder="e.g. Completion Certificate 2024"
+                      value={templateName}
+                      onChange={(e) => setTemplateName(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && handleCreateSlide()}
+                      className="h-11"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Use placeholders like{" "}
+                      <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{"<<Name>>"}</code>,{" "}
+                      <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{"<<Email>>"}</code>, and{" "}
+                      <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{"<<Phone Number>>"}</code>{" "}
+                      inside the slide.{multiTemplate ? " Add different designs on separate slides — each slide can be mapped to a role during batch creation." : " Phone Number and Email columns are always included in the spreadsheet."}
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <Label>Select an existing Google Slide</Label>
+                    {templatesLoading ? (
+                      <div className="flex items-center gap-3 text-muted-foreground p-8"><Loader2 className="animate-spin" /> Loading presentations...</div>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[350px] overflow-y-auto p-1 pr-2">
+                        {templatesRes?.templates.length === 0 ? (
+                          <div className="col-span-full py-8 text-center text-muted-foreground bg-secondary/30 rounded-xl border border-dashed">
+                            No Google Slides found in your account.
+                          </div>
+                        ) : (
+                          templatesRes?.templates.map((tpl) => (
+                            <div
+                              key={tpl.id}
+                              onClick={() => {
+                                setSelectedTemplateId(tpl.id);
+                              }}
+                              className={`group p-3 rounded-xl border-2 cursor-pointer transition-all hover-elevate flex flex-col gap-3 ${
+                                selectedTemplateId === tpl.id
+                                  ? "border-primary bg-primary/5 ring-4 ring-primary/10"
+                                  : "border-border/50 bg-card hover:border-primary/30"
+                              }`}
+                            >
+                              {tpl.thumbnailUrl ? (
+                                <img
+                                  src={tpl.thumbnailUrl}
+                                  alt={tpl.name}
+                                  className="w-full aspect-[4/3] object-cover rounded-lg border border-border/50"
+                                />
+                              ) : (
+                                <div className="w-full aspect-[4/3] bg-secondary rounded-lg flex items-center justify-center">
+                                  <Presentation className="w-8 h-8 text-muted-foreground/50" />
+                                </div>
+                              )}
+                              <div className="font-semibold text-xs line-clamp-2 px-1">
+                                {tpl.name}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
+                    <p className="text-xs text-muted-foreground">
+                      We'll scan the selected slide for placeholders like <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{"<<Name>>"}</code> so we can generate your spreadsheet.
+                    </p>
+                  </div>
+                )}
 
                 <Button
                   onClick={handleCreateSlide}
-                  disabled={!templateName.trim() || creatingSlide}
+                  disabled={creatingSlide || (sourceMode === "new" ? !templateName.trim() : !selectedTemplateId)}
                   className="w-full h-11"
                 >
                   {creatingSlide ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating…</>
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {sourceMode === "new" ? "Creating…" : "Linking…"}</>
                   ) : (
-                    <><Sparkles className="w-4 h-4 mr-2" /> Create & Open in Google Slides</>
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" /> 
+                      {sourceMode === "new" ? "Create & Open Slide" : "Link & Verify Slide"}
+                    </>
                   )}
                 </Button>
               </CardContent>

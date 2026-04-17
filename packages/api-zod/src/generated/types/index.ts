@@ -7,22 +7,30 @@
  */
 
 export * from "./batch";
+export * from "./batchCategoryTemplateMap";
 export * from "./batchColumnMap";
 export * from "./batchDetail";
 export * from "./batchListResponse";
 export * from "./batchOperationResponse";
 export * from "./batchStatus";
+export * from "./categoryTemplateEntry";
 export * from "./certificate";
 export * from "./certificateListResponse";
 export * from "./certificateRowData";
 export * from "./certificateStatus";
 export * from "./createBatchRequest";
+export * from "./createBatchRequestCategoryTemplateMap";
 export * from "./createBatchRequestColumnMap";
 export * from "./createdFileResponse";
+export * from "./createOrderRequest";
+export * from "./createOrderResponse";
 export * from "./createSheetRequest";
 export * from "./createSlideTemplateRequest";
 export * from "./getSheetDataParams";
 export * from "./healthStatus";
+export * from "./ledgerEntry";
+export * from "./ledgerEntryMetadata";
+export * from "./ledgerEntryType";
 export * from "./listCertificatesParams";
 export * from "./placeholderResponse";
 export * from "./sendBatchRequest";
@@ -32,3 +40,5 @@ export * from "./sheetFile";
 export * from "./sheetListResponse";
 export * from "./slideTemplate";
 export * from "./slideTemplateListResponse";
+export * from "./walletBalanceResponse";
+export * from "./walletHistoryResponse";

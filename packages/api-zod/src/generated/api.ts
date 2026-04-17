@@ -101,6 +101,16 @@ export const ListBatchesResponse = zod.object({
       nameColumn: zod.string(),
       emailSubject: zod.string().optional(),
       emailBody: zod.string().optional(),
+      categoryColumn: zod.string().optional(),
+      categoryTemplateMap: zod
+        .record(
+          zod.string(),
+          zod.object({
+            templateId: zod.string(),
+            templateName: zod.string(),
+          }),
+        )
+        .optional(),
       status: zod.enum([
         "draft",
         "generating",
@@ -132,6 +142,16 @@ export const CreateBatchBody = zod.object({
   nameColumn: zod.string(),
   emailSubject: zod.string().optional(),
   emailBody: zod.string().optional(),
+  categoryColumn: zod.string().optional(),
+  categoryTemplateMap: zod
+    .record(
+      zod.string(),
+      zod.object({
+        templateId: zod.string(),
+        templateName: zod.string(),
+      }),
+    )
+    .optional(),
 });
 
 /**
@@ -154,6 +174,16 @@ export const GetBatchResponse = zod
     nameColumn: zod.string(),
     emailSubject: zod.string().optional(),
     emailBody: zod.string().optional(),
+    categoryColumn: zod.string().optional(),
+    categoryTemplateMap: zod
+      .record(
+        zod.string(),
+        zod.object({
+          templateId: zod.string(),
+          templateName: zod.string(),
+        }),
+      )
+      .optional(),
     status: zod.enum([
       "draft",
       "generating",
@@ -245,4 +275,40 @@ export const ListCertificatesResponse = zod.object({
     }),
   ),
   total: zod.number(),
+});
+
+/**
+ * @summary Create a Cashfree order for wallet top-up
+ */
+export const CreateOrderBody = zod.object({
+  amount: zod.number(),
+});
+
+export const CreateOrderResponse = zod.object({
+  payment_session_id: zod.string(),
+  order_id: zod.string(),
+});
+
+/**
+ * @summary Get the current wallet balance for the user
+ */
+export const GetWalletBalanceResponse = zod.object({
+  currentBalance: zod.number(),
+});
+
+/**
+ * @summary Get the ledger history for the user's wallet
+ */
+export const GetWalletHistoryResponse = zod.object({
+  ledgers: zod.array(
+    zod.object({
+      id: zod.string(),
+      type: zod.enum(["topup", "batch_deduction", "refund"]),
+      amount: zod.number(),
+      balanceAfter: zod.number(),
+      description: zod.string(),
+      metadata: zod.record(zod.string(), zod.unknown()).optional(),
+      createdAt: zod.date(),
+    }),
+  ),
 });

@@ -60,7 +60,7 @@ export default function NewBatchWizard() {
 
   // API Queries
   const { data: sheetsRes, isLoading: sheetsLoading } = useListSheets();
-  const { data: sheetData, isLoading: sheetDataLoading } = useGetSheetData(sheetId, { tabName }, { query: { enabled: !!sheetId } });
+  const { data: sheetData, isLoading: sheetDataLoading } = useGetSheetData(sheetId, { tabName }, { query: { enabled: !!sheetId } as any });
 
   // Unique category values from sheet data (for multi-template mode)
   const uniqueCategories = (() => {
@@ -69,7 +69,7 @@ export default function NewBatchWizard() {
     return [...new Set(values)] as string[];
   })();
   const { data: templatesRes, isLoading: templatesLoading } = useListSlideTemplates();
-  const { data: placeholdersRes, isLoading: placeholdersLoading } = useGetSlidePlaceholders(templateId, { query: { enabled: !!templateId } });
+  const { data: placeholdersRes, isLoading: placeholdersLoading } = useGetSlidePlaceholders(templateId, { query: { enabled: !!templateId } as any });
 
   // Fetch slide info for the selected template (for multi-template mode)
   const { data: slidesInfoRes, isLoading: slidesInfoLoading } = useQuery({

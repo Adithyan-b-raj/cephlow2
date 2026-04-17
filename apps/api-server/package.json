@@ -13,6 +13,7 @@
     "@aws-sdk/client-s3": "^3.1010.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/firebase": "workspace:*",
+    "cashfree-pg": "^5.1.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
     "express": "^5",

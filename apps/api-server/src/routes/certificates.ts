@@ -73,8 +73,9 @@ router.get("/certificates", async (req, res) => {
     });
 
     res.json({ certificates: allCerts, total: allCerts.length });
+    return;
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -86,9 +87,9 @@ router.get("/certificates", async (req, res) => {
  * Fallback: scan all batches for backward compatibility with certs
  * generated before the index was introduced (writes to index when found).
  */
-router.get("/", async (req, res) => {
+router.get("/certificates/:certId/verify", async (req, res) => {
   try {
-    const { certId } = req.params;
+    const { certId } = req.params as any;
     console.log(`Verifying certificate ID: ${certId}`);
 
     let foundCert: any = null;
@@ -138,9 +139,10 @@ router.get("/", async (req, res) => {
       issuedAt: serializeDoc(foundCert).createdAt,
       status: foundCert.status,
     });
+    return;
   } catch (err: any) {
     console.error("Verification error:", err);
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 

@@ -57,7 +57,14 @@ export interface CreateSheetRequest {
   headers: string[];
 }
 
+export interface CategoryTemplateEntry {
+  templateId: string;
+  templateName: string;
+}
+
 export type BatchColumnMap = { [key: string]: string };
+
+export type BatchCategoryTemplateMap = { [key: string]: CategoryTemplateEntry };
 
 export type BatchStatus = (typeof BatchStatus)[keyof typeof BatchStatus];
 
@@ -71,7 +78,7 @@ export const BatchStatus = {
 } as const;
 
 export interface Batch {
-  id: string;
+  id: number;
   name: string;
   sheetId: string;
   sheetName: string;
@@ -82,13 +89,12 @@ export interface Batch {
   nameColumn: string;
   emailSubject?: string;
   emailBody?: string;
+  categoryColumn?: string;
+  categoryTemplateMap?: BatchCategoryTemplateMap;
   status: BatchStatus;
-  driveFolderId?: string | null;
-  pdfFolderId?: string | null;
   totalCount: number;
   generatedCount: number;
   sentCount: number;
-  whatsappSentCount?: number;
   createdAt: string;
 }
 
@@ -105,22 +111,17 @@ export const CertificateStatus = {
 export type CertificateRowData = { [key: string]: string };
 
 export interface Certificate {
-  id: string;
-  batchId: string;
+  id: number;
+  batchId: number;
   recipientName: string;
   recipientEmail: string;
   status: CertificateStatus;
   slideFileId?: string;
   slideUrl?: string;
-  pdfFileId?: string;
-  pdfUrl?: string;
-  r2PdfUrl?: string;
   sentAt?: string;
   errorMessage?: string;
   rowData?: CertificateRowData;
   createdAt: string;
-  whatsappMessageId?: string | null;
-  whatsappStatus?: "sent" | "delivered" | "read" | "wa_failed" | null;
 }
 
 export type BatchDetail = Batch & {
@@ -132,6 +133,10 @@ export interface BatchListResponse {
 }
 
 export type CreateBatchRequestColumnMap = { [key: string]: string };
+
+export type CreateBatchRequestCategoryTemplateMap = {
+  [key: string]: CategoryTemplateEntry;
+};
 
 export interface CreateBatchRequest {
   name: string;
@@ -145,6 +150,8 @@ export interface CreateBatchRequest {
   nameColumn: string;
   emailSubject?: string;
   emailBody?: string;
+  categoryColumn?: string;
+  categoryTemplateMap?: CreateBatchRequestCategoryTemplateMap;
 }
 
 export interface SendBatchRequest {
@@ -164,11 +171,49 @@ export interface CertificateListResponse {
   total: number;
 }
 
+export interface CreateOrderRequest {
+  amount: number;
+}
+
+export interface CreateOrderResponse {
+  payment_session_id: string;
+  order_id: string;
+}
+
+export interface WalletBalanceResponse {
+  currentBalance: number;
+}
+
+export type LedgerEntryType =
+  (typeof LedgerEntryType)[keyof typeof LedgerEntryType];
+
+export const LedgerEntryType = {
+  topup: "topup",
+  batch_deduction: "batch_deduction",
+  refund: "refund",
+} as const;
+
+export type LedgerEntryMetadata = { [key: string]: unknown };
+
+export interface LedgerEntry {
+  id: string;
+  type: LedgerEntryType;
+  amount: number;
+  balanceAfter: number;
+  description: string;
+  metadata?: LedgerEntryMetadata;
+  createdAt: string;
+}
+
+export interface WalletHistoryResponse {
+  ledgers: LedgerEntry[];
+}
+
 export type GetSheetDataParams = {
   tabName?: string;
 };
 
 export type ListCertificatesParams = {
-  batchId?: string;
+  batchId?: number;
   status?: string;
 };

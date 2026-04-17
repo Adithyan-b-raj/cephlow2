@@ -45,13 +45,13 @@ router.get("/p/:username", async (req, res) => {
       };
     });
 
-    res.json({
+    return res.json({
       slug: profile.slug,
       name: profile.name,
       certificates,
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
@@ -68,14 +68,14 @@ router.patch("/p/:username", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "name is required" });
     }
 
-    const profileDoc = await studentProfilesCollection.doc(username).get();
+    const profileDoc = await studentProfilesCollection.doc(username as string).get();
     if (!profileDoc.exists) {
       return res.status(404).json({ error: "Profile not found" });
     }
 
     // Verify the requesting user issued at least one cert to this student
     const certsSnapshot = await studentProfilesCollection
-      .doc(username)
+      .doc(username as string)
       .collection("certs")
       .get();
 
@@ -93,11 +93,11 @@ router.patch("/p/:username", requireAuth, async (req, res) => {
       return res.status(403).json({ error: "You have not issued any certificates to this student" });
     }
 
-    await studentProfilesCollection.doc(username).update({ name: name.trim(), updatedAt: new Date() });
+    await studentProfilesCollection.doc(username as string).update({ name: name.trim(), updatedAt: new Date() });
 
-    res.json({ success: true, name: name.trim() });
+    return res.json({ success: true, name: name.trim() });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: err.message });
   }
 });
 
