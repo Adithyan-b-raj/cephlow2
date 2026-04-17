@@ -6,7 +6,6 @@ import batchesRouter from "./batches.js";
 import certificatesRouter from "./certificates.js";
 import paymentsRouter from "./payments.js";
 import walletRouter from "./wallet.js";
-import qrRouter from "./qr.js";
 const router: IRouter = Router();
 
 router.use(healthRouter);
@@ -16,6 +15,5 @@ router.use(batchesRouter);
 router.use(certificatesRouter);
 router.use(paymentsRouter);
 router.use(walletRouter);
-router.use(qrRouter);
 
 export default router;
