@@ -222,13 +222,13 @@ export default function Wallet() {
                         </td>
                         <td className="px-4 py-3">{ledger.description}</td>
                         <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize whitespace-nowrap
                             ${ledger.type === 'topup' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
                             {ledger.type.replace('_', ' ')}
                           </span>
                         </td>
-                        <td className={`px-4 py-3 text-right font-medium ${ledger.type === 'topup' ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {ledger.type === 'topup' ? '+' : '-'}₹{ledger.amount.toFixed(2)}
+                        <td className={`px-4 py-3 text-right font-medium whitespace-nowrap ${ledger.type === 'topup' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                          {ledger.amount > 0 ? '+' : '-'}₹{Math.abs(ledger.amount).toFixed(2)}
                         </td>
                         <td className="px-4 py-3 text-right text-muted-foreground font-medium">
                           ₹{ledger.balanceAfter.toFixed(2)}
