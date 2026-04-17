@@ -10,6 +10,8 @@ const cashfree = new Cashfree(
   process.env.CASHFREE_SECRET_KEY || "",
 );
 
+console.log(`[Payments Route] Initialized Cashfree SDK in ${process.env.VITE_CASHFREE_ENV === "PRODUCTION" ? "PRODUCTION" : "SANDBOX"} mode with App ID: ${process.env.CASHFREE_APP_ID?.substring(0, 10)}...`);
+
 const router = Router();
 
 router.post("/payments/create-order", async (req, res) => {

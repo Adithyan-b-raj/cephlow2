@@ -13,6 +13,8 @@ const cashfree = new Cashfree(
   process.env.CASHFREE_SECRET_KEY || "",
 );
 
+console.log(`[Webhooks Route] Initialized Cashfree SDK in ${process.env.VITE_CASHFREE_ENV === "PRODUCTION" ? "PRODUCTION" : "SANDBOX"} mode with App ID: ${process.env.CASHFREE_APP_ID?.substring(0, 10)}...`);
+
 // GET /api/webhooks/whatsapp — Meta webhook verification challenge
 router.get("/webhooks/whatsapp", (req, res) => {
   const verifyToken = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN;
