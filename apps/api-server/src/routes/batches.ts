@@ -519,15 +519,19 @@ router.post("/batches/:batchId/generate", async (req, res) => {
            throw err;
         }
         
+        const newBalance = currentBalance - cost;
         t.update(userProfilesCollection.doc(userId), {
-          currentBalance: currentBalance - cost
+          currentBalance: newBalance
         });
         
-        const ledgerRef = ledgersCollection(userId).doc(`gen_${batchId}_${Date.now()}`);
+        const ledgerId = `gen_${batchId}_${Date.now()}`;
+        const ledgerRef = ledgersCollection(userId).doc(ledgerId);
         t.set(ledgerRef, {
+          id: ledgerId,
           amount: -cost,
           type: "generation_deduction",
           description: `Generation cost for batch: ${bData.name} (${unpaidCount} new, ${visualRegenCount} visual updates)`,
+          balanceAfter: newBalance,
           metadata: { batchId, unpaidCount, visualRegenCount, rate: RATE, regenRate: REGEN_RATE, isPartial: true },
           createdAt: new Date().toISOString()
         });
