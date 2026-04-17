@@ -46,7 +46,7 @@ export default function Wallet() {
       const { payment_session_id } = await createOrder({ data: { amount } } as any);
 
       const cashfree = await load({
-        mode: import.meta.env.VITE_CASHFREE_ENV === "PRODUCTION" ? "production" : "sandbox", 
+        mode: import.meta.env.VITE_CASHFREE_ENV === "PRODUCTION" ? "PRODUCTION" : "SANDBOX", 
       });
 
       const checkoutOptions: any = {
