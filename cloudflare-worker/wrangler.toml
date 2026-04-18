@@ -8,7 +8,16 @@ compatibility_date = "2024-09-23"
 binding     = "CERTIFICATES"
 bucket_name = "certificates"
 
+# ── D1 database for analytics ─────────────────────────────────────────
+# Run once: wrangler d1 create wa-bot-analytics
+# Then paste the database_id below.
+[[d1_databases]]
+binding       = "DB"
+database_name = "wa-bot-analytics"
+database_id   = "aa02f81f-9d11-4bef-b17f-6f246395dfaa"
+
 # ── Non-secret variables only go in this file ─────────────────────────
+# Secret: run `wrangler secret put ANALYTICS_TOKEN` to set the dashboard password.
 
 [vars]
 R2_PUBLIC_URL = "https://pub-3e00f49622064202a04c19fb33ee2976.r2.dev"
