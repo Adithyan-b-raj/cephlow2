@@ -854,7 +854,7 @@ router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
 
     if (batch.userId !== userId) return res.status(403).json({ error: "Access denied" });
 
-    const { var1Template, var2Template } = req.body;
+    const { var1Template, var2Template, var3Template } = req.body;
 
     await batchRef.update({ status: "sending" });
 
@@ -891,10 +891,14 @@ router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
 
           let var1 = var1Template || cert.recipientName;
           let var2 = var2Template || batch.name;
+          const emailPrefix = cert.recipientEmail?.split("@")[0] || cert.recipientName;
+          let var3 = var3Template || emailPrefix;
           for (const [col, value] of Object.entries(rowData)) {
             var1 = var1.replace(new RegExp(`<<${col}>>`, "gi"), value);
             var2 = var2.replace(new RegExp(`<<${col}>>`, "gi"), value);
+            var3 = var3.replace(new RegExp(`<<${col}>>`, "gi"), value);
           }
+          var3 = var3.replace(/<<EmailPrefix>>/gi, emailPrefix);
 
           const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
           const wamid = await sendWhatsAppDocument(
@@ -903,6 +907,7 @@ router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
             pdfFilename,
             var1,
             var2,
+            var3,
           );
 
           await certificatesCollection(batchId).doc(cert.id).update({
@@ -1026,20 +1031,24 @@ router.post("/batches/:batchId/certificates/:certId/send-whatsapp", async (req, 
     if (!cert.r2PdfUrl) return res.status(400).json({ error: "No R2 PDF URL for this certificate" });
 
     const rowData = (cert.rowData as Record<string, string>) || {};
-    const { var1Template, var2Template } = req.body;
+    const { var1Template, var2Template, var3Template } = req.body;
     const phone = extractPhoneNumber(rowData);
 
     if (!phone) return res.status(400).json({ error: "No phone number found for this certificate" });
 
     let var1 = var1Template || cert.recipientName;
     let var2 = var2Template || batch.name;
+    const emailPrefix = cert.recipientEmail?.split("@")[0] || cert.recipientName;
+    let var3 = var3Template || emailPrefix;
     for (const [col, value] of Object.entries(rowData)) {
       var1 = var1.replace(new RegExp(`<<${col}>>`, "gi"), value);
       var2 = var2.replace(new RegExp(`<<${col}>>`, "gi"), value);
+      var3 = var3.replace(new RegExp(`<<${col}>>`, "gi"), value);
     }
+    var3 = var3.replace(/<<EmailPrefix>>/gi, emailPrefix);
 
     const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
-    const wamid = await sendWhatsAppDocument(phone, cert.r2PdfUrl, pdfFilename, var1, var2);
+    const wamid = await sendWhatsAppDocument(phone, cert.r2PdfUrl, pdfFilename, var1, var2, var3);
     await certificatesCollection(batchId).doc(certId).update({
       status: "sent",
       sentAt: new Date(),
