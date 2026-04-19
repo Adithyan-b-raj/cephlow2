@@ -15,25 +15,28 @@ export default function Dashboard() {
   const sentCerts = certsRes?.certificates?.filter(c => c.status === "sent").length || 0;
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="relative overflow-hidden rounded-sm bg-foreground text-background p-8 md:p-12 shadow-sm">
-        <div className="relative z-10 max-w-2xl">
-          <h1 className="text-4xl md:text-5xl font-display font-bold mb-4 tracking-tight text-background">
+    <div className="space-y-8">
+
+      {/* Hero */}
+      <div className="bg-foreground text-background p-8 md:p-12 border-2 border-foreground">
+        <div className="max-w-2xl">
+          <p className="text-[10px] tracking-widest uppercase text-background/50 mb-3">Cephlow Automation</p>
+          <h1 className="text-4xl md:text-5xl font-display font-black mb-4 tracking-tight text-background normal-case">
             Automate your certificates effortlessly.
           </h1>
-          <p className="text-background/70 text-lg md:text-xl mb-8 max-w-xl">
-            Merge Google Sheets data into beautiful Google Slides templates and send personalized emails in minutes.
+          <p className="text-background/60 text-sm mb-8 max-w-xl font-normal normal-case tracking-normal">
+            Merge Google Sheets data into Google Slides templates and send personalized emails in minutes.
           </p>
           <div className="flex flex-wrap gap-3">
-            <Button asChild size="lg" variant="outline" className="bg-transparent border-background/30 text-background hover:bg-background/10 hover-elevate font-semibold px-6 h-12">
+            <Button asChild size="lg" variant="outline" className="border-2 border-background/40 text-background bg-transparent hover:bg-background/10 font-bold uppercase tracking-widest text-xs px-6 h-11">
               <Link href="/templates/new">
-                <Sparkles className="mr-2 w-5 h-5" />
+                <Sparkles className="mr-2 w-4 h-4" />
                 New Template
               </Link>
             </Button>
-            <Button asChild size="lg" className="bg-background text-foreground hover:bg-background/90 hover-elevate font-semibold px-8 h-12 shadow-sm">
+            <Button asChild size="lg" className="bg-background text-foreground hover:bg-background/90 font-bold uppercase tracking-widest text-xs px-8 h-11">
               <Link href="/batches/new">
-                <FilePlus2 className="mr-2 w-5 h-5" />
+                <FilePlus2 className="mr-2 w-4 h-4" />
                 New Batch
               </Link>
             </Button>
@@ -41,95 +44,70 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-3">
-        <Card className="hover:shadow-md transition-shadow border-border">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Total Batches</CardTitle>
-            <Presentation className="w-5 h-5 text-muted-foreground/50" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-display font-bold">
-              {batchesLoading ? "..." : batches.length}
+      {/* Stat cards */}
+      <div className="grid gap-0 grid-cols-1 md:grid-cols-3 border-2 border-foreground">
+        {[
+          { label: "Total Batches", value: batchesLoading ? "—" : batches.length, icon: Presentation },
+          { label: "Certs Generated", value: certsLoading ? "—" : totalCerts, icon: Award },
+          { label: "Successfully Sent", value: certsLoading ? "—" : sentCerts, icon: Send },
+        ].map((stat, i) => (
+          <div key={stat.label} className={`p-6 ${i < 2 ? "md:border-r-2 border-foreground" : ""} border-b-2 md:border-b-0 border-foreground last:border-b-0`}>
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{stat.label}</span>
+              <stat.icon className="w-4 h-4 text-muted-foreground" />
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow border-border">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Certificates Generated</CardTitle>
-            <Award className="w-5 h-5 text-muted-foreground/50" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-display font-bold">
-              {certsLoading ? "..." : totalCerts}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="hover:shadow-md transition-shadow border-border">
-          <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-            <CardTitle className="text-sm font-semibold text-muted-foreground">Successfully Sent</CardTitle>
-            <Send className="w-5 h-5 text-muted-foreground/50" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-display font-bold">
-              {certsLoading ? "..." : sentCerts}
-            </div>
-          </CardContent>
-        </Card>
+            <div className="text-4xl font-display font-black">{String(stat.value)}</div>
+          </div>
+        ))}
       </div>
 
+      {/* Recent Batches */}
       <div>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-display font-bold">Recent Batches</h2>
-          <Button variant="ghost" asChild className="hover-elevate">
-            <Link href="/history">View All History</Link>
+        <div className="flex items-center justify-between mb-4 border-b-2 border-foreground pb-3">
+          <h2 className="text-sm font-bold uppercase tracking-widest">Recent Batches</h2>
+          <Button variant="ghost" asChild className="text-xs uppercase tracking-widest font-bold h-8 px-3 hover:bg-muted">
+            <Link href="/history">View All →</Link>
           </Button>
         </div>
 
-        <div className="grid gap-4">
+        <div className="border-2 border-foreground">
           {batchesLoading ? (
-            <div className="h-32 flex items-center justify-center text-muted-foreground">Loading batches...</div>
+            <div className="h-32 flex items-center justify-center text-muted-foreground text-xs uppercase tracking-widest">Loading...</div>
           ) : batches.length === 0 ? (
-            <div className="text-center py-12 bg-card rounded-sm border border-dashed">
-              <Clock className="w-12 h-12 mx-auto text-muted-foreground/30 mb-4" />
-              <h3 className="text-lg font-semibold text-foreground">No batches yet</h3>
-              <p className="text-muted-foreground mt-1">Create your first certificate batch to get started.</p>
+            <div className="text-center py-16">
+              <Clock className="w-8 h-8 mx-auto text-muted-foreground mb-4" />
+              <p className="text-xs uppercase tracking-widest text-muted-foreground">No batches yet</p>
+              <p className="text-xs text-muted-foreground mt-1 normal-case tracking-normal">Create your first certificate batch to get started.</p>
             </div>
           ) : (
-            batches.slice(0, 5).map(batch => (
+            batches.slice(0, 5).map((batch, i) => (
               <Link key={batch.id} href={`/batches/${batch.id}`}>
-                <Card className="hover:border-foreground/50 hover:shadow-md transition-all cursor-pointer group">
-                  <CardContent className="p-5 flex items-center justify-between gap-4 flex-wrap">
-                    <div className="flex-1 min-w-[200px]">
-                      <h3 className="font-semibold text-lg text-foreground transition-colors">
-                        {batch.name}
-                      </h3>
-                      <div className="text-sm text-muted-foreground mt-1 flex flex-wrap gap-3">
-                        <span className="flex items-center gap-1.5"><Presentation className="w-4 h-4"/> {batch.templateName}</span>
-                        <span className="flex items-center gap-1.5 opacity-50">•</span>
-                        <span>{format(new Date(batch.createdAt), 'MMM d, yyyy')}</span>
-                      </div>
+                <div className={`p-5 flex items-center justify-between gap-4 flex-wrap cursor-pointer hover:bg-muted transition-colors ${i > 0 ? "border-t-2 border-foreground" : ""}`}>
+                  <div className="flex-1 min-w-[200px]">
+                    <h3 className="font-bold text-sm uppercase tracking-wide">{batch.name}</h3>
+                    <div className="text-xs text-muted-foreground mt-1 flex flex-wrap gap-3 normal-case tracking-normal font-normal">
+                      <span className="flex items-center gap-1.5"><Presentation className="w-3 h-3"/> {batch.templateName}</span>
+                      <span className="opacity-40">·</span>
+                      <span>{format(new Date(batch.createdAt), 'MMM d, yyyy')}</span>
                     </div>
-                    
-                    <div className="flex items-center gap-6">
-                      <div className="text-right hidden sm:block">
-                        <div className="text-sm font-medium">{batch.sentCount} / {batch.totalCount}</div>
-                        <div className="text-xs text-muted-foreground">Sent</div>
-                      </div>
-                      <Badge
-                        variant="outline"
-                        className={`capitalize ${
-                          batch.status === 'sent'
-                            ? 'bg-foreground text-background border-foreground'
-                            : 'bg-secondary text-secondary-foreground border-border'
-                        }`}
-                      >
-                        {batch.status}
-                      </Badge>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div className="text-right hidden sm:block">
+                      <div className="text-sm font-bold">{batch.sentCount} / {batch.totalCount}</div>
+                      <div className="text-[10px] uppercase tracking-widest text-muted-foreground">Sent</div>
                     </div>
-                  </CardContent>
-                </Card>
+                    <Badge
+                      variant="outline"
+                      className={`uppercase text-[10px] tracking-widest font-bold ${
+                        batch.status === 'sent'
+                          ? 'bg-foreground text-background border-foreground'
+                          : 'bg-background text-foreground border-foreground'
+                      }`}
+                    >
+                      {batch.status}
+                    </Badge>
+                  </div>
+                </div>
               </Link>
             ))
           )}

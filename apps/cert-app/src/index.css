@@ -1,4 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=Outfit:wght@500;600;700&display=swap');
 @import "tailwindcss";
 @import "tw-animate-css";
 @plugin "@tailwindcss/typography";
@@ -57,8 +56,8 @@
   --color-sidebar-accent-border: var(--sidebar-accent-border);
   --color-sidebar-ring: hsl(var(--sidebar-ring));
 
-  --font-sans: 'Plus Jakarta Sans', sans-serif;
-  --font-display: 'Outfit', sans-serif;
+  --font-sans: 'Courier New', Courier, monospace;
+  --font-display: 'Courier New', Courier, monospace;
 
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
@@ -67,59 +66,59 @@
 }
 
 :root {
-  --button-outline: rgba(0,0,0, .12);
-  --badge-outline: rgba(0,0,0, .06);
-  --opaque-button-border-intensity: -10;
-  --elevate-1: rgba(0,0,0, .03);
-  --elevate-2: rgba(0,0,0, .07);
+  --button-outline: rgba(0,0,0, .25);
+  --badge-outline: rgba(0,0,0, .15);
+  --opaque-button-border-intensity: -15;
+  --elevate-1: rgba(0,0,0, 0);
+  --elevate-2: rgba(0,0,0, 0);
 
-  /* Black & White Professional Palette - Light Mode */
-  --background: 0 0% 97%;
-  --foreground: 0 0% 5%;
+  /* Brutalist B&W */
+  --background: 0 0% 100%;
+  --foreground: 0 0% 0%;
 
-  --border: 0 0% 87%;
-  --input: 0 0% 87%;
-  --ring: 0 0% 10%;
+  --border: 0 0% 0%;
+  --input: 0 0% 0%;
+  --ring: 0 0% 0%;
 
   --card: 0 0% 100%;
-  --card-foreground: 0 0% 5%;
-  --card-border: 0 0% 87%;
+  --card-foreground: 0 0% 0%;
+  --card-border: 0 0% 0%;
 
   --popover: 0 0% 100%;
-  --popover-foreground: 0 0% 5%;
-  --popover-border: 0 0% 87%;
+  --popover-foreground: 0 0% 0%;
+  --popover-border: 0 0% 0%;
 
-  --primary: 0 0% 8%;
-  --primary-foreground: 0 0% 98%;
+  --primary: 0 0% 0%;
+  --primary-foreground: 0 0% 100%;
 
   --secondary: 0 0% 94%;
-  --secondary-foreground: 0 0% 8%;
+  --secondary-foreground: 0 0% 0%;
 
   --muted: 0 0% 94%;
-  --muted-foreground: 0 0% 44%;
+  --muted-foreground: 0 0% 40%;
 
-  --accent: 0 0% 91%;
-  --accent-foreground: 0 0% 8%;
+  --accent: 0 0% 90%;
+  --accent-foreground: 0 0% 0%;
 
   --destructive: 0 72% 51%;
-  --destructive-foreground: 0 0% 98%;
+  --destructive-foreground: 0 0% 100%;
 
   --sidebar: 0 0% 100%;
-  --sidebar-foreground: 0 0% 5%;
-  --sidebar-border: 0 0% 87%;
-  --sidebar-primary: 0 0% 8%;
-  --sidebar-primary-foreground: 0 0% 98%;
-  --sidebar-accent: 0 0% 94%;
-  --sidebar-accent-foreground: 0 0% 8%;
-  --sidebar-ring: 0 0% 10%;
+  --sidebar-foreground: 0 0% 0%;
+  --sidebar-border: 0 0% 0%;
+  --sidebar-primary: 0 0% 0%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 0 0% 92%;
+  --sidebar-accent-foreground: 0 0% 0%;
+  --sidebar-ring: 0 0% 0%;
 
-  --chart-1: 0 0% 8%;
+  --chart-1: 0 0% 0%;
   --chart-2: 0 0% 25%;
-  --chart-3: 0 0% 42%;
+  --chart-3: 0 0% 45%;
   --chart-4: 0 0% 60%;
   --chart-5: 0 0% 75%;
 
-  --radius: 0.375rem;
+  --radius: 0px;
 
   --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
@@ -190,12 +189,20 @@
   }
 
   body {
-    @apply font-sans antialiased bg-background text-foreground;
+    @apply font-sans bg-background text-foreground;
+    -webkit-font-smoothing: auto;
   }
 
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-display);
     @apply font-bold tracking-tight text-foreground;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  /* Brutalist: all interactive borders use full black */
+  input, textarea, select, [role="combobox"] {
+    border-width: 2px !important;
   }
 }
 

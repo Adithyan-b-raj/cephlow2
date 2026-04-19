@@ -21,7 +21,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { useAuth } from "@/hooks/use-auth";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+
 
 const NAV_ITEMS = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -44,22 +44,27 @@ export function AppSidebar() {
 
   return (
     <Sidebar>
-      <SidebarHeader className="p-4 flex flex-row items-center gap-2">
-        <div className="bg-foreground text-background p-2 rounded-sm">
-          <Award className="w-6 h-6" />
-        </div>
-        <div className="flex flex-col">
-          <span className="font-display font-bold text-lg leading-tight text-foreground">Cephlow</span>
-          <span className="text-xs text-muted-foreground font-medium">Automation</span>
+      {/* Logo */}
+      <SidebarHeader className="p-4 border-b-2 border-border">
+        <div className="flex flex-row items-center gap-3">
+          <div className="bg-foreground text-background p-2">
+            <Award className="w-5 h-5" />
+          </div>
+          <div className="flex flex-col">
+            <span className="font-display font-black text-base leading-tight tracking-widest uppercase">Cephlow</span>
+            <span className="text-[10px] text-muted-foreground tracking-widest uppercase">Automation</span>
+          </div>
         </div>
       </SidebarHeader>
+
+      {/* Nav */}
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+          <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-4 pt-4 pb-1">
             Navigation
           </SidebarGroupLabel>
           <SidebarGroupContent>
-            <SidebarMenu className="mt-2 space-y-1">
+            <SidebarMenu className="mt-1">
               {NAV_ITEMS.map((item) => {
                 const isActive = location === item.url ||
                   (item.url !== "/" && location.startsWith(item.url));
@@ -69,11 +74,11 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       asChild
                       data-active={isActive}
-                      className="group flex items-center gap-3 px-3 py-2.5 rounded-sm transition-all duration-200 hover:bg-accent data-[active=true]:bg-foreground data-[active=true]:text-background"
+                      className="group flex items-center gap-3 px-4 py-2.5 transition-none border-b border-border/30 hover:bg-muted data-[active=true]:bg-foreground data-[active=true]:text-background rounded-none"
                     >
                       <Link href={item.url}>
-                        <item.icon className="w-5 h-5 text-muted-foreground group-data-[active=true]:text-background transition-colors" />
-                        <span className="font-medium text-sm text-foreground/80 group-data-[active=true]:text-background group-data-[active=true]:font-semibold transition-colors">
+                        <item.icon className="w-4 h-4 shrink-0 text-muted-foreground group-data-[active=true]:text-background" />
+                        <span className="text-xs font-bold uppercase tracking-widest text-foreground group-data-[active=true]:text-background">
                           {item.title}
                         </span>
                       </Link>
@@ -85,29 +90,28 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      {/* User footer */}
       {user && (
-        <SidebarFooter className="p-3 border-t border-border/40">
+        <SidebarFooter className="p-4 border-t-2 border-border">
           <div className="flex items-center gap-3">
-            <Avatar className="h-9 w-9 shrink-0">
-              <AvatarImage src={user.photoURL ?? undefined} alt={user.displayName ?? "User"} />
-              <AvatarFallback className="bg-muted text-foreground text-xs font-semibold">
-                {initials}
-              </AvatarFallback>
-            </Avatar>
+            <div className="w-8 h-8 shrink-0 bg-foreground text-background flex items-center justify-center text-xs font-black">
+              {initials}
+            </div>
             <div className="flex flex-col flex-1 min-w-0">
-              <span className="text-sm font-medium text-foreground truncate">
+              <span className="text-xs font-bold uppercase tracking-wide truncate">
                 {user.displayName ?? "User"}
               </span>
-              <span className="text-xs text-muted-foreground truncate">
+              <span className="text-[10px] text-muted-foreground truncate">
                 {user.email}
               </span>
             </div>
             <button
               onClick={logout}
-              className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              className="p-1.5 text-muted-foreground hover:text-foreground border border-border hover:border-foreground transition-colors"
               title="Sign out"
             >
-              <LogOut className="w-4 h-4" />
+              <LogOut className="w-3.5 h-3.5" />
             </button>
           </div>
         </SidebarFooter>

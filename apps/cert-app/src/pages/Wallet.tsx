@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Wallet as WalletIcon, IndianRupee, History, Plus, Loader2, FileBadge } from "lucide-react";
 import {
   Dialog,
@@ -33,103 +32,63 @@ export default function Wallet() {
 
   const currentBalance = balanceData?.currentBalance ?? 0;
   const ledgerHistory = historyData?.ledgers || [];
-  
   const RATE = Number(import.meta.env.VITE_CERT_GENERATION_RATE || 1);
   const generationLimit = Math.floor(currentBalance / RATE);
 
   const handleTopUp = async () => {
     const amount = Number(topUpAmount);
     if (isNaN(amount) || amount <= 0) return;
-
     try {
       setIsProcessingTopUp(true);
       const { payment_session_id } = await createOrder({ data: { amount } } as any);
-
-      const cashfree = await load({
-        mode: import.meta.env.VITE_CASHFREE_ENV === "PRODUCTION" ? "production" : "sandbox", 
-      });
-
-      const checkoutOptions: any = {
-        paymentSessionId: payment_session_id,
-        redirectTarget: "_modal",
-      };
-
-      await cashfree.checkout(checkoutOptions);
-      
-      console.log("Payment flow closed by user or completed.");
+      const cashfree = await load({ mode: import.meta.env.VITE_CASHFREE_ENV === "PRODUCTION" ? "production" : "sandbox" });
+      await cashfree.checkout({ paymentSessionId: payment_session_id, redirectTarget: "_modal" });
       setIsTopUpOpen(false);
-      
-      setTimeout(() => {
-        refetchBalance();
-        refetchHistory();
-      }, 3000);
-      
+      setTimeout(() => { refetchBalance(); refetchHistory(); }, 3000);
     } catch (error: any) {
-      console.error("Failed to initiate top-up:", error);
-      toast({
-        title: "Top-up failed",
-        description: error.data?.error || "Could not connect to the payment gateway. Please try again later.",
-        variant: "destructive",
-      });
+      toast({ title: "Top-up failed", description: error.data?.error || "Could not connect to payment gateway.", variant: "destructive" });
     } finally {
       setIsProcessingTopUp(false);
     }
   };
 
   return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-3xl font-display font-bold tracking-tight">Prepaid Wallet</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage your credits for certificate generation.
-          </p>
-        </div>
+    <div className="space-y-8">
 
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b-2 border-foreground pb-4">
+        <div>
+          <h1 className="text-2xl font-display font-black">Prepaid Wallet</h1>
+          <p className="text-xs text-muted-foreground mt-1 normal-case tracking-normal font-normal">Manage credits for certificate generation.</p>
+        </div>
         <Dialog open={isTopUpOpen} onOpenChange={setIsTopUpOpen}>
           <DialogTrigger asChild>
-            <Button className="flex items-center gap-2 shadow-sm">
-              <Plus className="w-4 h-4" />
+            <Button className="font-bold uppercase tracking-widest text-xs h-10 gap-2 border-2">
+              <Plus className="w-3.5 h-3.5" />
               Add Credits
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
+          <DialogContent className="sm:max-w-md border-2 border-foreground">
             <DialogHeader>
-              <DialogTitle>Top-up Wallet</DialogTitle>
-              <DialogDescription>
-                Add funds to your prepaid wallet securely via Cashfree.
-              </DialogDescription>
+              <DialogTitle className="uppercase tracking-widest">Top-up Wallet</DialogTitle>
+              <DialogDescription className="normal-case tracking-normal font-normal">Add funds securely via Cashfree.</DialogDescription>
             </DialogHeader>
             <div className="py-4 space-y-4">
               <div className="space-y-2">
-                <label className="text-sm font-medium">Amount (INR)</label>
-                <Input
-                  type="number"
-                  placeholder="e.g. 500"
-                  value={topUpAmount}
-                  onChange={(e) => setTopUpAmount(e.target.value)}
-                  min="1"
-                  className="text-lg"
-                />
+                <label className="text-[10px] font-bold uppercase tracking-widest">Amount (INR)</label>
+                <Input type="number" placeholder="e.g. 500" value={topUpAmount} onChange={(e) => setTopUpAmount(e.target.value)} min="1" className="text-lg font-mono border-2" />
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {[100, 500, 1000].map((amt) => (
-                  <Button
-                    key={amt}
-                    variant="outline"
-                    type="button"
-                    onClick={() => setTopUpAmount(amt.toString())}
-                  >
+                  <Button key={amt} variant="outline" type="button" onClick={() => setTopUpAmount(amt.toString())} className="border-2 font-bold uppercase tracking-widest text-xs">
                     ₹{amt}
                   </Button>
                 ))}
               </div>
             </div>
             <div className="flex justify-end gap-3 pb-2">
-              <Button variant="ghost" onClick={() => setIsTopUpOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleTopUp} disabled={isProcessingTopUp}>
+              <Button variant="ghost" onClick={() => setIsTopUpOpen(false)} className="uppercase tracking-widest text-xs font-bold">Cancel</Button>
+              <Button onClick={handleTopUp} disabled={isProcessingTopUp} className="uppercase tracking-widest text-xs font-bold border-2">
                 {isProcessingTopUp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Proceed to Pay
               </Button>
@@ -138,109 +97,87 @@ export default function Wallet() {
         </Dialog>
       </div>
 
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="border-border bg-card/60 backdrop-blur-sm shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-            <WalletIcon className="w-24 h-24" />
+      {/* Balance cards */}
+      <div className="border-2 border-foreground grid grid-cols-1 md:grid-cols-2">
+        <div className="p-6 md:border-r-2 border-foreground border-b-2 md:border-b-0">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Available Balance</span>
+            <WalletIcon className="w-4 h-4 text-muted-foreground" />
           </div>
-          <CardHeader className="pb-2 space-y-1">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Available Balance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-display font-bold">
-                {isLoadingBalance ? "..." : `₹${currentBalance.toFixed(2)}`}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Used for generation and delivery fees
-            </p>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-border bg-card/60 backdrop-blur-sm shadow-sm relative overflow-hidden">
-          <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
-            <FileBadge className="w-24 h-24" />
+          <div className="text-4xl font-display font-black font-mono">
+            {isLoadingBalance ? "—" : `₹${currentBalance.toFixed(2)}`}
           </div>
-          <CardHeader className="pb-2 space-y-1">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Generation Limit</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-display font-bold">
-                {isLoadingBalance ? "..." : generationLimit.toLocaleString()}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Current Generation Limit. Info-only updates are free!
-            </p>
-          </CardContent>
-        </Card>
+          <p className="text-xs text-muted-foreground mt-2 normal-case tracking-normal font-normal">Used for generation and delivery fees</p>
+        </div>
+        <div className="p-6">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Generation Limit</span>
+            <FileBadge className="w-4 h-4 text-muted-foreground" />
+          </div>
+          <div className="text-4xl font-display font-black font-mono">
+            {isLoadingBalance ? "—" : generationLimit.toLocaleString()}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2 normal-case tracking-normal font-normal">Info-only updates are free</p>
+        </div>
       </div>
 
-      <div className="mt-8">
-        <Card className="border-border shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <History className="w-5 h-5 text-muted-foreground" />
-              Transaction History
-            </CardTitle>
-            <CardDescription>
-              Your recent wallet top-ups and deductions.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoadingHistory ? (
-              <div className="h-32 flex items-center justify-center text-muted-foreground">Loading history...</div>
-            ) : ledgerHistory.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <div className="bg-muted w-12 h-12 rounded-full flex items-center justify-center mb-4">
-                  <IndianRupee className="w-6 h-6 text-muted-foreground" />
-                </div>
-                <h3 className="text-lg font-semibold">No transactions yet</h3>
-                <p className="text-muted-foreground text-sm mt-1 max-w-sm">
-                  When you add credits or generate batches, the transactions will appear here.
-                </p>
-              </div>
-            ) : (
-              <div className="rounded-md border overflow-hidden">
-                <table className="w-full text-sm text-left">
-                  <thead className="bg-muted text-muted-foreground">
-                    <tr>
-                      <th className="px-4 py-3 font-medium">Date</th>
-                      <th className="px-4 py-3 font-medium">Description</th>
-                      <th className="px-4 py-3 font-medium">Type</th>
-                      <th className="px-4 py-3 font-medium text-right">Amount</th>
-                      <th className="px-4 py-3 font-medium text-right">Balance</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ledgerHistory.map((ledger: any) => (
-                      <tr key={ledger.id} className="border-t">
-                        <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
-                          {format(new Date(ledger.createdAt), "dd MMM yyyy, HH:mm")}
-                        </td>
-                        <td className="px-4 py-3">{ledger.description}</td>
-                        <td className="px-4 py-3">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize whitespace-nowrap
-                            ${ledger.type === 'topup' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'}`}>
-                            {ledger.type.replace('_', ' ')}
-                          </span>
-                        </td>
-                        <td className={`px-4 py-3 text-right font-medium whitespace-nowrap ${ledger.type === 'topup' ? 'text-emerald-500' : 'text-rose-500'}`}>
-                          {ledger.amount > 0 ? '+' : '-'}₹{Math.abs(ledger.amount).toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 text-right text-muted-foreground font-medium">
-                          ₹{ledger.balanceAfter.toFixed(2)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {/* Transaction history */}
+      <div className="border-2 border-foreground">
+        <div className="border-b-2 border-foreground px-5 py-3 flex items-center gap-2 bg-muted">
+          <History className="w-4 h-4 text-muted-foreground" />
+          <span className="text-[10px] font-bold uppercase tracking-widest">Transaction History</span>
+        </div>
+
+        {isLoadingHistory ? (
+          <div className="h-32 flex items-center justify-center text-xs uppercase tracking-widest text-muted-foreground">Loading...</div>
+        ) : ledgerHistory.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div className="w-12 h-12 border-2 border-foreground flex items-center justify-center mb-4">
+              <IndianRupee className="w-5 h-5" />
+            </div>
+            <p className="text-xs uppercase tracking-widest text-muted-foreground">No transactions yet</p>
+            <p className="text-xs text-muted-foreground mt-1 normal-case tracking-normal font-normal">Top-ups and generation fees will appear here.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b-2 border-foreground bg-muted">
+                  <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest">Date</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest">Description</th>
+                  <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest">Type</th>
+                  <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-widest">Amount</th>
+                  <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-widest">Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ledgerHistory.map((ledger: any) => (
+                  <tr key={ledger.id} className="border-b border-foreground/10 hover:bg-muted transition-colors">
+                    <td className="px-4 py-3 text-muted-foreground font-mono whitespace-nowrap">
+                      {format(new Date(ledger.createdAt), "dd MMM yyyy, HH:mm")}
+                    </td>
+                    <td className="px-4 py-3 normal-case tracking-normal font-normal">{ledger.description}</td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest border ${
+                        ledger.type === 'topup'
+                          ? 'border-foreground bg-foreground text-background'
+                          : 'border-foreground bg-background text-foreground'
+                      }`}>
+                        {ledger.type.replace('_', ' ')}
+                      </span>
+                    </td>
+                    <td className={`px-4 py-3 text-right font-mono font-bold whitespace-nowrap ${ledger.type === 'topup' ? '' : 'text-muted-foreground'}`}>
+                      {ledger.amount > 0 ? '+' : '-'}₹{Math.abs(ledger.amount).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-right text-muted-foreground font-mono">
+                      ₹{ledger.balanceAfter.toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

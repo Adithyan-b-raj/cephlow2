@@ -2,7 +2,6 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useListBatches, useDeleteBatch, getListBatchesQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -35,175 +34,143 @@ export default function History() {
   });
 
   const batches = data?.batches || [];
-
   const filteredBatches = batches.filter(b =>
     b.name.toLowerCase().includes(search.toLowerCase()) ||
     b.templateName.toLowerCase().includes(search.toLowerCase())
   );
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'sent': return 'bg-foreground text-background border-foreground';
-      case 'generated': return 'bg-secondary text-secondary-foreground border-border';
-      case 'partial': return 'bg-muted text-muted-foreground border-border';
-      case 'generating':
-      case 'sending': return 'bg-muted text-muted-foreground border-border';
-      default: return 'bg-background text-muted-foreground border-border';
-    }
+  const getStatusStyle = (status: string) => {
+    if (status === 'sent') return 'bg-foreground text-background border-foreground';
+    return 'bg-background text-foreground border-foreground';
   };
 
   return (
-    <div className="space-y-6 animate-in fade-in duration-500">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b-2 border-foreground pb-4">
         <div>
-          <h1 className="text-3xl font-display font-bold">Batch History</h1>
-          <p className="text-muted-foreground mt-1">View all certificate batches you have created.</p>
+          <h1 className="text-2xl font-display font-black">Batch History</h1>
+          <p className="text-xs text-muted-foreground mt-1 normal-case tracking-normal font-normal">All certificate batches you have created.</p>
         </div>
       </div>
 
-      <Card className="border-border/50 shadow-sm">
-        <div className="p-4 border-b flex items-center gap-4 bg-secondary/30">
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by batch name or template..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="pl-9 bg-background"
-            />
-          </div>
+      {/* Table container */}
+      <div className="border-2 border-foreground">
+        {/* Search bar */}
+        <div className="p-3 border-b-2 border-foreground flex items-center gap-3 bg-muted">
+          <Search className="w-4 h-4 text-muted-foreground shrink-0" />
+          <Input
+            placeholder="Search batches..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0 text-sm p-0 h-auto placeholder:text-muted-foreground"
+          />
         </div>
 
-        {/* Mobile card list */}
-        <div className="sm:hidden divide-y divide-border">
+        {/* Mobile list */}
+        <div className="sm:hidden divide-y-2 divide-foreground">
           {isLoading ? (
-            <div className="h-48 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+            <div className="h-40 flex items-center justify-center">
+              <Loader2 className="w-6 h-6 animate-spin" />
             </div>
           ) : filteredBatches.length === 0 ? (
-            <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">
-              No batches found.
-            </div>
-          ) : (
-            filteredBatches.map(batch => (
-              <div key={batch.id} className="flex items-center">
-                <Link href={`/batches/${batch.id}`} className="flex-1">
-                  <div className="p-4 hover:bg-muted/30 transition-colors">
-                    <div className="flex items-start justify-between gap-3 mb-2">
-                      <span className="font-medium text-sm leading-snug">{batch.name}</span>
-                      <Badge variant="outline" className={`shrink-0 ${getStatusColor(batch.status)}`}>
-                        {batch.status === 'draft' && <Clock className="w-3 h-3 mr-1" />}
-                        {batch.status === 'generating' && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-                        {batch.status === 'generated' && <CheckCircle2 className="w-3 h-3 mr-1" />}
-                        {batch.status === 'sent' && <MailCheck className="w-3 h-3 mr-1" />}
-                        {batch.status === 'partial' && <AlertTriangle className="w-3 h-3 mr-1" />}
-                        {batch.status}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
-                      <span>{batch.templateName}</span>
-                      <span>•</span>
-                      <span>{batch.sentCount} / {batch.totalCount} sent</span>
-                      <span>•</span>
-                      <span>{format(new Date(batch.createdAt), 'MMM d, yyyy')}</span>
-                    </div>
+            <div className="h-40 flex items-center justify-center text-xs uppercase tracking-widest text-muted-foreground">No batches found</div>
+          ) : filteredBatches.map(batch => (
+            <div key={batch.id} className="flex items-center">
+              <Link href={`/batches/${batch.id}`} className="flex-1">
+                <div className="p-4 hover:bg-muted transition-colors">
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <span className="font-bold text-sm uppercase tracking-wide">{batch.name}</span>
+                    <Badge variant="outline" className={`shrink-0 text-[10px] uppercase tracking-widest ${getStatusStyle(batch.status)}`}>
+                      {batch.status}
+                    </Badge>
                   </div>
-                </Link>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="mr-2 text-muted-foreground hover:text-destructive"
-                  onClick={() => setDeleteId(batch.id.toString())}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
-              </div>
-            ))
-          )}
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap normal-case tracking-normal font-normal">
+                    <span>{batch.templateName}</span>
+                    <span>·</span>
+                    <span>{batch.sentCount}/{batch.totalCount} sent</span>
+                    <span>·</span>
+                    <span>{format(new Date(batch.createdAt), 'MMM d, yyyy')}</span>
+                  </div>
+                </div>
+              </Link>
+              <Button variant="ghost" size="icon" className="mr-3 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(batch.id.toString())}>
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            </div>
+          ))}
         </div>
 
         {/* Desktop table */}
         <div className="hidden sm:block overflow-x-auto">
           <Table>
-            <TableHeader className="bg-muted/30">
-              <TableRow>
-                <TableHead>Batch Name</TableHead>
-                <TableHead>Template</TableHead>
-                <TableHead>Progress</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Date</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
+            <TableHeader>
+              <TableRow className="border-b-2 border-foreground hover:bg-transparent">
+                <TableHead className="text-[10px] uppercase tracking-widest font-bold text-foreground bg-muted">Batch Name</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-widest font-bold text-foreground bg-muted">Template</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-widest font-bold text-foreground bg-muted">Progress</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-widest font-bold text-foreground bg-muted">Status</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-widest font-bold text-foreground bg-muted">Date</TableHead>
+                <TableHead className="text-[10px] uppercase tracking-widest font-bold text-foreground bg-muted text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-48 text-center">
-                    <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
+                  <TableCell colSpan={6} className="h-40 text-center">
+                    <Loader2 className="w-6 h-6 animate-spin mx-auto" />
                   </TableCell>
                 </TableRow>
               ) : filteredBatches.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-48 text-center text-muted-foreground">
-                    No batches found.
+                  <TableCell colSpan={6} className="h-40 text-center text-xs uppercase tracking-widest text-muted-foreground">
+                    No batches found
                   </TableCell>
                 </TableRow>
-              ) : (
-                filteredBatches.map(batch => (
-                  <TableRow key={batch.id} className="hover:bg-muted/30 transition-colors">
-                    <TableCell className="font-medium">{batch.name}</TableCell>
-                    <TableCell className="text-muted-foreground">{batch.templateName}</TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {batch.sentCount} / {batch.totalCount} sent
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={getStatusColor(batch.status)}>
-                        {batch.status === 'draft' && <Clock className="w-3 h-3 mr-1" />}
-                        {batch.status === 'generating' && <Loader2 className="w-3 h-3 mr-1 animate-spin" />}
-                        {batch.status === 'generated' && <CheckCircle2 className="w-3 h-3 mr-1" />}
-                        {batch.status === 'sent' && <MailCheck className="w-3 h-3 mr-1" />}
-                        {batch.status === 'partial' && <AlertTriangle className="w-3 h-3 mr-1" />}
-                        {batch.status}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm">
-                      {format(new Date(batch.createdAt), 'MMM d, yyyy')}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-3">
-                        <Link href={`/batches/${batch.id}`} className="text-foreground hover:underline font-medium text-sm">
-                          View
-                        </Link>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7 text-muted-foreground hover:text-destructive"
-                          onClick={() => setDeleteId(batch.id.toString())}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
+              ) : filteredBatches.map(batch => (
+                <TableRow key={batch.id} className="hover:bg-muted transition-colors border-b border-foreground/20">
+                  <TableCell className="font-bold text-sm uppercase tracking-wide">{batch.name}</TableCell>
+                  <TableCell className="text-muted-foreground text-xs normal-case tracking-normal font-normal">{batch.templateName}</TableCell>
+                  <TableCell className="text-muted-foreground text-xs font-mono">{batch.sentCount} / {batch.totalCount}</TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className={`text-[10px] uppercase tracking-widest font-bold ${getStatusStyle(batch.status)}`}>
+                      {batch.status === 'generating' || batch.status === 'sending'
+                        ? <Loader2 className="w-3 h-3 mr-1 animate-spin" />
+                        : batch.status === 'sent' ? <MailCheck className="w-3 h-3 mr-1" />
+                        : batch.status === 'generated' ? <CheckCircle2 className="w-3 h-3 mr-1" />
+                        : batch.status === 'partial' ? <AlertTriangle className="w-3 h-3 mr-1" />
+                        : <Clock className="w-3 h-3 mr-1" />}
+                      {batch.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-xs font-mono">{format(new Date(batch.createdAt), 'MMM d, yyyy')}</TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex items-center justify-end gap-2">
+                      <Link href={`/batches/${batch.id}`} className="text-xs font-bold uppercase tracking-widest hover:underline underline-offset-2">View</Link>
+                      <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => setDeleteId(batch.id.toString())}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
             </TableBody>
           </Table>
         </div>
-      </Card>
+      </div>
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="border-2 border-foreground">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete batch?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="uppercase tracking-widest">Delete batch?</AlertDialogTitle>
+            <AlertDialogDescription className="normal-case tracking-normal font-normal">
               This will permanently delete the batch and all its certificate records. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting} className="uppercase tracking-widest text-xs font-bold">Cancel</AlertDialogCancel>
             <AlertDialogAction
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 uppercase tracking-widest text-xs font-bold"
               disabled={isDeleting}
               onClick={() => deleteId && deleteBatch({ batchId: deleteId })}
             >

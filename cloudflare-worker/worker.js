@@ -413,7 +413,7 @@ function renderDashboard({ summary, today, thisWeek, daily, monthly, yearly, act
     <tr>
       <td style="font-family:monospace">${maskPhone(r.phone)}</td>
       <td>${ACTION_LABELS[r.action] || r.action.toUpperCase()}</td>
-      <td style="opacity:0.4">${r.detail || '—'}</td>
+      <td class="recent-detail" style="opacity:0.4">${r.detail || '—'}</td>
       <td style="opacity:0.4;white-space:nowrap">${fmtDate(r.created_at)}</td>
     </tr>`).join('');
 
@@ -471,6 +471,36 @@ function renderDashboard({ summary, today, thisWeek, daily, monthly, yearly, act
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: #fff; }
   ::-webkit-scrollbar-thumb { background: #bbb; }
+
+  /* ── RESPONSIVE ─────────────────────────────────────────── */
+  @media (max-width: 640px) {
+    body { padding: 1rem; }
+    .header h1 { font-size: 1.1rem; }
+    .header .meta { font-size: 0.65rem; }
+    .section-header { flex-wrap: wrap; gap: 0.2rem; }
+    .stat-val { font-size: 1.75rem !important; }
+    /* 2-col stats: remove right border on even cells (hits outer border) */
+    .stats .stat:nth-child(2n) { border-right: none; }
+  }
+
+  @media (max-width: 420px) {
+    /* Stack stats to single column */
+    .stats { grid-template-columns: 1fr !important; }
+    .stats .stat { border-right: none !important; border-bottom: var(--border); }
+    .stats .stat:last-child { border-bottom: none; }
+    .stat-val { font-size: 1.5rem !important; }
+    /* Tighten padding on small screens */
+    .stat { padding: 1rem 1.25rem; }
+    .section-body { padding: 0.75rem; }
+    /* Recent table: hide detail column */
+    .recent-detail { display: none; }
+    /* Tighten chart canvas */
+    .chart-box canvas { padding: 0.5rem; }
+  }
+
+  /* Prevent charts from overflowing on tiny screens */
+  .chart-box { overflow: hidden; }
+  .chart-box canvas { max-width: 100%; }
 </style>
 </head>
 <body>
@@ -571,7 +601,7 @@ function renderDashboard({ summary, today, thisWeek, daily, monthly, yearly, act
   <div class="section-header"><span>RECENT ACTIVITY</span><span>LAST 50</span></div>
   <div style="overflow-x:auto">
     <table>
-      <thead><tr><th>Phone</th><th>Action</th><th>Detail</th><th>Time (IST)</th></tr></thead>
+      <thead><tr><th>Phone</th><th>Action</th><th class="recent-detail">Detail</th><th>Time (IST)</th></tr></thead>
       <tbody>${recentRows || `<tr><td colspan="4" class="empty">NO INTERACTIONS YET</td></tr>`}</tbody>
     </table>
   </div>
