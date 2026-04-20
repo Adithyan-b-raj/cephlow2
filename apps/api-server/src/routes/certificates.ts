@@ -1,20 +1,7 @@
 import { Router, type IRouter } from "express";
-import { batchesCollection, certificatesCollection, certIndexCollection, type Certificate } from "@workspace/firebase";
+import { supabaseAdmin, toCamel } from "@workspace/supabase";
 
 const router: IRouter = Router({ mergeParams: true });
-
-/** Convert Firestore Timestamps to ISO strings for JSON serialization */
-function serializeDoc(data: Record<string, any>): Record<string, any> {
-  const result: Record<string, any> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (value && typeof value === "object" && typeof value.toDate === "function") {
-      result[key] = value.toDate().toISOString();
-    } else {
-      result[key] = value;
-    }
-  }
-  return result;
-}
 
 // List certificates with optional filters
 router.get("/certificates", async (req, res) => {
@@ -26,104 +13,87 @@ router.get("/certificates", async (req, res) => {
     const status = req.query.status as string | undefined;
 
     if (batchId) {
-      // Verify batch ownership
-      const batchDoc = await batchesCollection.doc(batchId).get();
-      if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
-      if (batchDoc.data()?.userId !== userId) {
-        return res.status(403).json({ error: "Access denied" });
-      }
+      const { data: batch, error: batchErr } = await supabaseAdmin
+        .from("batches")
+        .select("user_id")
+        .eq("id", batchId)
+        .single();
+      if (batchErr || !batch) return res.status(404).json({ error: "Batch not found" });
+      if (batch.user_id !== userId) return res.status(403).json({ error: "Access denied" });
 
-      // Query certificates from a specific batch subcollection
-      let query: FirebaseFirestore.Query = certificatesCollection(batchId);
-      if (status) {
-        query = query.where("status", "==", status);
-      }
-      const snapshot = await query.get();
-      const certificates = snapshot.docs.map((doc) => ({
-        id: doc.id,
-        ...serializeDoc(doc.data()),
-      }));
-
-      res.json({ certificates, total: certificates.length });
-      return;
+      let query = supabaseAdmin.from("certificates").select("*").eq("batch_id", batchId);
+      if (status) query = query.eq("status", status);
+      const { data, error } = await query.order("created_at", { ascending: false });
+      if (error) throw error;
+      const certificates = (data || []).map(toCamel);
+      return res.json({ certificates, total: certificates.length });
     }
 
-    // If no batchId, collect from all of the user's batches in parallel
-    const batchesSnapshot = await batchesCollection.where("userId", "==", userId).get();
+    // No batchId — get all certs for the user via join
+    let query = supabaseAdmin
+      .from("certificates")
+      .select("*, batches!inner(user_id)")
+      .eq("batches.user_id", userId);
+    if (status) query = query.eq("status", status);
+    const { data, error } = await query.order("created_at", { ascending: false });
+    if (error) throw error;
 
-    const certSnapshots = await Promise.all(
-      batchesSnapshot.docs.map((batchDoc) => {
-        let query: FirebaseFirestore.Query = certificatesCollection(batchDoc.id);
-        if (status) {
-          query = query.where("status", "==", status);
-        }
-        return query.get();
-      })
-    );
-
-    const allCerts: any[] = certSnapshots.flatMap((certsSnapshot) =>
-      certsSnapshot.docs.map((doc) => ({ id: doc.id, ...serializeDoc(doc.data()) }))
-    );
-
-    // Sort by createdAt desc across all batches
-    allCerts.sort((a, b) => {
-      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      return timeB - timeA;
+    const certificates = (data || []).map((row) => {
+      const { batches: _, ...cert } = row as any;
+      return toCamel(cert);
     });
 
-    res.json({ certificates: allCerts, total: allCerts.length });
-    return;
+    return res.json({ certificates, total: certificates.length });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
 });
 
 /**
- * Public route to verify a certificate by ID (for QR scanning)
- * Mounted at /api/certificates/:certId/verify
- *
- * Fast path: look up batchId from certIndex/{certId} (2 reads total).
- * Fallback: scan all batches for backward compatibility with certs
- * generated before the index was introduced (writes to index when found).
+ * Public route to verify a certificate by ID.
+ * Fast path: cert_index table (populated by trigger on insert).
+ * Fallback: direct cert lookup by UUID (O(1) in PostgreSQL).
  */
 router.get("/certificates/:certId/verify", async (req, res) => {
   try {
     const { certId } = req.params as any;
     console.log(`Verifying certificate ID: ${certId}`);
 
+    // Fast path via cert_index
+    const { data: indexRow } = await supabaseAdmin
+      .from("cert_index")
+      .select("batch_id")
+      .eq("cert_id", certId)
+      .maybeSingle();
+
     let foundCert: any = null;
     let foundBatch: any = null;
 
-    // Fast path — check the index first
-    const indexDoc = await certIndexCollection.doc(certId).get();
-    if (indexDoc.exists) {
-      const { batchId } = indexDoc.data() as { batchId: string };
-      const [certDoc, batchDoc] = await Promise.all([
-        certificatesCollection(batchId).doc(certId).get(),
-        batchesCollection.doc(batchId).get(),
+    if (indexRow) {
+      const [{ data: cert }, { data: batch }] = await Promise.all([
+        supabaseAdmin.from("certificates").select("*").eq("id", certId).single(),
+        supabaseAdmin.from("batches").select("name").eq("id", indexRow.batch_id).single(),
       ]);
-      if (certDoc.exists && batchDoc.exists) {
-        foundCert = certDoc.data();
-        foundBatch = batchDoc.data();
-        console.log(`Certificate found via index in batch: ${batchId}`);
+      if (cert && batch) {
+        foundCert = cert;
+        foundBatch = batch;
+        console.log(`Certificate found via index in batch: ${indexRow.batch_id}`);
       }
     }
 
-    // Fallback — scan all batches (legacy certs not yet in the index)
+    // Fallback — direct lookup (UUID PK is always O(1))
     if (!foundCert) {
-      console.log(`Index miss for ${certId}, falling back to full scan`);
-      const batchesSnapshot = await batchesCollection.get();
-      for (const batchDoc of batchesSnapshot.docs) {
-        const certDoc = await certificatesCollection(batchDoc.id).doc(certId).get();
-        if (certDoc.exists) {
-          foundCert = certDoc.data();
-          foundBatch = batchDoc.data();
-          console.log(`Certificate found via scan in batch: ${batchDoc.id}`);
-          // Backfill the index so future lookups are fast
-          certIndexCollection.doc(certId).set({ batchId: batchDoc.id }).catch(() => {});
-          break;
-        }
+      console.log(`Index miss for ${certId}, falling back to direct lookup`);
+      const { data } = await supabaseAdmin
+        .from("certificates")
+        .select("*, batches(name)")
+        .eq("id", certId)
+        .maybeSingle();
+      if (data) {
+        const { batches, ...cert } = data as any;
+        foundCert = cert;
+        foundBatch = batches;
+        console.log(`Certificate found via direct lookup`);
       }
     }
 
@@ -132,14 +102,13 @@ router.get("/certificates/:certId/verify", async (req, res) => {
       return res.status(404).json({ error: "Certificate not found" });
     }
 
-    res.json({
+    return res.json({
       valid: true,
-      recipientName: foundCert.recipientName,
+      recipientName: foundCert.recipient_name,
       batchName: foundBatch.name,
-      issuedAt: serializeDoc(foundCert).createdAt,
+      issuedAt: foundCert.created_at,
       status: foundCert.status,
     });
-    return;
   } catch (err: any) {
     console.error("Verification error:", err);
     return res.status(500).json({ error: err.message });

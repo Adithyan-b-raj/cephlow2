@@ -13,5 +13,9 @@
     "prettier": "^3.8.1",
     "tsx": "catalog:",
     "typescript": "~5.9.2"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.103.3",
+    "firebase-admin": "^13.7.0"
   }
 }

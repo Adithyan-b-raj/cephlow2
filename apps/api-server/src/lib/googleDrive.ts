@@ -245,6 +245,31 @@ export async function addQrCodePlaceholder(
   });
 }
 
+export async function uploadPptxAsPresentation(
+  uid: string,
+  name: string,
+  buffer: Buffer
+): Promise<{ id: string; name: string; url: string }> {
+  const drive = await getDriveClient(uid);
+  const res = await drive.files.create({
+    requestBody: {
+      name,
+      mimeType: "application/vnd.google-apps.presentation",
+    },
+    media: {
+      mimeType: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+      body: Readable.from(buffer),
+    },
+    fields: "id,name",
+  });
+  const id = res.data.id!;
+  return {
+    id,
+    name: res.data.name || name,
+    url: `https://docs.google.com/presentation/d/${id}/edit`,
+  };
+}
+
 export async function exportSlidesToPdf(uid: string, fileId: string): Promise<Buffer> {
   const drive = await getDriveClient(uid);
   const res = await drive.files.export(

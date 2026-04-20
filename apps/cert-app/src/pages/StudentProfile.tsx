@@ -5,7 +5,7 @@ import { Award, CalendarDays, Check, ExternalLink, Loader2, Pencil, User, X } fr
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
-import { auth } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
 
 interface ProfileCert {
   certId: string;
@@ -62,7 +62,8 @@ export default function StudentProfile() {
     setSaving(true);
     setSaveError(null);
     try {
-      const idToken = await auth.currentUser?.getIdToken();
+      const { data: sessionData } = await supabase.auth.getSession();
+      const idToken = sessionData.session?.access_token;
       const res = await fetch(`/api/p/${username}`, {
         method: "PATCH",
         headers: {

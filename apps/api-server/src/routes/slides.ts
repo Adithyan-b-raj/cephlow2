@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import express, { Router, type IRouter } from "express";
 import {
   listSlideTemplates,
   getSlidePlaceholders,
@@ -6,6 +6,7 @@ import {
   getSlidePresentation,
   createSlidePresentation,
   addQrCodePlaceholder,
+  uploadPptxAsPresentation,
   getDriveClient,
 } from "../lib/googleDrive.js";
 
@@ -28,6 +29,27 @@ router.get("/slides/templates", async (req, res) => {
     return res.status(500).json({ error: err.message });
   }
 });
+
+router.post(
+  "/slides/templates/upload",
+  express.raw({
+    type: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    limit: "50mb",
+  }),
+  async (req, res) => {
+    try {
+      const name = (req.query.name as string)?.trim();
+      if (!name) return res.status(400).json({ error: "name query parameter is required" });
+      if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+        return res.status(400).json({ error: "PPTX file body is required" });
+      }
+      const result = await uploadPptxAsPresentation(req.user!.uid, name, req.body);
+      return res.status(201).json(result);
+    } catch (err: any) {
+      return res.status(500).json({ error: err.message });
+    }
+  }
+);
 
 router.post("/slides/templates", async (req, res) => {
   try {

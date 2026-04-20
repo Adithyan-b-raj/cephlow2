@@ -1,30 +1,25 @@
 import { Router } from "express";
-import { db, userProfilesCollection, ledgersCollection } from "@workspace/firebase";
+import { supabaseAdmin } from "@workspace/supabase";
 
 const router = Router();
-
-function serializeTimestamp(value: any): any {
-  if (value && typeof value === "object" && typeof value.toDate === "function") {
-    return value.toDate().toISOString();
-  }
-  return value;
-}
 
 router.get("/wallet", async (req, res) => {
   try {
     const uid = req.user!.uid;
-    const profileDoc = await userProfilesCollection.doc(uid).get();
-    
-    let currentBalance = 0;
-    
-    if (profileDoc.exists) {
-      const data = profileDoc.data() || {};
-      currentBalance = data.currentBalance || 0;
-    } else {
-      await userProfilesCollection.doc(uid).set({ currentBalance: 0 }, { merge: true });
+    const { data } = await supabaseAdmin
+      .from("user_profiles")
+      .select("current_balance")
+      .eq("id", uid)
+      .maybeSingle();
+
+    if (!data) {
+      await supabaseAdmin
+        .from("user_profiles")
+        .upsert({ id: uid, current_balance: 0 }, { onConflict: "id" });
+      return res.json({ currentBalance: 0 });
     }
 
-    return res.json({ currentBalance });
+    return res.json({ currentBalance: data.current_balance });
   } catch (err: any) {
     console.error("Error fetching wallet balance:", err);
     return res.status(500).json({ error: "Failed to fetch wallet balance" });
@@ -34,25 +29,25 @@ router.get("/wallet", async (req, res) => {
 router.get("/wallet/history", async (req, res) => {
   try {
     const uid = req.user!.uid;
-    
-    const ledgersSnapshot = await ledgersCollection(uid)
-      .orderBy("createdAt", "desc")
-      .limit(50)
-      .get();
-      
-    const ledgers = ledgersSnapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-         id: doc.id,
-         type: data.type || "topup",
-         amount: data.amount || 0,
-         balanceAfter: data.balanceAfter || 0,
-         description: data.description || "",
-         metadata: data.metadata || {},
-         createdAt: serializeTimestamp(data.createdAt) || new Date().toISOString()
-      };
-    });
-    
+    const { data, error } = await supabaseAdmin
+      .from("ledgers")
+      .select("*")
+      .eq("user_id", uid)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+
+    const ledgers = (data || []).map((row) => ({
+      id: row.id,
+      type: row.type || "topup",
+      amount: row.amount || 0,
+      balanceAfter: row.balance_after || 0,
+      description: row.description || "",
+      metadata: row.metadata || {},
+      createdAt: row.created_at || new Date().toISOString(),
+    }));
+
     return res.json({ ledgers });
   } catch (err: any) {
     console.error("Error fetching ledger history:", err);

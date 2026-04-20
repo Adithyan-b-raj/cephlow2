@@ -12,13 +12,11 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1010.0",
     "@workspace/api-zod": "workspace:*",
-    "@workspace/firebase": "workspace:*",
+    "@workspace/supabase": "workspace:*",
     "cashfree-pg": "^5.1.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
     "express": "^5",
-    "firebase-admin": "^13.2.0",
-    "firebase-functions": "^6.3.2",
     "googleapis": "^148.0.0",
     "qrcode": "^1.5.4"
   },

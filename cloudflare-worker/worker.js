@@ -21,6 +21,15 @@ export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
 
+    // ── Reports list (founders only) ────────────────────────────────────
+    if (req.method === 'GET' && url.pathname === '/reports') {
+      const token = url.searchParams.get('token');
+      if (!env.ANALYTICS_TOKEN || token !== env.ANALYTICS_TOKEN) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+      return handleReports(env);
+    }
+
     // ── Analytics dashboard (founders only) ─────────────────────────────
     if (req.method === 'GET' && url.pathname === '/analytics') {
       const token = url.searchParams.get('token');
@@ -88,9 +97,45 @@ export default {
 
     // ── 3. Route to the right handler ───────────────────────────────
     try {
+      const userState = await getUserState(phone, env);
+      const stateVal = userState?.state || '';
+
+      // User is describing their issue — capture the text
+      if (stateVal.startsWith('report_desc:') && msg.type === 'text' && text) {
+        const certKey = stateVal.slice('report_desc:'.length);
+        await handleReportText(phone, certKey, text, env);
+        ctx.waitUntil(logInteraction(env, { phone, action: 'report_submitted', detail: certKey }));
+        return new Response('OK');
+      }
+
+      // User is browsing certs to pick which one has an issue
+      if (stateVal === 'report_selecting') {
+        if (action.startsWith('rpage:')) {
+          const page = parseInt(action.split(':')[1], 10) || 1;
+          await handleReportCertList(phone, folder, page, env);
+        } else if (action.includes('/')) {
+          // Cert picked — now ask for description
+          const certKey = action;
+          const certName = certKey.split('/').pop();
+          await setUserState(phone, `report_desc:${certKey}`, env);
+          await waPost({
+            to: phone, type: 'text',
+            text: { body: `📝 Please describe your issue with *${certName}*:` }
+          }, env);
+        } else {
+          // Unexpected input while selecting — re-show the list
+          await handleReportCertList(phone, folder, 1, env);
+        }
+        return new Response('OK');
+      }
+
       if (action === 'greet') {
         await handleGreet(phone, env);
         ctx.waitUntil(logInteraction(env, { phone, action: 'greet' }));
+
+      } else if (action === 'report_issue') {
+        await handleReportIssue(phone, folder, env);
+        ctx.waitUntil(logInteraction(env, { phone, action: 'report_issue' }));
 
       } else if (action === 'send_all') {
         await handleSendAll(phone, folder, env);
@@ -129,7 +174,7 @@ export default {
 // Handlers
 // ────────────────────────────────────────────────────────────────────
 
-/** Send the greeting menu with two buttons */
+/** Send the greeting menu with three buttons */
 async function handleGreet(phone, env) {
   await waPost({
     to: phone,
@@ -139,11 +184,80 @@ async function handleGreet(phone, env) {
       body: { text: 'Hi 👋\n\nWhat do you want to do?' },
       action: {
         buttons: [
-          { type: 'reply', reply: { id: 'send_all',    title: 'Send all cert'  } },
-          { type: 'reply', reply: { id: 'search_cert', title: 'Search a cert'  } }
+          { type: 'reply', reply: { id: 'send_all',      title: 'Send all cert'   } },
+          { type: 'reply', reply: { id: 'search_cert',   title: 'Search a cert'   } },
+          { type: 'reply', reply: { id: 'report_issue',  title: '⚠️ Report Issue'  } },
         ]
       }
     }
+  }, env);
+}
+
+/** Show the student's cert list so they can pick which one has an issue */
+async function handleReportIssue(phone, folder, env) {
+  await setUserState(phone, 'report_selecting', env);
+  await handleReportCertList(phone, folder, 1, env);
+}
+
+/** Paginated cert list for report flow (uses rpage: prefix to avoid clash with search_cert) */
+async function handleReportCertList(phone, folder, page, env) {
+  const keys = await listFiles(folder, env);
+
+  if (keys.length === 0) {
+    await clearUserState(phone, env);
+    await waPost({ to: phone, type: 'text', text: { body: '⚠️ No certificates found for your number.' } }, env);
+    return;
+  }
+
+  if (keys.length === 1) {
+    const certName = keys[0].split('/').pop();
+    await setUserState(phone, `report_desc:${keys[0]}`, env);
+    await waPost({ to: phone, type: 'text', text: { body: `📝 Please describe your issue with *${certName}*:` } }, env);
+    return;
+  }
+
+  const totalPages = Math.max(1, Math.ceil(keys.length / PAGE_SIZE));
+  const safePage   = Math.min(Math.max(page, 1), totalPages);
+  const start      = (safePage - 1) * PAGE_SIZE;
+  const slice      = keys.slice(start, start + PAGE_SIZE);
+
+  let rows = slice.map(key => {
+    const filename    = key.split('/').pop();
+    const title       = filename.length > 24 ? filename.slice(0, 21) + '...' : filename;
+    const description = filename.length > 72 ? filename.slice(0, 69) + '...' : filename;
+    return { id: key, title, description };
+  });
+
+  if (safePage > 1)          rows.unshift({ id: `rpage:${safePage - 1}`, title: '⬅️ Prev', description: '' });
+  if (safePage < totalPages) rows.push(   { id: `rpage:${safePage + 1}`, title: '➡️ Next', description: '' });
+
+  await waPost({
+    to: phone,
+    type: 'interactive',
+    interactive: {
+      type: 'list',
+      body: { text: 'Which certificate has an issue? Select it:' },
+      action: {
+        button: 'Choose',
+        sections: [{ title: `Certs ${safePage}/${totalPages}`, rows }]
+      }
+    }
+  }, env);
+}
+
+/** Capture the report text with cert key, save it, and confirm */
+async function handleReportText(phone, certKey, text, env) {
+  if (env.DB) {
+    await ensureSchema(env);
+    await env.DB.prepare(
+      'INSERT INTO reports (phone, cert_key, message, created_at) VALUES (?, ?, ?, ?)'
+    ).bind(phone, certKey, text, new Date().toISOString()).run();
+  }
+  await clearUserState(phone, env);
+  const certName = certKey.split('/').pop();
+  await waPost({
+    to: phone, type: 'text',
+    text: { body: `✅ Thanks! Your issue with *${certName}* has been reported. Our team will review it shortly.` }
   }, env);
 }
 
@@ -234,6 +348,33 @@ async function handleSendSingle(phone, fileKey, env) {
 }
 
 // ────────────────────────────────────────────────────────────────────
+// User state helpers (for multi-turn flows like issue reporting)
+// ────────────────────────────────────────────────────────────────────
+
+async function getUserState(phone, env) {
+  if (!env.DB) return null;
+  try {
+    await ensureSchema(env);
+    return await env.DB.prepare(
+      'SELECT state FROM user_states WHERE phone = ?'
+    ).bind(phone).first() || null;
+  } catch { return null; }
+}
+
+async function setUserState(phone, state, env) {
+  if (!env.DB) return;
+  await ensureSchema(env);
+  await env.DB.prepare(
+    'INSERT OR REPLACE INTO user_states (phone, state, updated_at) VALUES (?, ?, ?)'
+  ).bind(phone, state, new Date().toISOString()).run();
+}
+
+async function clearUserState(phone, env) {
+  if (!env.DB) return;
+  await env.DB.prepare('DELETE FROM user_states WHERE phone = ?').bind(phone).run();
+}
+
+// ────────────────────────────────────────────────────────────────────
 // Analytics
 // ────────────────────────────────────────────────────────────────────
 
@@ -249,6 +390,24 @@ async function ensureSchema(env) {
       created_at  TEXT NOT NULL
     )
   `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS user_states (
+      phone      TEXT PRIMARY KEY,
+      state      TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    )
+  `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS reports (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      phone      TEXT NOT NULL,
+      cert_key   TEXT,
+      message    TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  `).run();
+  // Add cert_key to existing tables that may not have it yet
+  await env.DB.prepare(`ALTER TABLE reports ADD COLUMN cert_key TEXT`).run().catch(() => {});
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_created_at ON interactions(created_at)`).run();
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_action ON interactions(action)`).run();
   schemaReady = true;
@@ -637,6 +796,20 @@ new Chart(document.getElementById('dlChart'), {
 </html>`;
 }
 
+/** Return reports as JSON for the frontend */
+async function handleReports(env) {
+  if (!env.DB) {
+    return new Response('[]', { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
+  }
+  await ensureSchema(env);
+  const result = await env.DB.prepare(
+    'SELECT id, phone, cert_key, message, created_at FROM reports ORDER BY created_at DESC LIMIT 200'
+  ).all();
+  return new Response(JSON.stringify(result.results), {
+    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+  });
+}
+
 // ────────────────────────────────────────────────────────────────────
 // Utilities
 // ────────────────────────────────────────────────────────────────────
@@ -645,8 +818,9 @@ new Chart(document.getElementById('dlChart'), {
 async function listFiles(folder, env) {
   const result = await env.CERTIFICATES.list({ prefix: folder });
   return result.objects
-    .map(o => o.key)
-    .filter(k => k !== folder && !k.endsWith('/')); // exclude the folder entry itself
+    .filter(o => o.key !== folder && !o.key.endsWith('/'))
+    .sort((a, b) => new Date(b.uploaded).getTime() - new Date(a.uploaded).getTime())
+    .map(o => o.key);
 }
 
 /** Build the public R2 URL for a key */

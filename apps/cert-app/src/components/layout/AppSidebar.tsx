@@ -7,6 +7,7 @@ import {
   Presentation,
   LogOut,
   Wallet,
+  MessageSquareWarning,
 } from "lucide-react";
 import {
   Sidebar,
@@ -29,6 +30,7 @@ const NAV_ITEMS = [
   { title: "New Batch", url: "/batches/new", icon: FilePlus2 },
   { title: "History", url: "/history", icon: History },
   { title: "Wallet", url: "/wallet", icon: Wallet },
+  { title: "Reports", url: "/reports", icon: MessageSquareWarning },
 ];
 
 export function AppSidebar() {

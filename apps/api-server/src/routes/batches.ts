@@ -1,13 +1,11 @@
 import { Router, type IRouter } from "express";
-import { db, batchesCollection, certificatesCollection, userProfilesCollection, ledgersCollection, type Certificate } from "@workspace/firebase";
-import { FieldValue } from "firebase-admin/firestore";
+import { supabaseAdmin, toCamel, type Certificate } from "@workspace/supabase";
 import { getSheetsClient } from "../lib/googleSheets.js";
 import { generateCertificate, exportSlidesToPdf, createFolder, uploadPdf, makeFilePublic, deleteFile } from "../lib/googleDrive.js";
 import { sendEmail } from "../lib/gmail.js";
-import { uploadPdfToR2, isR2Configured, getR2PublicUrl, deleteR2Objects, copyR2Object, deleteR2Object } from "../lib/cloudflareR2.js";
+import { uploadPdfToR2, isR2Configured, getR2PublicUrl, deleteR2Objects, deleteR2Object } from "../lib/cloudflareR2.js";
 import { isWhatsAppConfigured, sendWhatsAppDocument } from "../lib/whatsapp.js";
 
-// Column names commonly used for phone numbers (all lowercase, no spaces/underscores for comparison)
 const PHONE_COLUMN_NAMES = ["phonenumber", "phone", "mobile", "mobilenumber", "contact", "contactnumber", "contactno", "phoneno"];
 
 function normalizeColumnName(name: string): string {
@@ -15,16 +13,7 @@ function normalizeColumnName(name: string): string {
 }
 
 function normalizePhoneNumber(raw: string): string {
-  const isExplicitInternational = raw.trim().startsWith("+");
-  const cleaned = raw.replace(/\D/g, "").replace(/^0+/, "");
-  
-  // If the user didn't provide a '+' AND it's exactly 10 digits, 
-  // we assume it's a local Indian number and add '91'.
-  if (!isExplicitInternational && cleaned.length === 10) {
-    return `91${cleaned}`;
-  }
-  
-  return cleaned;
+  return raw.replace(/\D/g, "").replace(/^0+/, "");
 }
 
 function extractPhoneNumber(rowData: Record<string, string>): string {
@@ -45,19 +34,6 @@ function extractPhoneNumber(rowData: Record<string, string>): string {
 
 const router: IRouter = Router();
 
-function serializeDoc(data: Record<string, any>): Record<string, any> {
-  const result: Record<string, any> = {};
-  for (const [key, value] of Object.entries(data)) {
-    if (value && typeof value === "object" && typeof value.toDate === "function") {
-      result[key] = value.toDate().toISOString();
-    } else {
-      result[key] = value;
-    }
-  }
-  return result;
-}
-
-// Derive a URL-safe slug from an email prefix
 function emailToSlug(email: string): string {
   const prefix = email.split("@")[0] ?? "user";
   return prefix
@@ -67,7 +43,6 @@ function emailToSlug(email: string): string {
     .replace(/^-|-$/g, "") || "user";
 }
 
-// Auto-create / update a student's public profile after cert generation
 async function upsertStudentProfile(params: {
   email: string;
   name: string;
@@ -80,50 +55,55 @@ async function upsertStudentProfile(params: {
   status: string;
 }) {
   const { email, name, certId, batchId, batchName, r2PdfUrl, pdfUrl, slideUrl, status } = params;
-
-  // Sanitized email used as the index document key
   const emailKey = email.toLowerCase().replace(/[^a-z0-9]/g, "_");
-  const indexRef = db.collection("studentProfileIndex").doc(emailKey);
-  const indexDoc = await indexRef.get();
+
+  const { data: indexRow } = await supabaseAdmin
+    .from("student_profile_index")
+    .select("slug")
+    .eq("email_key", emailKey)
+    .maybeSingle();
 
   let slug: string;
 
-  if (indexDoc.exists) {
-    slug = indexDoc.data()!.slug as string;
+  if (indexRow) {
+    slug = indexRow.slug;
   } else {
-    // Find an available slug (handle same-prefix collisions)
     const baseSlug = emailToSlug(email);
     slug = baseSlug;
     let attempt = 2;
     while (true) {
-      const existing = await db.collection("studentProfiles").doc(slug).get();
-      if (!existing.exists) break;
+      const { data: existing } = await supabaseAdmin
+        .from("student_profiles")
+        .select("slug")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (!existing) break;
       slug = `${baseSlug}-${attempt}`;
       attempt++;
     }
-    await db.collection("studentProfiles").doc(slug).set({ slug, name, email, updatedAt: new Date() });
-    await indexRef.set({ slug });
+    await supabaseAdmin
+      .from("student_profiles")
+      .upsert({ slug, name, email, updated_at: new Date().toISOString() });
+    await supabaseAdmin
+      .from("student_profile_index")
+      .upsert({ email_key: emailKey, slug });
   }
 
-  await db
-    .collection("studentProfiles")
-    .doc(slug)
-    .collection("certs")
-    .doc(certId)
-    .set(
-      {
-        certId,
-        batchId,
-        batchName,
-        recipientName: name,
-        r2PdfUrl: r2PdfUrl ?? null,
-        pdfUrl: pdfUrl ?? null,
-        slideUrl: slideUrl ?? null,
-        issuedAt: new Date(),
-        status,
-      },
-      { merge: true }
-    );
+  await supabaseAdmin.from("student_profile_certs").upsert(
+    {
+      profile_slug: slug,
+      cert_id: certId,
+      batch_id: batchId,
+      batch_name: batchName,
+      recipient_name: name,
+      r2_pdf_url: r2PdfUrl ?? null,
+      pdf_url: pdfUrl ?? null,
+      slide_url: slideUrl ?? null,
+      issued_at: new Date().toISOString(),
+      status,
+    },
+    { onConflict: "profile_slug,cert_id" }
+  );
 }
 
 // List all batches
@@ -132,16 +112,14 @@ router.get("/batches", async (req, res) => {
     const userId = req.user?.uid;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
-    const snapshot = await batchesCollection
-      .where("userId", "==", userId)
-      .get();
-    const batches = snapshot.docs
-      .map((doc) => ({ id: doc.id, ...serializeDoc(doc.data()) }))
-      .sort((a: any, b: any) => {
-        const ta = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const tb = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return tb - ta;
-      });
+    const { data, error } = await supabaseAdmin
+      .from("batches")
+      .select("*")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (error) throw error;
+    const batches = (data || []).map(toCamel);
     return res.json({ batches });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -155,41 +133,23 @@ router.post("/batches", async (req, res) => {
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const {
-      name,
-      sheetId,
-      sheetName,
-      tabName,
-      templateId,
-      templateName,
-      columnMap,
-      emailColumn,
-      nameColumn,
-      emailSubject,
-      emailBody,
-      categoryColumn,
-      categoryTemplateMap,
-      categorySlideMap,
-      categorySlideIndexes,
+      name, sheetId, sheetName, tabName, templateId, templateName,
+      columnMap, emailColumn, nameColumn, emailSubject, emailBody,
+      categoryColumn, categoryTemplateMap, categorySlideMap, categorySlideIndexes,
     } = req.body;
 
-    // Fetch the sheet data to create certificate records
     const sheets = await getSheetsClient(userId);
     const range = tabName ? tabName : "A:ZZ";
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: sheetId,
-      range,
-    });
+    const response = await sheets.spreadsheets.values.get({ spreadsheetId: sheetId, range });
 
     const rows = response.data.values || [];
     const headers = rows[0] as string[];
     const dataRows = rows.slice(1).filter((r) => r.length > 0);
 
-    // Create a Google Drive folder for this batch
     let driveFolderId = null;
     let pdfFolderId = null;
     try {
       driveFolderId = await createFolder(userId, name);
-      // Create a subfolder for PDFs
       if (driveFolderId) {
         pdfFolderId = await createFolder(userId, "pdf", driveFolderId);
       }
@@ -197,63 +157,63 @@ router.post("/batches", async (req, res) => {
       console.error("Failed to create Google Drive folders:", err);
     }
 
-    // Create the batch document
-    const batchData = {
-      userId,
-      name,
-      sheetId,
-      sheetName,
-      tabName: tabName || null,
-      templateId,
-      templateName,
-      columnMap,
-      emailColumn,
-      nameColumn,
-      emailSubject: emailSubject || null,
-      emailBody: emailBody || null,
-      categoryColumn: categoryColumn || null,
-      categoryTemplateMap: categoryTemplateMap || null,
-      categorySlideMap: categorySlideMap || null,
-      categorySlideIndexes: categorySlideIndexes || null,
-      status: "draft",
-      driveFolderId,
-      pdfFolderId,
-      totalCount: dataRows.length,
-      generatedCount: 0,
-      sentCount: 0,
-      createdAt: new Date(),
-    };
+    const { data: batchRow, error: batchErr } = await supabaseAdmin
+      .from("batches")
+      .insert({
+        user_id: userId,
+        name,
+        sheet_id: sheetId,
+        sheet_name: sheetName,
+        tab_name: tabName || null,
+        template_id: templateId,
+        template_name: templateName,
+        column_map: columnMap,
+        email_column: emailColumn,
+        name_column: nameColumn,
+        email_subject: emailSubject || null,
+        email_body: emailBody || null,
+        category_column: categoryColumn || null,
+        category_template_map: categoryTemplateMap || null,
+        category_slide_map: categorySlideMap || null,
+        category_slide_indexes: categorySlideIndexes || null,
+        status: "draft",
+        drive_folder_id: driveFolderId,
+        pdf_folder_id: pdfFolderId,
+        total_count: dataRows.length,
+        generated_count: 0,
+        sent_count: 0,
+        created_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
 
-    const batchRef = await batchesCollection.add(batchData);
-    const batch = { id: batchRef.id, ...batchData };
+    if (batchErr) throw batchErr;
+    const batchId = batchRow.id;
 
-    // Create individual certificate records (pending)
-    const certsCol = certificatesCollection(batchRef.id);
-    const writeBatch = batchesCollection.firestore.batch();
-
-    for (const row of dataRows) {
+    const certRows = dataRows.map((row) => {
       const rowData: Record<string, string> = {};
-      headers.forEach((h, i) => {
-        rowData[h] = (row[i] as string) || "";
-      });
-      const certRef = certsCol.doc();
-      writeBatch.set(certRef, {
-        batchId: batchRef.id,
-        recipientName: rowData[nameColumn] || "Unknown",
-        recipientEmail: rowData[emailColumn] || "",
+      headers.forEach((h, i) => { rowData[h] = (row[i] as string) || ""; });
+      return {
+        batch_id: batchId,
+        recipient_name: rowData[nameColumn] || "Unknown",
+        recipient_email: rowData[emailColumn] || "",
         status: "pending",
-        rowData,
-        slideFileId: null,
-        slideUrl: null,
-        sentAt: null,
-        errorMessage: null,
-        isPaid: false,
-        createdAt: new Date(),
-      });
-    }
-    await writeBatch.commit();
+        row_data: rowData,
+        slide_file_id: null,
+        slide_url: null,
+        sent_at: null,
+        error_message: null,
+        is_paid: false,
+        created_at: new Date().toISOString(),
+      };
+    });
 
-    return res.status(201).json(batch);
+    if (certRows.length > 0) {
+      const { error: certErr } = await supabaseAdmin.from("certificates").insert(certRows);
+      if (certErr) throw certErr;
+    }
+
+    return res.status(201).json(toCamel(batchRow));
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -266,22 +226,18 @@ router.get("/batches/:batchId", async (req, res) => {
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
     const { batchId } = req.params;
-    const batchDoc = await batchesCollection.doc(batchId).get();
+    const { data: batch, error } = await supabaseAdmin
+      .from("batches")
+      .select("*, certificates(*)")
+      .eq("id", batchId)
+      .single();
 
-    if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
-    const batch = batchDoc.data() as any;
+    if (error || !batch) return res.status(404).json({ error: "Batch not found" });
+    if (batch.user_id !== userId) return res.status(403).json({ error: "Access denied" });
 
-    if (batch.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-    const certsSnapshot = await certificatesCollection(batchId).get();
-    const certificates = certsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...serializeDoc(doc.data()),
-    }));
-
-    return res.json({ id: batchDoc.id, ...serializeDoc(batchDoc.data() || {}), certificates });
+    const result = toCamel(batch);
+    result.certificates = (batch.certificates || []).map(toCamel);
+    return res.json(result);
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -294,24 +250,17 @@ router.post("/batches/:batchId/share-folder", async (req, res) => {
 
   const { batchId } = req.params;
   try {
-    const batchDoc = await batchesCollection.doc(batchId).get();
-    if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
-    const batch = batchDoc.data() as any;
+    const { data: batch, error } = await supabaseAdmin
+      .from("batches")
+      .select("user_id, pdf_folder_id")
+      .eq("id", batchId)
+      .single();
+    if (error || !batch) return res.status(404).json({ error: "Batch not found" });
+    if (batch.user_id !== userId) return res.status(403).json({ error: "Access denied" });
+    if (!batch.pdf_folder_id) return res.status(400).json({ error: "PDF folder does not exist for this batch" });
 
-    if (batch.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-    if (!batch.pdfFolderId) {
-      return res.status(400).json({ error: "PDF folder does not exist for this batch" });
-    }
-
-    await makeFilePublic(userId, batch.pdfFolderId);
-
-    return res.json({
-      success: true,
-      shareLink: `https://drive.google.com/drive/folders/${batch.pdfFolderId}`,
-    });
+    await makeFilePublic(userId, batch.pdf_folder_id);
+    return res.json({ success: true, shareLink: `https://drive.google.com/drive/folders/${batch.pdf_folder_id}` });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -325,125 +274,100 @@ router.post("/batches/:batchId/sync", async (req, res) => {
   const { batchId } = req.params;
 
   try {
-    const batchDoc = await batchesCollection.doc(batchId).get();
-    if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
-    const batch = batchDoc.data() as any;
-
-    if (batch.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
-    }
+    const { data: batch, error: batchErr } = await supabaseAdmin
+      .from("batches")
+      .select("*")
+      .eq("id", batchId)
+      .single();
+    if (batchErr || !batch) return res.status(404).json({ error: "Batch not found" });
+    if (batch.user_id !== userId) return res.status(403).json({ error: "Access denied" });
 
     const sheets = await getSheetsClient(userId);
-    const range = batch.tabName ? batch.tabName : "A:ZZ";
-    const response = await sheets.spreadsheets.values.get({
-      spreadsheetId: batch.sheetId,
-      range,
-    });
+    const range = batch.tab_name ? batch.tab_name : "A:ZZ";
+    const response = await sheets.spreadsheets.values.get({ spreadsheetId: batch.sheet_id, range });
 
     const rows = response.data.values || [];
-    if (rows.length === 0) {
-      return res.status(400).json({ error: "Spreadsheet is empty." });
-    }
+    if (rows.length === 0) return res.status(400).json({ error: "Spreadsheet is empty." });
 
     const headers = rows[0] as string[];
     const dataRows = rows.slice(1).filter((r) => r.length > 0);
-    const { nameColumn, emailColumn } = batch;
+    const { name_column: nameColumn, email_column: emailColumn } = batch;
 
-    const certsSnapshot = await certificatesCollection(batchId).get();
-    const existingCerts = certsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Certificate[];
+    const { data: certsData } = await supabaseAdmin
+      .from("certificates")
+      .select("*")
+      .eq("batch_id", batchId);
+    const existingCerts = (certsData || []).map(toCamel) as Certificate[];
 
-    const writeBatch = db.batch();
     let newCount = 0;
-    
-    // Copy existing certs to track which ones have been assigned to a row in this sync
     let availableCerts = [...existingCerts];
 
     for (const row of dataRows) {
       const rowData: Record<string, string> = {};
-      headers.forEach((h, i) => {
-        rowData[h] = (row[i] as string) || "";
-      });
+      headers.forEach((h, i) => { rowData[h] = (row[i] as string) || ""; });
 
       const email = rowData[emailColumn] || "";
       const name = rowData[nameColumn] || "Unknown";
 
-      // Match strategy:
-      // 1. Exact match on both Name and Email
-      // 2. Fallback to Email match (if Name was updated)
-      // 3. Fallback to Name match (if Email was updated)
       let matchIndex = availableCerts.findIndex(
         (c) => c.recipientEmail === email && c.recipientName === name
       );
-
       if (matchIndex === -1 && email) {
         matchIndex = availableCerts.findIndex((c) => c.recipientEmail === email);
       }
-
       if (matchIndex === -1 && name && name !== "Unknown") {
         matchIndex = availableCerts.findIndex((c) => c.recipientName === name);
       }
 
       if (matchIndex > -1) {
         const matchingCert = availableCerts[matchIndex];
-        // Remove from available so other rows with same email don't collide
         availableCerts.splice(matchIndex, 1);
 
-        // Check if visual data has actually changed
-        // Visual data = Name OR any field mapped in batch.columnMap
-        const visualFields = Object.values(batch.columnMap || {}) as string[];
-        const hasVisualChanged = matchingCert.recipientName !== name || 
-                                 visualFields.some(col => matchingCert.rowData?.[col] !== rowData[col]);
-        
+        const visualFields = Object.values(batch.column_map || {}) as string[];
+        const hasVisualChanged = matchingCert.recipientName !== name ||
+          visualFields.some(col => matchingCert.rowData?.[col] !== rowData[col]);
         const hasMetadataChanged = !hasVisualChanged && JSON.stringify(matchingCert.rowData) !== JSON.stringify(rowData);
 
         const updateData: any = {
-          recipientName: name,
-          recipientEmail: email,
-          rowData,
-          updatedAt: new Date(),
+          recipient_name: name,
+          recipient_email: email,
+          row_data: rowData,
+          updated_at: new Date().toISOString(),
         };
 
-        // If visual data changed and it was already generated, mark for visual regeneration
-        if (hasVisualChanged && (matchingCert.status === "generated" || matchingCert.status === "sent" || matchingCert.status === "outdated")) {
+        if (hasVisualChanged && ["generated", "sent", "outdated"].includes(matchingCert.status)) {
           updateData.status = "outdated";
-          updateData.requiresVisualRegen = true;
-        } else if (hasMetadataChanged && (matchingCert.status === "generated" || matchingCert.status === "sent" || matchingCert.status === "outdated")) {
-          // If only metadata changed, still mark as outdated but we can skip Slide edits
+          updateData.requires_visual_regen = true;
+        } else if (hasMetadataChanged && ["generated", "sent", "outdated"].includes(matchingCert.status)) {
           updateData.status = "outdated";
-          updateData.requiresVisualRegen = false;
+          updateData.requires_visual_regen = false;
         }
 
-        // Update existing certificate data
-        writeBatch.update(certificatesCollection(batchId).doc(matchingCert.id), updateData);
+        await supabaseAdmin.from("certificates").update(updateData).eq("id", matchingCert.id);
       } else {
-        const newCertRef = certificatesCollection(batchId).doc();
-        writeBatch.set(newCertRef, {
-          batchId,
-          recipientName: name,
-          recipientEmail: email,
+        await supabaseAdmin.from("certificates").insert({
+          batch_id: batchId,
+          recipient_name: name,
+          recipient_email: email,
           status: "pending",
-          rowData,
-          slideFileId: null,
-          slideUrl: null,
-          sentAt: null,
-          errorMessage: null,
-          isPaid: false,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          row_data: rowData,
+          slide_file_id: null,
+          slide_url: null,
+          sent_at: null,
+          error_message: null,
+          is_paid: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
         });
         newCount++;
       }
     }
-    
-    await writeBatch.commit();
-    
+
     if (newCount > 0) {
-       await batchesCollection.doc(batchId).update({
-          totalCount: existingCerts.length + newCount
-       });
+      await supabaseAdmin
+        .from("batches")
+        .update({ total_count: existingCerts.length + newCount })
+        .eq("id", batchId);
     }
 
     return res.json({ success: true, message: `Synced successfully. Added ${newCount} new certificates.`, newCount });
@@ -460,94 +384,75 @@ router.post("/batches/:batchId/generate", async (req, res) => {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   const { batchId } = req.params;
-  const { selectedCertIds } = req.body || {}; // optional array of specific IDs to generate
+  const { selectedCertIds } = req.body || {};
 
   try {
-    const batchRef = batchesCollection.doc(batchId);
-    const batchDoc = await batchRef.get();
+    const { data: batchRow, error: batchErr } = await supabaseAdmin
+      .from("batches")
+      .select("*")
+      .eq("id", batchId)
+      .single();
+    if (batchErr || !batchRow) return res.status(404).json({ error: "Batch not found" });
+    const batch = toCamel(batchRow) as any;
+    if (batch.userId !== userId) return res.status(403).json({ error: "Access denied" });
 
-    if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
-    const batch = { id: batchDoc.id, ...batchDoc.data() } as any;
+    const { data: certsData } = await supabaseAdmin
+      .from("certificates")
+      .select("*")
+      .eq("batch_id", batchId);
+    const allCerts = (certsData || []).map(toCamel) as Certificate[];
 
-    if (batch.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-    // Pre-fetch certs to count how many need payment
-    const certsSnapshot = await certificatesCollection(batchId).get();
-    const allCerts = certsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Certificate[];
-
-    // If selectedCertIds provided, filter by them. Otherwise target all.
     const targetCerts = selectedCertIds && Array.isArray(selectedCertIds) && selectedCertIds.length > 0
-        ? allCerts.filter(c => selectedCertIds.includes(c.id))
-        : allCerts;
+      ? allCerts.filter(c => selectedCertIds.includes(c.id))
+      : allCerts;
 
     if (targetCerts.length === 0) {
-        return res.status(400).json({ error: "No certificates found to generate." });
+      return res.status(400).json({ error: "No certificates found to generate." });
     }
 
     const unpaidCerts = targetCerts.filter(c => !c.isPaid);
     const visualRegenCerts = targetCerts.filter(c => c.isPaid && c.status === "outdated" && c.requiresVisualRegen);
-    
+
     const unpaidCount = unpaidCerts.length;
     const visualRegenCount = visualRegenCerts.length;
-    
+
     const RATE = Number(process.env.VITE_CERT_GENERATION_RATE || 1);
     const REGEN_RATE = Number(process.env.VITE_CERT_REGENERATION_RATE || 0.2);
-    
     const cost = (unpaidCount * RATE) + (visualRegenCount * REGEN_RATE);
-    
-    await db.runTransaction(async (t) => {
-      const bDoc = await t.get(batchRef);
-      if (!bDoc.exists) throw new Error("Batch not found");
-      const bData = bDoc.data() as any;
-      
-      if (bData.status === "generating") throw new Error("Batch is already generating");
-      if (bData.status === "sending") throw new Error("Batch is currently being sent");
-      
-      if (cost > 0) {
-        const pDoc = await t.get(userProfilesCollection.doc(userId));
-        const pData = pDoc.data() as any;
-        const currentBalance = pData?.currentBalance || 0;
-        
-        if (currentBalance < cost) {
-           const err = new Error(`Insufficient funds: ₹${cost.toFixed(2)} required, but wallet balance is only ₹${currentBalance.toFixed(2)}.`) as any;
-           err.statusCode = 402;
-           throw err;
-        }
-        
-        const newBalance = currentBalance - cost;
-        t.update(userProfilesCollection.doc(userId), {
-          currentBalance: newBalance
-        });
-        
-        const ledgerId = `gen_${batchId}_${Date.now()}`;
-        const ledgerRef = ledgersCollection(userId).doc(ledgerId);
-        t.set(ledgerRef, {
-          id: ledgerId,
-          amount: -cost,
-          type: "generation_deduction",
-          description: `Generation cost for batch: ${bData.name} (${unpaidCount} new, ${visualRegenCount} visual updates)`,
-          balanceAfter: newBalance,
-          metadata: { batchId, unpaidCount, visualRegenCount, rate: RATE, regenRate: REGEN_RATE, isPartial: true },
-          createdAt: new Date().toISOString()
-        });
 
-        unpaidCerts.forEach(cert => {
-            t.update(certificatesCollection(batchId).doc(cert.id), { isPaid: true });
-        });
-      }
-      
-      t.update(batchRef, { status: "generating" });
+    const ledgerId = `gen_${batchId}_${Date.now()}`;
+    const unpaidCertIds = unpaidCerts.map(c => c.id);
+
+    const { error: rpcErr } = await supabaseAdmin.rpc("start_batch_generation", {
+      p_user_id: userId,
+      p_batch_id: batchId,
+      p_cost: cost,
+      p_unpaid_cert_ids: unpaidCertIds,
+      p_ledger_id: ledgerId,
+      p_batch_name: batch.name,
+      p_unpaid_count: unpaidCount,
+      p_regen_count: visualRegenCount,
+      p_rate: RATE,
+      p_regen_rate: REGEN_RATE,
     });
 
-    // Respond immediately so the frontend can start polling for per-cert updates
+    if (rpcErr) {
+      const msg = rpcErr.message || "";
+      if (msg.includes("already_generating")) return res.status(409).json({ error: "Batch is already generating" });
+      if (msg.includes("currently_sending")) return res.status(409).json({ error: "Batch is currently being sent" });
+      if (msg.includes("insufficient_funds")) {
+        const parts = msg.split(":");
+        const detail = parts[1] || msg;
+        const err: any = new Error(`Insufficient funds: ${detail}`);
+        err.statusCode = 402;
+        throw err;
+      }
+      throw rpcErr;
+    }
+
     res.json({ success: true, message: "Generation started" });
 
-    // Process certificates in the background
+    // Background processing
     (async () => {
       let generated = 0;
       let failed = 0;
@@ -557,174 +462,161 @@ router.post("/batches/:batchId/generate", async (req, res) => {
         const chunk = targetCerts.slice(i, i + CONCURRENCY);
         await Promise.all(chunk.map(async (cert) => {
           try {
-            // Update status to generating immediately for feedback
-            await certificatesCollection(batchId).doc(cert.id).update({ status: "generating" });
+            await supabaseAdmin.from("certificates").update({ status: "generating" }).eq("id", cert.id);
 
-          const rowData = (cert.rowData as Record<string, string>) || {};
-          const replacements: Record<string, string> = {};
-          for (const [placeholder, column] of Object.entries(batch.columnMap || {})) {
-            replacements[placeholder] = rowData[String(column)] || "";
-          }
+            const rowData = (cert.rowData as Record<string, string>) || {};
+            const replacements: Record<string, string> = {};
+            for (const [placeholder, column] of Object.entries(batch.columnMap || {})) {
+              replacements[placeholder] = rowData[String(column)] || "";
+            }
 
-          const baseUrl = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
-          const qrCodeUrl = `${baseUrl}/verify/${batchId}/${cert.id}`;
+            const baseUrl = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
+            const qrCodeUrl = `${baseUrl}/verify/${batchId}/${cert.id}`;
 
-          let certTemplateId = batch.templateId;
-          let certSlideIndex: number | null = null;
+            let certTemplateId = batch.templateId;
+            let certSlideIndex: number | null = null;
 
-          if (batch.categoryColumn && batch.categorySlideMap) {
-            const categoryValue = rowData[batch.categoryColumn] || "";
-            if (categoryValue && categoryValue in batch.categorySlideMap) {
-              certSlideIndex = batch.categorySlideMap[categoryValue];
-            } else if ("_default" in batch.categorySlideMap) {
-              certSlideIndex = batch.categorySlideMap["_default"];
+            if (batch.categoryColumn && batch.categorySlideMap) {
+              const categoryValue = rowData[batch.categoryColumn] || "";
+              if (categoryValue && categoryValue in batch.categorySlideMap) {
+                certSlideIndex = batch.categorySlideMap[categoryValue];
+              } else if ("_default" in batch.categorySlideMap) {
+                certSlideIndex = batch.categorySlideMap["_default"];
+              } else {
+                certSlideIndex = 0;
+              }
+            } else if (batch.categoryColumn && batch.categoryTemplateMap) {
+              const categoryValue = rowData[batch.categoryColumn];
+              if (categoryValue && batch.categoryTemplateMap[categoryValue]) {
+                certTemplateId = batch.categoryTemplateMap[categoryValue].templateId;
+              }
+            }
+
+            const oldSlideFileId = cert.slideFileId;
+            const oldPdfFileId = cert.pdfFileId;
+            const oldR2Url = cert.r2PdfUrl;
+
+            let slideFileId = cert.slideFileId;
+            let slideUrl = cert.slideUrl;
+
+            if (cert.requiresVisualRegen !== false || !slideFileId) {
+              console.log(`[GENERATE] Visual change for ${cert.recipientName}. Generating Slides.`);
+              const genResult = await generateCertificate(
+                userId, certTemplateId, cert.recipientName, replacements,
+                batch.driveFolderId, qrCodeUrl, certSlideIndex
+              );
+              slideFileId = genResult.fileId;
+              slideUrl = genResult.url;
+              if (oldSlideFileId && oldSlideFileId !== slideFileId) {
+                deleteFile(userId, oldSlideFileId).catch(e => console.error("Cleanup error (Slide):", e));
+              }
             } else {
-              certSlideIndex = 0;
+              console.log(`[GENERATE] Metadata-only for ${cert.recipientName}. Reusing Slides: ${slideFileId}`);
             }
-          } else if (batch.categoryColumn && batch.categoryTemplateMap) {
-            const categoryValue = rowData[batch.categoryColumn];
-            if (categoryValue && batch.categoryTemplateMap[categoryValue]) {
-              certTemplateId = batch.categoryTemplateMap[categoryValue].templateId;
-            }
-          }
 
-          const oldSlideFileId = cert.slideFileId;
-          const oldPdfFileId = cert.pdfFileId;
-          const oldR2Url = cert.r2PdfUrl;
+            let pdfFileId = null;
+            let pdfUrl = null;
+            const pdfName = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}`;
+            const needsPdf = !!batch.pdfFolderId || isR2Configured();
+            let pdfBuffer: Buffer | null = null;
 
-          let slideFileId = cert.slideFileId;
-          let slideUrl = cert.slideUrl;
-
-          // Smart Regeneration: Only call Google Slides API if visual content changed or never generated
-          if (cert.requiresVisualRegen !== false || !slideFileId) {
-            console.log(`[GENERATE] Visual change detected or new cert for ${cert.recipientName}. Generating Slides.`);
-            const genResult = await generateCertificate(
-              userId,
-              certTemplateId,
-              cert.recipientName,
-              replacements,
-              batch.driveFolderId,
-              qrCodeUrl,
-              certSlideIndex
-            );
-            slideFileId = genResult.fileId;
-            slideUrl = genResult.url;
-            
-            // Cleanup old slide if it was a different file
-            if (oldSlideFileId && oldSlideFileId !== slideFileId) {
-              deleteFile(userId, oldSlideFileId).catch(e => console.error("Cleanup error (Slide):", e));
-            }
-          } else {
-            console.log(`[GENERATE] Metadata-only change for ${cert.recipientName}. Reusing existing Slides: ${slideFileId}`);
-          }
-
-          let pdfFileId = null;
-          let pdfUrl = null;
-          const pdfName = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}`;
-          const needsPdf = !!batch.pdfFolderId || isR2Configured();
-          let pdfBuffer: Buffer | null = null;
-
-          if (needsPdf) {
-            try {
-              // We always re-export to ensure PDF filename and content are synchronized
-              pdfBuffer = await exportSlidesToPdf(userId, slideFileId);
-            } catch (pdfErr) {
-              console.error("Failed to export PDF for certificate:", cert.id, pdfErr);
-            }
-          }
-
-          if (pdfBuffer && batch.pdfFolderId) {
-            try {
-              const pdfRes = await uploadPdf(userId, pdfName, pdfBuffer, batch.pdfFolderId);
-              pdfFileId = pdfRes.fileId;
-              pdfUrl = pdfRes.url;
-              
-              // Cleanup old PDF in Drive
-              if (oldPdfFileId) {
-                deleteFile(userId, oldPdfFileId).catch(e => console.error("Cleanup error (PDF):", e));
+            if (needsPdf) {
+              try {
+                pdfBuffer = await exportSlidesToPdf(userId, slideFileId);
+              } catch (pdfErr) {
+                console.error("Failed to export PDF for certificate:", cert.id, pdfErr);
               }
-            } catch (pdfErr) {
-              console.error("Failed to upload PDF to Google Drive for certificate:", cert.id, pdfErr);
             }
-          }
 
-          let r2PdfUrl: string | null = null;
-          const r2Ready = isR2Configured();
-          if (pdfBuffer && r2Ready) {
-            try {
-              const phoneNumber = extractPhoneNumber(rowData);
-              const r2Folder = phoneNumber || cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_");
-              const r2Key = await uploadPdfToR2(r2Folder, pdfName, pdfBuffer);
-              r2PdfUrl = getR2PublicUrl(r2Key);
-              
-              // Cleanup old R2 object
-              if (oldR2Url) {
-                const r2PublicBase = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
-                if (r2PublicBase && oldR2Url.startsWith(r2PublicBase + "/") && oldR2Url !== r2PdfUrl) {
-                  const oldKey = oldR2Url.slice(r2PublicBase.length + 1);
-                  deleteR2Object(oldKey).catch(e => console.error("Cleanup error (R2):", e));
+            if (pdfBuffer && batch.pdfFolderId) {
+              try {
+                const pdfRes = await uploadPdf(userId, pdfName, pdfBuffer, batch.pdfFolderId);
+                pdfFileId = pdfRes.fileId;
+                pdfUrl = pdfRes.url;
+                if (oldPdfFileId) {
+                  deleteFile(userId, oldPdfFileId).catch(e => console.error("Cleanup error (PDF):", e));
                 }
+              } catch (pdfErr) {
+                console.error("Failed to upload PDF to Google Drive:", cert.id, pdfErr);
               }
-            } catch (r2Err) {
-              console.error("[R2] Upload failed for certificate:", cert.id, r2Err);
             }
-          }
 
-          await certificatesCollection(batchId).doc(cert.id).update({
-            status: "generated",
-            slideFileId,
-            slideUrl,
-            pdfFileId,
-            pdfUrl,
-            r2PdfUrl,
-            errorMessage: null,
-            updatedAt: new Date(),
-            requiresVisualRegen: false, // Reset the flag
-          });
+            let r2PdfUrl: string | null = null;
+            if (pdfBuffer && isR2Configured()) {
+              try {
+                const phoneNumber = extractPhoneNumber(rowData);
+                const r2Folder = phoneNumber || cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_");
+                const r2Key = await uploadPdfToR2(r2Folder, pdfName, pdfBuffer);
+                r2PdfUrl = getR2PublicUrl(r2Key);
+                if (oldR2Url) {
+                  const r2PublicBase = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
+                  if (r2PublicBase && oldR2Url.startsWith(r2PublicBase + "/") && oldR2Url !== r2PdfUrl) {
+                    const oldKey = oldR2Url.slice(r2PublicBase.length + 1);
+                    deleteR2Object(oldKey).catch(e => console.error("Cleanup error (R2):", e));
+                  }
+                }
+              } catch (r2Err) {
+                console.error("[R2] Upload failed for certificate:", cert.id, r2Err);
+              }
+            }
 
-          if (cert.recipientEmail) {
-            upsertStudentProfile({
-              email: cert.recipientEmail,
-              name: cert.recipientName,
-              certId: cert.id,
-              batchId,
-              batchName: batch.name,
-              r2PdfUrl: r2PdfUrl ?? null,
-              pdfUrl: pdfUrl ?? null,
-              slideUrl: slideUrl ?? null,
+            await supabaseAdmin.from("certificates").update({
               status: "generated",
-            }).catch((err) => console.error("[PROFILE] upsert failed for", cert.recipientEmail, err));
-          }
+              slide_file_id: slideFileId,
+              slide_url: slideUrl,
+              pdf_file_id: pdfFileId,
+              pdf_url: pdfUrl,
+              r2_pdf_url: r2PdfUrl,
+              error_message: null,
+              updated_at: new Date().toISOString(),
+              requires_visual_regen: false,
+            }).eq("id", cert.id);
 
-          if (cert.status !== "generated" && cert.status !== "sent") {
-            await batchRef.update({ generatedCount: FieldValue.increment(1) });
+            if (cert.recipientEmail) {
+              upsertStudentProfile({
+                email: cert.recipientEmail,
+                name: cert.recipientName,
+                certId: cert.id,
+                batchId,
+                batchName: batch.name,
+                r2PdfUrl: r2PdfUrl ?? null,
+                pdfUrl: pdfUrl ?? null,
+                slideUrl: slideUrl ?? null,
+                status: "generated",
+              }).catch((err) => console.error("[PROFILE] upsert failed for", cert.recipientEmail, err));
+            }
+
+            if (cert.status !== "generated" && cert.status !== "sent") {
+              await supabaseAdmin.rpc("increment_batch_column", {
+                p_batch_id: batchId, p_column: "generated_count", p_amount: 1
+              });
+            }
+            generated++;
+          } catch (err: any) {
+            await supabaseAdmin.from("certificates").update({
+              status: "failed",
+              error_message: err.message,
+            }).eq("id", cert.id);
+            await supabaseAdmin.rpc("increment_batch_column", {
+              p_batch_id: batchId, p_column: "failed_count", p_amount: 1
+            });
+            failed++;
           }
-          generated++;
-        } catch (err: any) {
-          await certificatesCollection(batchId).doc(cert.id).update({
-            status: "failed",
-            errorMessage: err.message,
-          });
-          await batchRef.update({ failedCount: FieldValue.increment(1) });
-          failed++;
-        }
         }));
       }
 
-      const newStatus =
-        failed === 0 ? "generated" : generated > 0 ? "partial" : "draft";
-      await batchRef.update({ status: newStatus });
+      const newStatus = failed === 0 ? "generated" : generated > 0 ? "partial" : "draft";
+      await supabaseAdmin.from("batches").update({ status: newStatus }).eq("id", batchId);
     })().catch(async (err: any) => {
       console.error("[GENERATE] Background processing failed:", err);
-      await batchesCollection.doc(batchId).update({ status: "draft" });
+      await supabaseAdmin.from("batches").update({ status: "draft" }).eq("id", batchId);
     });
     return;
   } catch (err: any) {
     console.error("[GENERATE] Initial request failed:", err);
     try {
-      await batchesCollection.doc(batchId).update({ status: "draft" });
+      await supabaseAdmin.from("batches").update({ status: "draft" }).eq("id", batchId);
     } catch {}
-
     const status = err.statusCode || 500;
     return res.status(status).json({ error: err.message });
   }
@@ -738,31 +630,30 @@ router.post("/batches/:batchId/send", async (req, res) => {
   const { batchId } = req.params;
 
   try {
-    const batchRef = batchesCollection.doc(batchId);
-    const batchDoc = await batchRef.get();
-
-    if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
-    const batch = { id: batchDoc.id, ...batchDoc.data() } as any;
-
-    if (batch.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
-    }
+    const { data: batchRow, error } = await supabaseAdmin
+      .from("batches")
+      .select("*")
+      .eq("id", batchId)
+      .single();
+    if (error || !batchRow) return res.status(404).json({ error: "Batch not found" });
+    const batch = toCamel(batchRow) as any;
+    if (batch.userId !== userId) return res.status(403).json({ error: "Access denied" });
 
     const { emailSubject: reqSubject, emailBody: reqBody } = req.body;
     const subject = reqSubject || batch.emailSubject || "Your Certificate";
     const body = reqBody || batch.emailBody || "Please find your certificate attached.";
 
-    await batchRef.update({ status: "sending", emailSubject: subject, emailBody: body });
+    await supabaseAdmin
+      .from("batches")
+      .update({ status: "sending", email_subject: subject, email_body: body })
+      .eq("id", batchId);
 
-    const certsSnapshot = await certificatesCollection(batchId).get();
-    const allCerts = certsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Certificate[];
-
-    const toSend = allCerts.filter(
-      (c) => c.status === "generated" && c.recipientEmail
-    );
+    const { data: certsData } = await supabaseAdmin
+      .from("certificates")
+      .select("*")
+      .eq("batch_id", batchId);
+    const allCerts = (certsData || []).map(toCamel) as Certificate[];
+    const toSend = allCerts.filter((c: Certificate) => c.status === "generated" && c.recipientEmail);
 
     let sent = 0;
     let failed = 0;
@@ -776,97 +667,71 @@ router.post("/batches/:batchId/send", async (req, res) => {
           if (cert.slideFileId) {
             pdfBuffer = await exportSlidesToPdf(userId, cert.slideFileId);
           }
-        const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
-
-        const rowData = (cert.rowData as Record<string, string>) || {};
-        let personalizedSubject = subject;
-        let personalizedBody = body;
-        for (const [placeholder, column] of Object.entries(batch.columnMap || {})) {
-          const value = rowData[String(column)] || "";
-          personalizedSubject = personalizedSubject.replace(new RegExp(`<<${placeholder}>>`, "gi"), value);
-          personalizedBody = personalizedBody.replace(new RegExp(`<<${placeholder}>>`, "gi"), value);
+          const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+          const rowData = (cert.rowData as Record<string, string>) || {};
+          let personalizedSubject = subject;
+          let personalizedBody = body;
+          for (const [placeholder, column] of Object.entries(batch.columnMap || {})) {
+            const value = rowData[String(column)] || "";
+            personalizedSubject = personalizedSubject.replace(new RegExp(`<<${placeholder}>>`, "gi"), value);
+            personalizedBody = personalizedBody.replace(new RegExp(`<<${placeholder}>>`, "gi"), value);
+          }
+          for (const [col, value] of Object.entries(rowData)) {
+            personalizedSubject = personalizedSubject.replace(new RegExp(`<<${col}>>`, "gi"), value);
+            personalizedBody = personalizedBody.replace(new RegExp(`<<${col}>>`, "gi"), value);
+          }
+          await sendEmail(userId, { to: cert.recipientEmail, subject: personalizedSubject, body: personalizedBody, pdfBuffer, pdfFilename });
+          await supabaseAdmin.from("certificates").update({
+            status: "sent", sent_at: new Date().toISOString(), error_message: null,
+          }).eq("id", cert.id);
+          sent++;
+        } catch (err: any) {
+          await supabaseAdmin.from("certificates").update({
+            status: "failed", error_message: err.message,
+          }).eq("id", cert.id);
+          failed++;
         }
-        for (const [col, value] of Object.entries(rowData)) {
-          personalizedSubject = personalizedSubject.replace(new RegExp(`<<${col}>>`, "gi"), value);
-          personalizedBody = personalizedBody.replace(new RegExp(`<<${col}>>`, "gi"), value);
-        }
-
-        await sendEmail(userId, {
-          to: cert.recipientEmail,
-          subject: personalizedSubject,
-          body: personalizedBody,
-          pdfBuffer,
-          pdfFilename,
-        });
-        await certificatesCollection(batchId).doc(cert.id).update({
-          status: "sent",
-          sentAt: new Date(),
-          errorMessage: null,
-        });
-        sent++;
-      } catch (err: any) {
-        await certificatesCollection(batchId).doc(cert.id).update({
-          status: "failed",
-          errorMessage: err.message,
-        });
-        failed++;
-      }
       }));
     }
 
-    const alreadySent = allCerts.filter((c) => c.status === "sent").length;
+    const alreadySent = allCerts.filter(c => c.status === "sent").length;
     const totalSent = sent + alreadySent;
+    const newStatus = failed === 0 ? "sent" : totalSent > 0 ? "partial" : "generated";
+    await supabaseAdmin.from("batches").update({ status: newStatus, sent_count: totalSent }).eq("id", batchId);
 
-    const newStatus =
-      failed === 0 ? "sent" : totalSent > 0 ? "partial" : "generated";
-    await batchRef.update({ status: newStatus, sentCount: totalSent });
-
-    return res.json({
-      success: failed === 0,
-      message: `Sent ${sent} emails. ${failed} failed.`,
-      processed: sent,
-      failed,
-    });
+    return res.json({ success: failed === 0, message: `Sent ${sent} emails. ${failed} failed.`, processed: sent, failed });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
 });
 
-// Send certificates via WhatsApp template (document_sender)
+// Send certificates via WhatsApp
 router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
   const userId = req.user?.uid;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   if (!isWhatsAppConfigured()) {
-    return res.status(400).json({
-      error: "WhatsApp is not configured. Set WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN.",
-    });
+    return res.status(400).json({ error: "WhatsApp is not configured. Set WHATSAPP_PHONE_NUMBER_ID and WHATSAPP_ACCESS_TOKEN." });
   }
 
   const { batchId } = req.params;
 
   try {
-    const batchRef = batchesCollection.doc(batchId);
-    const batchDoc = await batchRef.get();
-
-    if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
-    const batch = { id: batchDoc.id, ...batchDoc.data() } as any;
-
+    const { data: batchRow, error } = await supabaseAdmin
+      .from("batches")
+      .select("*")
+      .eq("id", batchId)
+      .single();
+    if (error || !batchRow) return res.status(404).json({ error: "Batch not found" });
+    const batch = toCamel(batchRow) as any;
     if (batch.userId !== userId) return res.status(403).json({ error: "Access denied" });
 
     const { var1Template, var2Template, var3Template } = req.body;
+    await supabaseAdmin.from("batches").update({ status: "sending" }).eq("id", batchId);
 
-    await batchRef.update({ status: "sending" });
-
-    const certsSnapshot = await certificatesCollection(batchId).get();
-    const allCerts = certsSnapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Certificate[];
-
-    const toSend = allCerts.filter(
-      (c) => (c.status === "generated" || c.status === "failed") && (c as any).r2PdfUrl,
-    );
+    const { data: certsData } = await supabaseAdmin.from("certificates").select("*").eq("batch_id", batchId);
+    const allCerts = (certsData || []).map(toCamel) as Certificate[];
+    const toSend = allCerts.filter((c: Certificate) => (c.status === "generated" || c.status === "failed") && (c as any).r2PdfUrl);
 
     let sent = 0;
     let failed = 0;
@@ -878,17 +743,11 @@ router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
         try {
           const rowData = (cert.rowData as Record<string, string>) || {};
           const phone = extractPhoneNumber(rowData);
-
           if (!phone) {
-            await certificatesCollection(batchId).doc(cert.id).update({
-              status: "failed",
-              errorMessage: "No phone number found in row data",
-            });
+            await supabaseAdmin.from("certificates").update({ status: "failed", error_message: "No phone number found in row data" }).eq("id", cert.id);
             failed++;
             return;
           }
-
-
           let var1 = var1Template || cert.recipientName;
           let var2 = var2Template || batch.name;
           const emailPrefix = cert.recipientEmail?.split("@")[0] || cert.recipientName;
@@ -901,54 +760,39 @@ router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
           var3 = var3.replace(/<<EmailPrefix>>/gi, emailPrefix);
 
           const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
-          const wamid = await sendWhatsAppDocument(
-            phone,
-            (cert as any).r2PdfUrl,
-            pdfFilename,
-            var1,
-            var2,
-            var3,
-          );
+          const wamid = await sendWhatsAppDocument(phone, (cert as any).r2PdfUrl, pdfFilename, var1, var2, var3);
 
-          await certificatesCollection(batchId).doc(cert.id).update({
+          await supabaseAdmin.from("certificates").update({
             status: "sent",
-            sentAt: new Date(),
-            errorMessage: null,
-            whatsappMessageId: wamid || null,
-            whatsappStatus: "sent",
-          });
+            sent_at: new Date().toISOString(),
+            error_message: null,
+            whatsapp_message_id: wamid || null,
+            whatsapp_status: "sent",
+          }).eq("id", cert.id);
+
           if (wamid) {
-            await db.collection("waMessages").doc(wamid).set({ batchId, certId: cert.id });
+            await supabaseAdmin.from("wa_messages").insert({ wamid, batch_id: batchId, cert_id: cert.id });
           }
           sent++;
         } catch (err: any) {
-          await certificatesCollection(batchId).doc(cert.id).update({
-            status: "failed",
-            errorMessage: err.message,
-          });
+          await supabaseAdmin.from("certificates").update({ status: "failed", error_message: err.message }).eq("id", cert.id);
           failed++;
         }
       }));
     }
 
-    const alreadySent = allCerts.filter((c) => c.status === "sent").length;
+    const alreadySent = allCerts.filter(c => c.status === "sent").length;
     const totalSent = sent + alreadySent;
-    const newStatus =
-      failed === 0 ? "sent" : totalSent > 0 ? "partial" : "generated";
-    await batchRef.update({
+    const newStatus = failed === 0 ? "sent" : totalSent > 0 ? "partial" : "generated";
+    await supabaseAdmin.from("batches").update({
       status: newStatus,
-      sentCount: totalSent,
-      whatsappSentCount: (batch.whatsappSentCount || 0) + sent,
-    });
+      sent_count: totalSent,
+      whatsapp_sent_count: (batch.whatsappSentCount || 0) + sent,
+    }).eq("id", batchId);
 
-    return res.json({
-      success: failed === 0,
-      message: `Sent ${sent} WhatsApp messages. ${failed} failed.`,
-      processed: sent,
-      failed,
-    });
+    return res.json({ success: failed === 0, message: `Sent ${sent} WhatsApp messages. ${failed} failed.`, processed: sent, failed });
   } catch (err: any) {
-    await batchesCollection.doc(batchId).update({ status: "generated" });
+    await supabaseAdmin.from("batches").update({ status: "generated" }).eq("id", batchId);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -961,14 +805,14 @@ router.post("/batches/:batchId/certificates/:certId/send", async (req, res) => {
   const { batchId, certId } = req.params;
 
   try {
-    const batchDoc = await batchesCollection.doc(batchId).get();
-    if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
-    const batch = { id: batchDoc.id, ...batchDoc.data() } as any;
+    const { data: batchRow, error: batchErr } = await supabaseAdmin.from("batches").select("*").eq("id", batchId).single();
+    if (batchErr || !batchRow) return res.status(404).json({ error: "Batch not found" });
+    const batch = toCamel(batchRow) as any;
     if (batch.userId !== userId) return res.status(403).json({ error: "Access denied" });
 
-    const certDoc = await certificatesCollection(batchId).doc(certId).get();
-    if (!certDoc.exists) return res.status(404).json({ error: "Certificate not found" });
-    const cert = { id: certDoc.id, ...certDoc.data() } as any;
+    const { data: certRow, error: certErr } = await supabaseAdmin.from("certificates").select("*").eq("id", certId).single();
+    if (certErr || !certRow) return res.status(404).json({ error: "Certificate not found" });
+    const cert = toCamel(certRow) as any;
 
     if (!cert.recipientEmail) return res.status(400).json({ error: "Certificate has no email address" });
     if (!cert.slideFileId) return res.status(400).json({ error: "Certificate has not been generated yet" });
@@ -994,15 +838,15 @@ router.post("/batches/:batchId/certificates/:certId/send", async (req, res) => {
     }
 
     await sendEmail(userId, { to: cert.recipientEmail, subject: personalizedSubject, body: personalizedBody, pdfBuffer, pdfFilename });
-    await certificatesCollection(batchId).doc(certId).update({ status: "sent", sentAt: new Date(), errorMessage: null });
+    await supabaseAdmin.from("certificates").update({ status: "sent", sent_at: new Date().toISOString(), error_message: null }).eq("id", certId);
 
-    const certsSnapshot = await certificatesCollection(batchId).get();
-    const sentCount = certsSnapshot.docs.filter((d) => d.data().status === "sent").length;
-    await batchesCollection.doc(batchId).update({ sentCount });
+    const { data: allCerts } = await supabaseAdmin.from("certificates").select("status").eq("batch_id", batchId);
+    const sentCount = (allCerts || []).filter((c: { status: string }) => c.status === "sent").length;
+    await supabaseAdmin.from("batches").update({ sent_count: sentCount }).eq("id", batchId);
 
     return res.json({ success: true, message: `Certificate sent to ${cert.recipientEmail}` });
   } catch (err: any) {
-    await certificatesCollection(batchId).doc(certId).update({ status: "failed", errorMessage: err.message });
+    await supabaseAdmin.from("certificates").update({ status: "failed", error_message: err.message }).eq("id", certId);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -1019,21 +863,20 @@ router.post("/batches/:batchId/certificates/:certId/send-whatsapp", async (req, 
   const { batchId, certId } = req.params;
 
   try {
-    const batchDoc = await batchesCollection.doc(batchId).get();
-    if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
-    const batch = { id: batchDoc.id, ...batchDoc.data() } as any;
+    const { data: batchRow, error: batchErr } = await supabaseAdmin.from("batches").select("*").eq("id", batchId).single();
+    if (batchErr || !batchRow) return res.status(404).json({ error: "Batch not found" });
+    const batch = toCamel(batchRow) as any;
     if (batch.userId !== userId) return res.status(403).json({ error: "Access denied" });
 
-    const certDoc = await certificatesCollection(batchId).doc(certId).get();
-    if (!certDoc.exists) return res.status(404).json({ error: "Certificate not found" });
-    const cert = { id: certDoc.id, ...certDoc.data() } as any;
+    const { data: certRow, error: certErr } = await supabaseAdmin.from("certificates").select("*").eq("id", certId).single();
+    if (certErr || !certRow) return res.status(404).json({ error: "Certificate not found" });
+    const cert = toCamel(certRow) as any;
 
     if (!cert.r2PdfUrl) return res.status(400).json({ error: "No R2 PDF URL for this certificate" });
 
     const rowData = (cert.rowData as Record<string, string>) || {};
     const { var1Template, var2Template, var3Template } = req.body;
     const phone = extractPhoneNumber(rowData);
-
     if (!phone) return res.status(400).json({ error: "No phone number found for this certificate" });
 
     let var1 = var1Template || cert.recipientName;
@@ -1049,28 +892,29 @@ router.post("/batches/:batchId/certificates/:certId/send-whatsapp", async (req, 
 
     const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
     const wamid = await sendWhatsAppDocument(phone, cert.r2PdfUrl, pdfFilename, var1, var2, var3);
-    await certificatesCollection(batchId).doc(certId).update({
+    await supabaseAdmin.from("certificates").update({
       status: "sent",
-      sentAt: new Date(),
-      errorMessage: null,
-      whatsappMessageId: wamid || null,
-      whatsappStatus: "sent",
-    });
+      sent_at: new Date().toISOString(),
+      error_message: null,
+      whatsapp_message_id: wamid || null,
+      whatsapp_status: "sent",
+    }).eq("id", certId);
+
     if (wamid) {
-      await db.collection("waMessages").doc(wamid).set({ batchId, certId });
+      await supabaseAdmin.from("wa_messages").insert({ wamid, batch_id: batchId, cert_id: certId });
     }
 
-    const certsSnapshot = await certificatesCollection(batchId).get();
-    const sentCount = certsSnapshot.docs.filter((d) => d.data().status === "sent").length;
-    const batchData = (await batchesCollection.doc(batchId).get()).data() as any;
-    await batchesCollection.doc(batchId).update({
-      sentCount,
-      whatsappSentCount: (batchData?.whatsappSentCount || 0) + 1,
-    });
+    const { data: allCerts } = await supabaseAdmin.from("certificates").select("status").eq("batch_id", batchId);
+    const sentCount = (allCerts || []).filter((c: { status: string }) => c.status === "sent").length;
+    const { data: batchData } = await supabaseAdmin.from("batches").select("whatsapp_sent_count").eq("id", batchId).single();
+    await supabaseAdmin.from("batches").update({
+      sent_count: sentCount,
+      whatsapp_sent_count: ((batchData as any)?.whatsapp_sent_count || 0) + 1,
+    }).eq("id", batchId);
 
     return res.json({ success: true, message: `WhatsApp sent to ${phone}` });
   } catch (err: any) {
-    await certificatesCollection(batchId).doc(certId).update({ status: "failed", errorMessage: err.message });
+    await supabaseAdmin.from("certificates").update({ status: "failed", error_message: err.message }).eq("id", certId);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -1084,36 +928,22 @@ router.patch("/batches/:batchId", async (req, res) => {
   const updateData = req.body;
 
   try {
-    const batchRef = batchesCollection.doc(batchId);
-    const batchDoc = await batchRef.get();
-    if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
-    const batch = batchDoc.data() as any;
+    const { data: batch, error } = await supabaseAdmin.from("batches").select("user_id").eq("id", batchId).single();
+    if (error || !batch) return res.status(404).json({ error: "Batch not found" });
+    if (batch.user_id !== userId) return res.status(403).json({ error: "Access denied" });
 
-    if (batch.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
-    }
-
-    const allowedFields = [
-      "name",
-      "sheetId",
-      "sheetName",
-      "tabName",
-      "templateId",
-      "templateName",
-      "columnMap",
-      "emailColumn",
-      "nameColumn",
-      "emailSubject",
-      "emailBody",
-      "categoryColumn",
-      "categorySlideMap",
-      "categorySlideIndexes",
-    ];
+    const fieldMap: Record<string, string> = {
+      name: "name", sheetId: "sheet_id", sheetName: "sheet_name", tabName: "tab_name",
+      templateId: "template_id", templateName: "template_name", columnMap: "column_map",
+      emailColumn: "email_column", nameColumn: "name_column", emailSubject: "email_subject",
+      emailBody: "email_body", categoryColumn: "category_column",
+      categorySlideMap: "category_slide_map", categorySlideIndexes: "category_slide_indexes",
+    };
 
     const finalUpdate: Record<string, any> = {};
-    for (const field of allowedFields) {
-      if (updateData[field] !== undefined) {
-        finalUpdate[field] = updateData[field];
+    for (const [camel, snake] of Object.entries(fieldMap)) {
+      if (updateData[camel] !== undefined) {
+        finalUpdate[snake] = updateData[camel];
       }
     }
 
@@ -1121,7 +951,7 @@ router.patch("/batches/:batchId", async (req, res) => {
       return res.status(400).json({ error: "No valid fields to update" });
     }
 
-    await batchRef.update(finalUpdate);
+    await supabaseAdmin.from("batches").update(finalUpdate).eq("id", batchId);
     return res.json({ success: true, updatedFields: Object.keys(finalUpdate) });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
@@ -1136,61 +966,61 @@ router.delete("/batches/:batchId", async (req, res) => {
   const { batchId } = req.params;
 
   try {
-    const batchDoc = await batchesCollection.doc(batchId).get();
-    if (!batchDoc.exists) return res.status(404).json({ error: "Batch not found" });
-    const batch = batchDoc.data() as any;
+    const { data: batch, error } = await supabaseAdmin.from("batches").select("user_id").eq("id", batchId).single();
+    if (error || !batch) return res.status(404).json({ error: "Batch not found" });
+    if (batch.user_id !== userId) return res.status(403).json({ error: "Access denied" });
 
-    if (batch.userId !== userId) {
-      return res.status(403).json({ error: "Access denied" });
-    }
+    const { data: certsData } = await supabaseAdmin.from("certificates").select("id, r2_pdf_url, recipient_email").eq("batch_id", batchId);
+    const certs = certsData || [];
 
-    const certsSnapshot = await certificatesCollection(batchId).get();
-
+    // Clean up R2 objects
     if (isR2Configured()) {
       const r2PublicBase = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
       const r2Keys: string[] = [];
-      for (const doc of certsSnapshot.docs) {
-        const r2PdfUrl = (doc.data() as any).r2PdfUrl;
-        if (r2PdfUrl && r2PublicBase && r2PdfUrl.startsWith(r2PublicBase + "/")) {
-          r2Keys.push(r2PdfUrl.slice(r2PublicBase.length + 1));
+      for (const cert of certs) {
+        if (cert.r2_pdf_url && r2PublicBase && cert.r2_pdf_url.startsWith(r2PublicBase + "/")) {
+          r2Keys.push(cert.r2_pdf_url.slice(r2PublicBase.length + 1));
         }
       }
       if (r2Keys.length > 0) {
-        try {
-          await deleteR2Objects(r2Keys);
-        } catch (r2Err) {
-          console.error("[R2] Failed to delete objects during batch delete:", r2Err);
-        }
+        try { await deleteR2Objects(r2Keys); }
+        catch (r2Err) { console.error("[R2] Failed to delete objects:", r2Err); }
       }
     }
 
-    for (const doc of certsSnapshot.docs) {
-      const { recipientEmail, id: certId } = { id: doc.id, ...doc.data() } as any;
-      if (!recipientEmail) continue;
+    // Clean up student profile certs and orphaned profiles
+    const certIds = certs.map(c => c.id);
+    if (certIds.length > 0) {
+      // Delete all student_profile_certs for these certs
+      await supabaseAdmin.from("student_profile_certs").delete().in("cert_id", certIds);
+    }
+
+    // Find and delete orphaned student profiles (profiles with no remaining certs)
+    const emailsWithCerts = [...new Set(certs.map(c => c.recipient_email).filter(Boolean))];
+    for (const email of emailsWithCerts) {
       try {
-        const emailKey = (recipientEmail as string).toLowerCase().replace(/[^a-z0-9]/g, "_");
-        const indexDoc = await db.collection("studentProfileIndex").doc(emailKey).get();
-        if (!indexDoc.exists) continue;
-        const slug = indexDoc.data()!.slug as string;
-
-        await db.collection("studentProfiles").doc(slug).collection("certs").doc(certId).delete();
-
-        const remaining = await db.collection("studentProfiles").doc(slug).collection("certs").limit(1).get();
-        if (remaining.empty) {
-          await db.collection("studentProfiles").doc(slug).delete();
-          await db.collection("studentProfileIndex").doc(emailKey).delete();
+        const emailKey = (email as string).toLowerCase().replace(/[^a-z0-9]/g, "_");
+        const { data: indexRow } = await supabaseAdmin
+          .from("student_profile_index")
+          .select("slug")
+          .eq("email_key", emailKey)
+          .maybeSingle();
+        if (!indexRow) continue;
+        const { count } = await supabaseAdmin
+          .from("student_profile_certs")
+          .select("*", { count: "exact", head: true })
+          .eq("profile_slug", indexRow.slug);
+        if (!count || count === 0) {
+          await supabaseAdmin.from("student_profiles").delete().eq("slug", indexRow.slug);
+          await supabaseAdmin.from("student_profile_index").delete().eq("email_key", emailKey);
         }
       } catch (profileErr) {
-        console.error("[PROFILE] cleanup failed for cert", doc.id, profileErr);
+        console.error("[PROFILE] cleanup failed for email", email, profileErr);
       }
     }
 
-    const writeBatch = batchesCollection.firestore.batch();
-    for (const doc of certsSnapshot.docs) {
-      writeBatch.delete(doc.ref);
-    }
-    writeBatch.delete(batchesCollection.doc(batchId));
-    await writeBatch.commit();
+    // Delete the batch — cascades to certificates, cert_index, wa_messages via FK
+    await supabaseAdmin.from("batches").delete().eq("id", batchId);
 
     return res.json({ success: true });
   } catch (err: any) {

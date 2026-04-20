@@ -26,10 +26,11 @@ import {
   QrCode,
   SkipForward,
   Layers,
+  Upload,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { auth } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
 
 const STEPS = [
   "Name Your Template",
@@ -48,14 +49,18 @@ export default function NewTemplate() {
 
   const [templateName, setTemplateName] = useState("");
   const [multiTemplate, setMultiTemplate] = useState(false);
-  const [sourceMode, setSourceMode] = useState<"new" | "existing">("new");
+  const [sourceMode, setSourceMode] = useState<"new" | "existing" | "upload">("new");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [createdTemplate, setCreatedTemplate] = useState<CreatedFile | null>(null);
   const [createdSheet, setCreatedSheet] = useState<CreatedFile | null>(null);
   const [authToken, setAuthToken] = useState<string>("");
+  const [pptxFile, setPptxFile] = useState<File | null>(null);
+  const [uploadingPptx, setUploadingPptx] = useState(false);
+  const [overridePlaceholders, setOverridePlaceholders] = useState<string[] | null>(null);
 
   useEffect(() => {
-    auth.currentUser?.getIdToken().then(token => {
+    supabase.auth.getSession().then(({ data }) => {
+      const token = data.session?.access_token;
       if (token) setAuthToken(token);
     });
   }, []);
@@ -89,7 +94,7 @@ export default function NewTemplate() {
     query: { enabled: false } as any,
   });
 
-  const placeholders = placeholdersRes?.placeholders ?? [];
+  const placeholders = overridePlaceholders ?? placeholdersRes?.placeholders ?? [];
 
   const { mutate: createSheet, isPending: creatingSheet } = useCreateSheet({
     mutation: {
@@ -116,7 +121,41 @@ export default function NewTemplate() {
     }
   };
 
+  const handleUploadPptx = async () => {
+    if (!pptxFile || !templateName.trim()) return;
+    setUploadingPptx(true);
+    try {
+      const buffer = await pptxFile.arrayBuffer();
+      const result = await customFetch<CreatedFile>(
+        `/api/slides/templates/upload?name=${encodeURIComponent(templateName.trim())}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/vnd.openxmlformats-officedocument.presentationml.presentation" },
+          body: buffer,
+        }
+      );
+      setCreatedTemplate(result);
+      // Fetch placeholders directly using new ID (react-query state not yet updated)
+      const phRes = await customFetch<{ placeholders: string[] }>(
+        `/api/slides/${result.id}/placeholders`
+      );
+      if (phRes.placeholders.length > 0) {
+        setOverridePlaceholders(phRes.placeholders);
+        setStep(2);
+      } else {
+        // No placeholders found — let user edit the slide and add them
+        setStep(1);
+        window.open(result.url, "_blank");
+      }
+    } catch (err: any) {
+      toast({ title: "Upload failed", description: err.message, variant: "destructive" });
+    } finally {
+      setUploadingPptx(false);
+    }
+  };
+
   const handleFetchPlaceholders = async () => {
+    setOverridePlaceholders(null);
     const result = await refetchPlaceholders();
     if (result.data?.placeholders?.length === 0) {
       toast({
@@ -248,6 +287,16 @@ export default function NewTemplate() {
                   >
                     Use Existing
                   </button>
+                  <button
+                    onClick={() => setSourceMode("upload")}
+                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+                      sourceMode === "upload"
+                        ? "bg-background shadow-sm text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Upload PPTX
+                  </button>
                 </div>
 
                 {/* Mode toggle */}
@@ -301,6 +350,58 @@ export default function NewTemplate() {
                       inside the slide.{multiTemplate ? " Add different designs on separate slides — each slide can be mapped to a role during batch creation." : " Phone Number and Email columns are always included in the spreadsheet."}
                     </p>
                   </div>
+                ) : sourceMode === "upload" ? (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="upload-name">Template name</Label>
+                      <Input
+                        id="upload-name"
+                        placeholder="e.g. Completion Certificate 2024"
+                        value={templateName}
+                        onChange={(e) => setTemplateName(e.target.value)}
+                        className="h-11"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>PPTX file</Label>
+                      <label
+                        className={`flex flex-col items-center justify-center gap-3 w-full h-32 rounded-xl border-2 border-dashed cursor-pointer transition-all ${
+                          pptxFile
+                            ? "border-primary bg-primary/5"
+                            : "border-border/60 hover:border-primary/40 hover:bg-secondary/40"
+                        }`}
+                      >
+                        <input
+                          type="file"
+                          accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0] ?? null;
+                            setPptxFile(file);
+                            if (file && !templateName.trim()) {
+                              setTemplateName(file.name.replace(/\.pptx$/i, ""));
+                            }
+                          }}
+                        />
+                        {pptxFile ? (
+                          <>
+                            <Upload className="w-6 h-6 text-primary" />
+                            <span className="text-sm font-medium text-foreground text-center px-4 truncate max-w-full">{pptxFile.name}</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="w-6 h-6 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">Click to choose a .pptx file</span>
+                          </>
+                        )}
+                      </label>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Your PPTX will be converted to Google Slides. Placeholders like{" "}
+                      <code className="bg-secondary px-1.5 py-0.5 rounded text-foreground">{"<<Name>>"}</code>{" "}
+                      will be detected automatically.
+                    </p>
+                  </div>
                 ) : (
                   <div className="space-y-4">
                     <Label>Select an existing Google Slide</Label>
@@ -350,20 +451,34 @@ export default function NewTemplate() {
                   </div>
                 )}
 
-                <Button
-                  onClick={handleCreateSlide}
-                  disabled={creatingSlide || (sourceMode === "new" ? !templateName.trim() : !selectedTemplateId)}
-                  className="w-full h-11"
-                >
-                  {creatingSlide ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {sourceMode === "new" ? "Creating…" : "Linking…"}</>
-                  ) : (
-                    <>
-                      <Sparkles className="w-4 h-4 mr-2" /> 
-                      {sourceMode === "new" ? "Create & Open Slide" : "Link & Verify Slide"}
-                    </>
-                  )}
-                </Button>
+                {sourceMode === "upload" ? (
+                  <Button
+                    onClick={handleUploadPptx}
+                    disabled={uploadingPptx || !pptxFile || !templateName.trim()}
+                    className="w-full h-11"
+                  >
+                    {uploadingPptx ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Uploading & converting…</>
+                    ) : (
+                      <><Upload className="w-4 h-4 mr-2" /> Upload & Convert</>
+                    )}
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={handleCreateSlide}
+                    disabled={creatingSlide || (sourceMode === "new" ? !templateName.trim() : !selectedTemplateId)}
+                    className="w-full h-11"
+                  >
+                    {creatingSlide ? (
+                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> {sourceMode === "new" ? "Creating…" : "Linking…"}</>
+                    ) : (
+                      <>
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        {sourceMode === "new" ? "Create & Open Slide" : "Link & Verify Slide"}
+                      </>
+                    )}
+                  </Button>
+                )}
               </CardContent>
             )}
 
@@ -618,6 +733,8 @@ export default function NewTemplate() {
                       setTemplateName("");
                       setCreatedTemplate(null);
                       setCreatedSheet(null);
+                      setPptxFile(null);
+                      setOverridePlaceholders(null);
                     }}
                     className="flex-1 h-11"
                   >

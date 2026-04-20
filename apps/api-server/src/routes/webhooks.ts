@@ -1,12 +1,10 @@
 import { Router } from "express";
-import { db, certificatesCollection } from "@workspace/firebase";
+import { supabaseAdmin } from "@workspace/supabase";
+import { Cashfree, CFEnvironment } from "cashfree-pg";
 
 const router = Router();
 
-import { Cashfree, CFEnvironment } from "cashfree-pg";
-
 const env = process.env.VITE_CASHFREE_ENV === "PRODUCTION" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX;
-
 const cashfree = new Cashfree(
   env,
   process.env.CASHFREE_APP_ID || "",
@@ -31,7 +29,6 @@ router.get("/webhooks/whatsapp", (req, res) => {
 
 // POST /api/webhooks/whatsapp — Meta delivers status updates here
 router.post("/webhooks/whatsapp", async (req, res) => {
-  // Always respond 200 immediately so Meta doesn't retry
   res.sendStatus(200);
 
   try {
@@ -44,32 +41,31 @@ router.post("/webhooks/whatsapp", async (req, res) => {
 
         for (const status of change?.value?.statuses ?? []) {
           const wamid: string = status?.id;
-          const rawStatus: string = status?.status; // sent | delivered | read | failed
+          const rawStatus: string = status?.status;
 
           if (!wamid || !rawStatus) continue;
 
-          // Map Meta status to our status value
-          const waStatus = rawStatus === "read"
-            ? "read"
-            : rawStatus === "delivered"
-            ? "delivered"
-            : rawStatus === "failed"
-            ? "wa_failed"
+          const waStatus = rawStatus === "read" ? "read"
+            : rawStatus === "delivered" ? "delivered"
+            : rawStatus === "failed" ? "wa_failed"
             : null;
 
           if (!waStatus) continue;
 
-          // Look up the cert via the waMessages index
-          const msgDoc = await db.collection("waMessages").doc(wamid).get();
-          if (!msgDoc.exists) continue;
+          const { data: msgRow } = await supabaseAdmin
+            .from("wa_messages")
+            .select("batch_id, cert_id")
+            .eq("wamid", wamid)
+            .maybeSingle();
 
-          const { batchId, certId } = msgDoc.data() as { batchId: string; certId: string };
+          if (!msgRow) continue;
 
-          await certificatesCollection(batchId).doc(certId).update({
-            whatsappStatus: waStatus,
-          });
+          await supabaseAdmin
+            .from("certificates")
+            .update({ whatsapp_status: waStatus })
+            .eq("id", msgRow.cert_id);
 
-          console.log(`[WhatsApp Webhook] wamid=${wamid} status=${waStatus} cert=${certId}`);
+          console.log(`[WhatsApp Webhook] wamid=${wamid} status=${waStatus} cert=${msgRow.cert_id}`);
         }
       }
     }
@@ -86,77 +82,52 @@ router.post("/webhooks/cashfree", async (req, res) => {
     const timestamp = req.headers["x-webhook-timestamp"] as string;
     const rawBody = (req as any).rawBody as string;
 
-    console.log("[Cashfree Webhook] Headers:", { signature, timestamp });
-
     if (!signature || !timestamp || !rawBody) {
-      console.error("[Cashfree Webhook] Missing signature, timestamp, or rawBody");
       return res.status(400).json({ error: "Missing webhook headers/body" });
     }
 
     try {
       (cashfree as any).PGVerifyWebhookSignature(signature, rawBody, timestamp);
-      console.log("[Cashfree Webhook] Signature verified successfully");
     } catch (err: any) {
-      console.error("[Cashfree Webhook] Invalid signature verification failed:", err.message);
+      console.error("[Cashfree Webhook] Invalid signature:", err.message);
       return res.status(401).json({ error: "Invalid signature" });
     }
 
     const payload = req.body;
     console.log("[Cashfree Webhook] Payload type:", payload.type);
-    
-    // Process PAYMENT_SUCCESS_WEBHOOK
+
     if (payload.type === "PAYMENT_SUCCESS_WEBHOOK") {
       const { order, payment, customer_details } = payload.data || {};
-      
+
       if (!order?.order_id || !payment?.payment_status || !customer_details?.customer_id) {
-         console.warn("[Cashfree Webhook] Missing order details, status, or customer in payload:", JSON.stringify(payload, null, 2));
-         return res.status(200).send("OK");
+        console.warn("[Cashfree Webhook] Missing fields in payload");
+        return res.status(200).send("OK");
       }
 
       const orderId = order.order_id;
-      const amount = payment.payment_amount; // Use payment_amount from payment object
-      const customerId = customer_details.customer_id; // customer_details is sibling to order
-      
-      console.log(`[Cashfree Webhook] Processing success for Order: ${orderId}, Amount: ${amount}, User: ${customerId}`);
-      
-      const ledgerRef = db.collection("userProfiles").doc(customerId).collection("ledgers").doc(orderId);
-      const profileRef = db.collection("userProfiles").doc(customerId);
+      const amount = payment.payment_amount;
+      const customerId = customer_details.customer_id;
 
-      await db.runTransaction(async (t) => {
-        const ledgerSnap = await t.get(ledgerRef);
-        if (ledgerSnap.exists) {
-           console.log(`[Cashfree Webhook] Order ${orderId} already processed.`);
-           return;
-        }
+      console.log(`[Cashfree Webhook] Processing: Order=${orderId}, Amount=${amount}, User=${customerId}`);
 
-        const profileSnap = await t.get(profileRef);
-        let currentBalance = 0;
-        if (profileSnap.exists) {
-           const profileData = profileSnap.data();
-           currentBalance = typeof profileData?.currentBalance === 'number' ? profileData.currentBalance : 0;
-        }
-
-        const newBalance = currentBalance + amount;
-
-        t.set(profileRef, { 
-           currentBalance: newBalance 
-        }, { merge: true });
-
-        t.set(ledgerRef, {
-           id: orderId,
-           type: "topup",
-           amount: amount,
-           balanceAfter: newBalance,
-           description: `Wallet top-up (Order: ${orderId})`,
-           metadata: {
-             payment_id: payment.cf_payment_id || null,
-             payment_method: payment.payment_group || null
-           },
-           createdAt: new Date().toISOString()
-        });
+      const { data: rpcResult, error: rpcErr } = await supabaseAdmin.rpc("process_payment", {
+        p_user_id: customerId,
+        p_order_id: orderId,
+        p_amount: amount,
+        p_payment_id: payment.cf_payment_id || null,
+        p_payment_method: payment.payment_group || null,
       });
 
-      console.log(`[Cashfree Webhook] Successfully credited ₹${amount} to ${customerId} (Order: ${orderId})`);
+      if (rpcErr) {
+        console.error("[Cashfree Webhook] RPC error:", rpcErr);
+        return res.status(500).json({ error: "Failed to process payment" });
+      }
+
+      if ((rpcResult as any)?.status === "already_processed") {
+        console.log(`[Cashfree Webhook] Order ${orderId} already processed.`);
+      } else {
+        console.log(`[Cashfree Webhook] Credited ₹${amount} to ${customerId} (Order: ${orderId})`);
+      }
     }
 
     return res.status(200).send("OK");

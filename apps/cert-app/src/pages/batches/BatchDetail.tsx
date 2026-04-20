@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRoute } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -242,6 +242,24 @@ export default function BatchDetail() {
     setIndivWaVar2((batch as any).name || "");
   };
 
+  interface ReportDetail { message: string; phone: string; created_at: string; }
+  const [reportsByCertKey, setReportsByCertKey] = useState<Map<string, ReportDetail>>(new Map());
+  const [activeReport, setActiveReport] = useState<{ cert: any; report: ReportDetail } | null>(null);
+
+  useEffect(() => {
+    const workerUrl = import.meta.env.VITE_WA_WORKER_URL?.replace(/\/$/, '');
+    const token = import.meta.env.VITE_WA_ANALYTICS_TOKEN;
+    if (!workerUrl || !token) return;
+    fetch(`${workerUrl}/reports?token=${token}`)
+      .then(r => r.json())
+      .then((data: { cert_key?: string; message: string; phone: string; created_at: string }[]) => {
+        const map = new Map<string, ReportDetail>();
+        data.filter(r => r.cert_key).forEach(r => map.set(r.cert_key!, { message: r.message, phone: r.phone, created_at: r.created_at }));
+        setReportsByCertKey(map);
+      })
+      .catch(() => {});
+  }, []);
+
   if (isLoading) return <div className="p-8 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>;
   if (!batch) return <div className="p-8 text-center text-muted-foreground">Batch not found</div>;
 
@@ -255,6 +273,19 @@ export default function BatchDetail() {
     setWaVar1(batch.nameColumn ? `<<${batch.nameColumn}>>` : "");
     setWaVar2(batch.name || "");
     setWaModalOpen(true);
+  };
+
+  const getCertKey = (cert: any): string | null => {
+    if (!cert.r2PdfUrl) return null;
+    try { return decodeURIComponent(new URL(cert.r2PdfUrl).pathname.slice(1)); } catch { return null; }
+  };
+  const certHasReport = (cert: any): boolean => {
+    const key = getCertKey(cert);
+    return !!key && reportsByCertKey.has(key);
+  };
+  const getCertReport = (cert: any): ReportDetail | null => {
+    const key = getCertKey(cert);
+    return key ? (reportsByCertKey.get(key) ?? null) : null;
   };
 
   const getStatusColor = (status: string) => {
@@ -420,7 +451,7 @@ export default function BatchDetail() {
                 </TableRow>
               ) : (
                 batch.certificates.map((cert: any) => (
-                  <TableRow key={cert.id} className="hover:bg-muted/50 transition-colors">
+                  <TableRow key={cert.id} className={certHasReport(cert) ? 'bg-foreground text-background [&_*]:text-background [&_*]:border-background hover:bg-foreground' : 'hover:bg-muted/50 transition-colors'}>
                     <TableCell className="text-center">
                       <Checkbox 
                         checked={selectedCertIds.includes(cert.id)}
@@ -436,7 +467,7 @@ export default function BatchDetail() {
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         {cert.recipientName}
-                        {cert.isPaid && <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">Paid</Badge>}
+                        {cert.isPaid && <Badge variant="secondary" className={`text-[10px] px-1 py-0 h-4 ${certHasReport(cert) ? 'bg-background/20 text-background border-background/30' : ''}`}>Paid</Badge>}
                       </div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell text-muted-foreground">{cert.recipientEmail}</TableCell>
@@ -466,7 +497,9 @@ export default function BatchDetail() {
                         )}
                         {cert.whatsappStatus && (
                           <Badge variant="outline" className={
-                            cert.whatsappStatus === 'read'
+                            certHasReport(cert)
+                              ? 'bg-transparent text-background border-background/40'
+                              : cert.whatsappStatus === 'read'
                               ? 'border-blue-400 text-blue-600 bg-blue-50'
                               : cert.whatsappStatus === 'delivered'
                               ? 'border-green-400 text-green-600 bg-green-50'
@@ -480,6 +513,14 @@ export default function BatchDetail() {
                             {cert.whatsappStatus === 'sent' && <MessageCircle className="w-3 h-3 mr-1" />}
                             WA: {cert.whatsappStatus === 'wa_failed' ? 'failed' : cert.whatsappStatus}
                           </Badge>
+                        )}
+                        {getCertReport(cert) && (
+                          <span
+                            onClick={() => setActiveReport({ cert, report: getCertReport(cert)! })}
+                            className="text-[11px] opacity-80 italic normal-case tracking-normal font-normal line-clamp-2 max-w-[220px] cursor-pointer underline underline-offset-2"
+                          >
+                            "{getCertReport(cert)!.message}"
+                          </span>
                         )}
                       </div>
                     </TableCell>
@@ -884,6 +925,45 @@ export default function BatchDetail() {
         </DialogContent>
       </Dialog>
 
+
+      {/* Issue Report Detail */}
+      <Dialog open={!!activeReport} onOpenChange={(open) => { if (!open) setActiveReport(null); }}>
+        <DialogContent className="sm:max-w-[480px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-500" />
+              Issue Report
+            </DialogTitle>
+            <DialogDescription>
+              Submitted by <strong>{activeReport?.cert?.recipientName}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="border border-border p-3 space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Recipient</p>
+                <p className="text-sm font-medium">{activeReport?.cert?.recipientName}</p>
+              </div>
+              <div className="border border-border p-3 space-y-1">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Reported At</p>
+                <p className="text-sm font-medium">
+                  {activeReport?.report?.created_at ? format(new Date(activeReport.report.created_at), 'MMM d, yyyy · HH:mm') : '—'}
+                </p>
+              </div>
+              <div className="border border-border p-3 space-y-1 col-span-2">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Certificate</p>
+                <p className="text-sm font-medium font-mono break-all">
+                  {activeReport?.cert?.r2PdfUrl ? getCertKey(activeReport.cert)?.split('/').pop() : '—'}
+                </p>
+              </div>
+            </div>
+            <div className="border border-border p-4 space-y-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Issue Description</p>
+              <p className="text-sm leading-relaxed">{activeReport?.report?.message}</p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
     </div>
   );

@@ -15,6 +15,7 @@ import VerifyCertificate from "@/pages/VerifyCertificate";
 import StudentProfile from "@/pages/StudentProfile";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
+import Reports from "@/pages/Reports";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -34,6 +35,7 @@ function AuthenticatedRouter() {
         <Route path="/batches/:id" component={BatchDetail} />
         <Route path="/history" component={History} />
         <Route path="/wallet" component={Wallet} />
+        <Route path="/reports" component={Reports} />
         <Route path="/templates/new" component={NewTemplate} />
         <Route component={NotFound} />
       </Switch>
@@ -70,7 +72,7 @@ function ConnectGoogleScreen() {
 }
 
 // App paths that should never be treated as student profile slugs
-const KNOWN_APP_PATHS = ["/login", "/batches", "/history", "/wallet", "/templates", "/auth", "/verify"];
+const KNOWN_APP_PATHS = ["/login", "/batches", "/history", "/wallet", "/templates", "/auth", "/verify", "/reports"];
 
 function AppRouter() {
   const { user, loading, hasGoogleAuth } = useAuth();

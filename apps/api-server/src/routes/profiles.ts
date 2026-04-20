@@ -1,55 +1,41 @@
 import { Router, type IRouter } from "express";
-import { studentProfilesCollection, batchesCollection } from "@workspace/firebase";
+import { supabaseAdmin } from "@workspace/supabase";
 import { requireAuth } from "../middlewares/auth.js";
 
 const router: IRouter = Router();
-
-function serializeTimestamp(value: any): any {
-  if (value && typeof value === "object" && typeof value.toDate === "function") {
-    return value.toDate().toISOString();
-  }
-  return value;
-}
 
 // Public endpoint — no auth required
 router.get("/p/:username", async (req, res) => {
   try {
     const { username } = req.params;
 
-    const profileDoc = await studentProfilesCollection.doc(username).get();
+    const { data: profile, error } = await supabaseAdmin
+      .from("student_profiles")
+      .select("slug, name, email")
+      .eq("slug", username)
+      .single();
 
-    if (!profileDoc.exists) {
-      return res.status(404).json({ error: "Profile not found" });
-    }
+    if (error || !profile) return res.status(404).json({ error: "Profile not found" });
 
-    const profile = profileDoc.data()!;
+    const { data: certsData } = await supabaseAdmin
+      .from("student_profile_certs")
+      .select("*")
+      .eq("profile_slug", username)
+      .order("issued_at", { ascending: false });
 
-    const certsSnapshot = await studentProfilesCollection
-      .doc(username)
-      .collection("certs")
-      .orderBy("issuedAt", "desc")
-      .get();
+    const certificates = (certsData || []).map((row) => ({
+      certId: row.cert_id,
+      batchId: row.batch_id,
+      batchName: row.batch_name,
+      recipientName: row.recipient_name,
+      r2PdfUrl: row.r2_pdf_url ?? null,
+      pdfUrl: row.pdf_url ?? null,
+      slideUrl: row.slide_url ?? null,
+      issuedAt: row.issued_at,
+      status: row.status,
+    }));
 
-    const certificates = certsSnapshot.docs.map((doc) => {
-      const data = doc.data();
-      return {
-        certId: data.certId,
-        batchId: data.batchId,
-        batchName: data.batchName,
-        recipientName: data.recipientName,
-        r2PdfUrl: data.r2PdfUrl ?? null,
-        pdfUrl: data.pdfUrl ?? null,
-        slideUrl: data.slideUrl ?? null,
-        issuedAt: serializeTimestamp(data.issuedAt),
-        status: data.status,
-      };
-    });
-
-    return res.json({
-      slug: profile.slug,
-      name: profile.name,
-      certificates,
-    });
+    return res.json({ slug: profile.slug, name: profile.name, certificates });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -68,32 +54,30 @@ router.patch("/p/:username", requireAuth, async (req, res) => {
       return res.status(400).json({ error: "name is required" });
     }
 
-    const profileDoc = await studentProfilesCollection.doc(username as string).get();
-    if (!profileDoc.exists) {
-      return res.status(404).json({ error: "Profile not found" });
-    }
+    const { data: profile, error: profileErr } = await supabaseAdmin
+      .from("student_profiles")
+      .select("slug")
+      .eq("slug", username)
+      .single();
+    if (profileErr || !profile) return res.status(404).json({ error: "Profile not found" });
 
     // Verify the requesting user issued at least one cert to this student
-    const certsSnapshot = await studentProfilesCollection
-      .doc(username as string)
-      .collection("certs")
-      .get();
+    const { data: authCheck } = await supabaseAdmin
+      .from("student_profile_certs")
+      .select("batches!inner(user_id)")
+      .eq("profile_slug", username)
+      .eq("batches.user_id", userId)
+      .limit(1)
+      .maybeSingle();
 
-    let authorized = false;
-    for (const certDoc of certsSnapshot.docs) {
-      const { batchId } = certDoc.data();
-      const batchDoc = await batchesCollection.doc(batchId).get();
-      if (batchDoc.exists && batchDoc.data()?.userId === userId) {
-        authorized = true;
-        break;
-      }
-    }
-
-    if (!authorized) {
+    if (!authCheck) {
       return res.status(403).json({ error: "You have not issued any certificates to this student" });
     }
 
-    await studentProfilesCollection.doc(username as string).update({ name: name.trim(), updatedAt: new Date() });
+    await supabaseAdmin
+      .from("student_profiles")
+      .update({ name: name.trim(), updated_at: new Date().toISOString() })
+      .eq("slug", username);
 
     return res.json({ success: true, name: name.trim() });
   } catch (err: any) {

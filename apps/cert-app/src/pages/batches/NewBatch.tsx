@@ -19,7 +19,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileSpreadsheet, Presentation, ChevronRight, CheckCircle2, Loader2, Link2, Send, Layers } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { auth } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
 
 const STEPS = [
   "Name & Details",
@@ -61,7 +61,8 @@ export default function NewBatchWizard() {
   const [authToken, setAuthToken] = useState<string>("");
 
   useEffect(() => {
-    auth.currentUser?.getIdToken().then(token => {
+    supabase.auth.getSession().then(({ data }) => {
+      const token = data.session?.access_token;
       if (token) setAuthToken(token);
     });
   }, []);

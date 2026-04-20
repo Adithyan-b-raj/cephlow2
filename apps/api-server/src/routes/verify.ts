@@ -1,52 +1,45 @@
 import { Router, type IRouter } from "express";
-import { batchesCollection, certificatesCollection } from "@workspace/firebase";
+import { supabaseAdmin } from "@workspace/supabase";
 import QRCode from "qrcode";
 import { getR2PublicUrl } from "../lib/cloudflareR2.js";
 
 const router: IRouter = Router();
-
-function serializeTimestamp(value: any): any {
-  if (value && typeof value === "object" && typeof value.toDate === "function") {
-    return value.toDate().toISOString();
-  }
-  return value;
-}
 
 // Public endpoint — no auth required
 router.get("/verify/:batchId/:certId", async (req, res) => {
   try {
     const { batchId, certId } = req.params;
 
-    const [certDoc, batchDoc] = await Promise.all([
-      certificatesCollection(batchId).doc(certId).get(),
-      batchesCollection.doc(batchId).get(),
-    ]);
+    const { data, error } = await supabaseAdmin
+      .from("certificates")
+      .select("*, batches(name)")
+      .eq("id", certId)
+      .eq("batch_id", batchId)
+      .single();
 
-    if (!certDoc.exists || !batchDoc.exists) {
+    if (error || !data) {
       res.status(404).json({ error: "Certificate not found" });
       return;
     }
 
-    const cert = certDoc.data()!;
-    const batch = batchDoc.data()!;
+    const { batches, ...cert } = data as any;
 
-    // For old certs that predate r2PdfUrl storage, reconstruct from the known key pattern
-    let r2PdfUrl = cert.r2PdfUrl || null;
-    if (!r2PdfUrl && cert.recipientName) {
-      const safeName = cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_");
+    let r2PdfUrl = cert.r2_pdf_url || null;
+    if (!r2PdfUrl && cert.recipient_name) {
+      const safeName = cert.recipient_name.replace(/[^a-zA-Z0-9]/g, "_");
       const reconstructedKey = `${safeName}/${safeName}_certificate.pdf`;
       r2PdfUrl = getR2PublicUrl(reconstructedKey);
     }
 
     res.json({
       id: certId,
-      recipientName: cert.recipientName,
+      recipientName: cert.recipient_name,
       status: cert.status,
-      batchName: batch.name,
-      issuedAt: serializeTimestamp(cert.sentAt) || serializeTimestamp(cert.createdAt),
+      batchName: batches?.name,
+      issuedAt: cert.sent_at || cert.created_at,
       r2PdfUrl,
-      pdfUrl: cert.pdfUrl || null,
-      slideUrl: cert.slideUrl || null,
+      pdfUrl: cert.pdf_url || null,
+      slideUrl: cert.slide_url || null,
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -57,16 +50,10 @@ router.get("/verify/:batchId/:certId", async (req, res) => {
 router.get("/verify/:batchId/:certId/qr", async (req, res) => {
   try {
     const { batchId, certId } = req.params;
-
     const baseUrl = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
     const verifyUrl = `${baseUrl}/verify/${batchId}/${certId}`;
 
-    const qrBuffer = await QRCode.toBuffer(verifyUrl, {
-      type: "png",
-      width: 300,
-      margin: 2,
-    });
-
+    const qrBuffer = await QRCode.toBuffer(verifyUrl, { type: "png", width: 300, margin: 2 });
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "public, max-age=86400");
     res.send(qrBuffer);

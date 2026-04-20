@@ -1,6 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
-import { onAuthStateChanged } from "firebase/auth";
-import { auth, signInWithGoogle, signOut, type User } from "@/lib/firebase";
+import { supabase, signInWithGoogle, signOut, type User } from "@/lib/supabase";
 import { setAuthTokenProvider, setBaseUrl } from "@workspace/api-client-react";
 
 interface AuthContextType {
@@ -14,30 +13,29 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
+async function getAccessToken(): Promise<string | null> {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
     const [hasGoogleAuth, setHasGoogleAuth] = useState(false);
 
-    // Configure the API client to send the Firebase ID token on every request
     useEffect(() => {
         const apiUrl = import.meta.env.VITE_API_URL;
         if (apiUrl) setBaseUrl(apiUrl);
-
-        setAuthTokenProvider(async () => {
-            const currentUser = auth.currentUser;
-            return currentUser ? currentUser.getIdToken() : null;
-        });
+        setAuthTokenProvider(getAccessToken);
     }, []);
 
-    // Check Google connection status after login
     const checkGoogleAuth = useCallback(async () => {
         try {
-            const idToken = await auth.currentUser?.getIdToken();
-            if (!idToken) return;
+            const token = await getAccessToken();
+            if (!token) return;
             const apiUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "";
             const res = await fetch(`${apiUrl}/api/auth/google/status`, {
-                headers: { Authorization: `Bearer ${idToken}` },
+                headers: { Authorization: `Bearer ${token}` },
             });
             if (res.ok) {
                 const data = await res.json();
@@ -49,16 +47,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, []);
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-            setUser(firebaseUser);
+        // Load initial session (handles OAuth redirect token exchange automatically)
+        supabase.auth.getSession().then(({ data }) => {
+            setUser(data.session?.user ?? null);
             setLoading(false);
-            if (firebaseUser) {
-                await checkGoogleAuth();
+            if (data.session?.user) checkGoogleAuth();
+        });
+
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            setUser(session?.user ?? null);
+            setLoading(false);
+            if (session?.user) {
+                checkGoogleAuth();
             } else {
                 setHasGoogleAuth(false);
             }
         });
-        return unsubscribe;
+
+        return () => subscription.unsubscribe();
     }, [checkGoogleAuth]);
 
     // Handle ?google_auth=success/error redirect from the OAuth callback
@@ -80,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const login = async () => {
         await signInWithGoogle();
+        // Page redirects to Google — no return value
     };
 
     const logout = async () => {
@@ -88,13 +95,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setHasGoogleAuth(false);
     };
 
-    // Redirect user to Google OAuth consent screen to grant API access
     const connectGoogle = async () => {
-        const idToken = await auth.currentUser?.getIdToken();
-        if (!idToken) return;
+        const token = await getAccessToken();
+        if (!token) return;
         const apiUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "";
         const res = await fetch(`${apiUrl}/api/auth/google/url`, {
-            headers: { Authorization: `Bearer ${idToken}` },
+            headers: { Authorization: `Bearer ${token}` },
         });
         if (res.ok) {
             const { url } = await res.json();
@@ -111,8 +117,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 export function useAuth() {
     const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error("useAuth must be used within an AuthProvider");
-    }
+    if (!context) throw new Error("useAuth must be used within an AuthProvider");
     return context;
 }

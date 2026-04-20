@@ -12,7 +12,7 @@
   ],
   "references": [
     {
-      "path": "../../packages/firebase"
+      "path": "../../packages/supabase"
     },
     {
       "path": "../../packages/api-zod"
