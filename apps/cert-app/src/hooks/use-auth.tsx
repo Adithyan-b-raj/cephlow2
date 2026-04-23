@@ -1,12 +1,13 @@
 import { createContext, useContext, useEffect, useState, useCallback, type ReactNode } from "react";
-import { supabase, signInWithGoogle, signOut, type User } from "@/lib/supabase";
+import { supabase, signInWithPassword, signUpWithPassword, signOut, type User } from "@/lib/supabase";
 import { setAuthTokenProvider, setBaseUrl } from "@workspace/api-client-react";
 
 interface AuthContextType {
     user: User | null;
     loading: boolean;
     hasGoogleAuth: boolean;
-    login: () => Promise<void>;
+    login: (email: string, password: string) => Promise<void>;
+    signup: (email: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
     connectGoogle: () => Promise<void>;
 }
@@ -54,12 +55,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (data.session?.user) checkGoogleAuth();
         });
 
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
             setUser(session?.user ?? null);
             setLoading(false);
-            if (session?.user) {
+            if (session?.user && (event === "SIGNED_IN" || event === "USER_UPDATED")) {
                 checkGoogleAuth();
-            } else {
+            } else if (!session?.user) {
                 setHasGoogleAuth(false);
             }
         });
@@ -84,9 +85,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, []);
 
-    const login = async () => {
-        await signInWithGoogle();
-        // Page redirects to Google — no return value
+    const login = async (email: string, password: string) => {
+        await signInWithPassword(email, password);
+    };
+
+    const signup = async (email: string, password: string) => {
+        await signUpWithPassword(email, password);
     };
 
     const logout = async () => {
@@ -109,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, hasGoogleAuth, login, logout, connectGoogle }}>
+        <AuthContext.Provider value={{ user, loading, hasGoogleAuth, login, signup, logout, connectGoogle }}>
             {children}
         </AuthContext.Provider>
     );

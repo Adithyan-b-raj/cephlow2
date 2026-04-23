@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { jwtVerify, createRemoteJWKSet } from "jose";
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -14,13 +15,32 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-// Verify a Supabase JWT and return uid + email (replaces firebase auth.verifyIdToken)
+const jwks = createRemoteJWKSet(new URL(`${supabaseUrl}/auth/v1/.well-known/jwks.json`));
+
+// Verify a Supabase JWT — tries JWKS (new RS256 keys) then falls back to legacy HMAC secret
 export async function verifySupabaseJwt(token: string): Promise<{ uid: string; email?: string }> {
-  const { data, error } = await supabaseAdmin.auth.getUser(token);
-  if (error || !data.user) {
-    throw new Error("Invalid or expired token");
+  // Try new asymmetric signing keys (JWKS) first
+  try {
+    const { payload } = await jwtVerify(token, jwks);
+    const uid = payload.sub as string | undefined;
+    if (uid) return { uid, email: payload["email"] as string | undefined };
+  } catch {
+    // fall through to legacy secret
   }
-  return { uid: data.user.id, email: data.user.email };
+
+  // Fall back to legacy HMAC secret
+  const secret = process.env.SUPABASE_JWT_SECRET;
+  if (secret) {
+    try {
+      const { payload } = await jwtVerify(token, new TextEncoder().encode(secret));
+      const uid = payload.sub as string | undefined;
+      if (uid) return { uid, email: payload["email"] as string | undefined };
+    } catch {
+      // fall through
+    }
+  }
+
+  throw new Error("Invalid or expired token");
 }
 
 // Convert snake_case DB row to camelCase for API responses

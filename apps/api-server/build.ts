@@ -51,19 +51,28 @@ async function buildAll() {
       !(pkg.dependencies?.[dep]?.startsWith("workspace:")),
   );
 
-  await esbuild({
-    entryPoints: [path.resolve(__dirname, "src/index.ts")],
-    platform: "node",
+  const sharedOptions = {
+    platform: "node" as const,
     bundle: true,
-    format: "cjs",
-    outfile: path.resolve(distDir, "index.cjs"),
-    define: {
-      "process.env.NODE_ENV": '"production"',
-    },
+    format: "cjs" as const,
+    define: { "process.env.NODE_ENV": '"production"' },
     minify: true,
     external: externals,
-    logLevel: "info",
-  });
+    logLevel: "info" as const,
+  };
+
+  await Promise.all([
+    esbuild({
+      ...sharedOptions,
+      entryPoints: [path.resolve(__dirname, "src/index.ts")],
+      outfile: path.resolve(distDir, "index.cjs"),
+    }),
+    esbuild({
+      ...sharedOptions,
+      entryPoints: [path.resolve(__dirname, "src/worker.ts")],
+      outfile: path.resolve(distDir, "worker.cjs"),
+    }),
+  ]);
 }
 
 buildAll().catch((err) => {

@@ -133,6 +133,10 @@ export default {
         await handleGreet(phone, env);
         ctx.waitUntil(logInteraction(env, { phone, action: 'greet' }));
 
+      } else if (action === 'vote_scale') {
+        await handleVoteScale(phone, env);
+        ctx.waitUntil(logInteraction(env, { phone, action: 'vote_scale' }));
+
       } else if (action === 'report_issue') {
         await handleReportIssue(phone, folder, env);
         ctx.waitUntil(logInteraction(env, { phone, action: 'report_issue' }));
@@ -174,20 +178,25 @@ export default {
 // Handlers
 // ────────────────────────────────────────────────────────────────────
 
-/** Send the greeting menu with three buttons */
+/** Send the greeting menu as a list (supports more than 3 options) */
 async function handleGreet(phone, env) {
   await waPost({
     to: phone,
     type: 'interactive',
     interactive: {
-      type: 'button',
+      type: 'list',
       body: { text: 'Hi 👋\n\nWhat do you want to do?' },
       action: {
-        buttons: [
-          { type: 'reply', reply: { id: 'send_all',      title: 'Send all cert'   } },
-          { type: 'reply', reply: { id: 'search_cert',   title: 'Search a cert'   } },
-          { type: 'reply', reply: { id: 'report_issue',  title: '⚠️ Report Issue'  } },
-        ]
+        button: 'Choose',
+        sections: [{
+          title: 'OPTIONS',
+          rows: [
+            { id: 'send_all',     title: '📄 Send all certs',   description: 'Receive all your certificates' },
+            { id: 'search_cert',  title: '🔍 Search a cert',    description: 'Browse and pick one certificate' },
+            { id: 'report_issue', title: '⚠️ Report Issue',     description: 'Something wrong with a cert?' },
+            { id: 'vote_scale',   title: '🚀 Vote to Scale',    description: 'Support & upvote this project!' },
+          ]
+        }]
       }
     }
   }, env);
@@ -259,6 +268,37 @@ async function handleReportText(phone, certKey, text, env) {
     to: phone, type: 'text',
     text: { body: `✅ Thanks! Your issue with *${certName}* has been reported. Our team will review it shortly.` }
   }, env);
+}
+
+/** Record a student's vote to scale the project (one per phone) */
+async function handleVoteScale(phone, env) {
+  await ensureSchema(env);
+
+  let isNew = false;
+  if (env.DB) {
+    const existing = await env.DB.prepare(
+      'SELECT 1 FROM votes WHERE phone = ?'
+    ).bind(phone).first();
+
+    if (!existing) {
+      await env.DB.prepare(
+        'INSERT INTO votes (phone, created_at) VALUES (?, ?)'
+      ).bind(phone, new Date().toISOString()).run();
+      isNew = true;
+    }
+
+    const { total } = await env.DB.prepare(
+      'SELECT COUNT(*) as total FROM votes'
+    ).first();
+
+    const msg = isNew
+      ? `🚀 *Your vote is in!* Thank you for supporting Cephlow!\n\n*${total}* student${total === 1 ? '' : 's'} have voted to scale this project. We're building something great together! 💪`
+      : `✅ You've already voted!\n\n*${total}* student${total === 1 ? '' : 's'} have voted to scale Cephlow so far. Thank you for your support! 🙏`;
+
+    await waPost({ to: phone, type: 'text', text: { body: msg } }, env);
+  } else {
+    await waPost({ to: phone, type: 'text', text: { body: '🚀 Thanks for your support! We\'re working hard to scale Cephlow.' } }, env);
+  }
 }
 
 /** List all files in the folder and send each as a document */
@@ -406,6 +446,12 @@ async function ensureSchema(env) {
       created_at TEXT NOT NULL
     )
   `).run();
+  await env.DB.prepare(`
+    CREATE TABLE IF NOT EXISTS votes (
+      phone      TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL
+    )
+  `).run();
   // Add cert_key to existing tables that may not have it yet
   await env.DB.prepare(`ALTER TABLE reports ADD COLUMN cert_key TEXT`).run().catch(() => {});
   await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_created_at ON interactions(created_at)`).run();
@@ -434,7 +480,7 @@ async function handleAnalytics(env) {
   try {
     await ensureSchema(env);
 
-    const [summary, today, thisWeek, daily, monthly, yearly, actions, recent] = await Promise.all([
+    const [summary, today, thisWeek, daily, monthly, yearly, actions, recent, voteCount] = await Promise.all([
       // All-time totals
       env.DB.prepare(`
         SELECT COUNT(*) as total_interactions,

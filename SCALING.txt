@@ -1,0 +1,289 @@
+CEPHLOW SCALING NOTES
+=====================
+Written: April 2026
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CURRENT ARCHITECTURE BOTTLENECKS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. EXPRESS SERVER HOLDING LONG HTTP CONNECTIONS ❌
+   - When a user clicks "Generate", the HTTP request stays open
+     until ALL certificates are done (can take 25+ minutes for 500 certs)
+   - 5000 users generating simultaneously = 5000 open connections
+   - Server runs out of memory and crashes
+   - This is the ONLY real bottleneck
+
+2. GOOGLE API QUOTA ✅ NOT A PROBLEM
+   - Every API call (Slides, Drive, Sheets) uses the USER's OAuth token
+   - Each user has their own independent quota (60 writes/min)
+   - 5000 users generating = 5000 separate Google quotas
+   - Your Google Cloud project quota is never touched during generation
+   - Per user: ~20 certs/minute (limited by 60 writes/min quota)
+   - 500 cert batch = ~25 minutes per user
+
+3. SUPABASE CONNECTIONS ✅ NOT A PROBLEM
+   - You use the Supabase JS client which talks over HTTP (PostgREST)
+   - Does NOT use raw PostgreSQL TCP connections
+   - Connection pool limits don't apply to the JS client
+   - Would only matter if you switched to pg/prisma direct connections
+
+4. CLOUDFLARE R2 ✅ NOT A PROBLEM
+   - Scales infinitely, zero egress fees
+   - No rate limits that affect certificate generation
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+COST PER CERTIFICATE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Without WhatsApp:  ~₹0.10 - ₹0.30 per cert
+With WhatsApp:     ~₹0.45 - ₹0.65 per cert (WhatsApp = ₹0.35/msg)
+Current charge:    ₹1 per cert
+
+Margin without WhatsApp: ~70-90%
+Margin with WhatsApp:    ~35-55%
+
+Recommendation: Charge WhatsApp sending separately (e.g. ₹0.50 extra)
+instead of bundling into generation cost.
+
+Fixed monthly costs:
+- Render API server:  ~₹600/month
+- Supabase Pro:       ~₹2,100/month (needed for daily backups)
+- Cloudflare R2:      ~₹0 at current scale
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+THINGS THAT NEED TO BE DONE (PRIORITY ORDER)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CRITICAL (before onboarding real orgs)
+---------------------------------------
+[ ] 1. ORG-ONLY ACCESS
+        - No public signups — anyone can currently create fake certificates
+        - Add a whitelist table (allowed_emails or allowed_domains)
+        - Only whitelisted emails can log in
+        - Admin (you) manually adds orgs
+
+[ ] 2. EMAIL LOGIN
+        - Replace double Google login UX (login + connect Google = confusing)
+        - Use email + password OR magic link for authentication
+        - Keep "Connect Google" as a separate step in settings (for Drive access)
+        - Supabase supports both out of the box
+
+[ ] 3. MIGRATE SELECTED FIRESTORE BATCHES
+        - Run: npx tsx --env-file=.env scripts/migrate-selected-batches.ts
+        - Batches to migrate:
+            * Prototype 2.0
+            * Xcepthon Coordinator
+            * Xcepthon Winners
+            * Xcepthon honors cert
+            * Xcepthon Participants cert
+        - Wait for Firebase quota reset (midnight Pacific Time) before running
+        - Script is idempotent — safe to re-run if it fails
+
+RELIABILITY
+---------------------------------------
+[ ] 4. JOB QUEUE (fixes the 5000 concurrent users problem)
+        - Install BullMQ + Redis
+        - When user clicks Generate: add job to queue, return immediately
+        - Background worker processes certs one by one
+        - Frontend polls GET /batches/:id for progress (already returns status)
+        - Prevents server crash under load
+        - Render: add a Redis instance ($10/mo) + second worker service
+        - Oracle Free: run Redis + workers on the same free VM
+
+[ ] 5. ERROR MONITORING
+        - Add Sentry (free tier) to api-server and cert-app
+        - Know when things break before users tell you
+        - npm install @sentry/node @sentry/react
+
+[ ] 6. SUPABASE PRO ($25/month)
+        - Daily automated backups (7 days retention)
+        - Losing production data is catastrophic
+        - Free tier has NO backups
+
+[ ] 7. RATE LIMITING
+        - Add express-rate-limit to API server
+        - Prevent abuse / runaway generation requests
+        - npm install express-rate-limit
+
+BUSINESS
+---------------------------------------
+[ ] 8. PAYMENT RECEIPTS
+        - Send email receipt after every wallet top-up
+        - Cashfree webhook already handled — just add email sending
+
+[ ] 9. ADMIN PANEL
+        - Page showing all orgs, their usage, balance, certs generated
+        - You need visibility into what's happening in production
+
+[ ] 10. SEPARATE WHATSAPP PRICING
+        - Currently bundled into ₹1/cert generation cost
+        - WhatsApp costs ₹0.35/send — eating 35% of revenue
+        - Add separate ₹0.50 charge per WhatsApp send
+
+LEGAL (before any paying customer)
+---------------------------------------
+[ ] 11. TERMS OF SERVICE + PRIVACY POLICY
+        - One page each, use a generator (termly.io or similar)
+        - Required for any real organisation to sign up
+
+[ ] 12. DATA DELETION / EXPORT
+        - DPDP Act (India) compliance
+        - Users must be able to delete their account and export their data
+
+GROWTH
+---------------------------------------
+[ ] 13. ONBOARDING FLOW
+        - After org gets access: guided setup
+        - Step 1: Connect Google account
+        - Step 2: Create first batch
+        - Step 3: Generate a test certificate
+
+[ ] 14. CERTIFICATE PREVIEW
+        - Let orgs preview one certificate before bulk generating
+        - Reduces failed generations and wasted wallet balance
+
+[ ] 15. PROGRESS BAR FOR GENERATION
+        - Currently no visual feedback during long generation jobs
+        - Poll GET /batches/:id every 3 seconds, show generated_count/total_count
+        - Critical UX improvement especially for large batches
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INFRASTRUCTURE OPTIONS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CURRENT: Render
+- $7/month for API server
+- Easy deploys, auto-SSL
+- Limited RAM/CPU, spins down on free tier
+- Fine for current scale
+
+UPGRADE OPTION: Oracle Cloud Always Free
+- $0 forever
+- 4 ARM CPUs, 24GB RAM
+- Run API server + Redis + BullMQ workers all free
+- 10TB bandwidth/month
+- Tradeoff: manual server management (nginx, SSL, pm2, firewall)
+- Best choice if comfortable with Linux
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+INTERVIEW TALKING POINTS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- Migrated production DB from Firebase Firestore (NoSQL) to Supabase PostgreSQL
+- Atomic wallet deductions using PostgreSQL RPCs (PL/pgSQL transactions)
+- Payment idempotency via order ID as primary key in ledgers table
+- Google API quota scales per-user (not centralized) — each org uses their own quota
+- Supabase JS client uses PostgREST (HTTP) — no connection pool issues
+- Certificate generation: ~20 certs/minute per user (Google API bound)
+- R2 for PDF storage: zero egress fees, permanent public URLs for QR codes
+
+
+
+How it works now (the problem):
+
+
+User clicks Generate
+       ↓
+API server starts generating cert 1... cert 2... cert 3... (25 mins)
+       ↓
+Response sent after ALL done
+User waits 25 mins, connection stays open the whole time.
+
+How job queue works:
+
+
+User clicks Generate
+       ↓
+API adds job to queue → instantly responds "generation started"
+       ↓
+Separate worker process picks up the job
+       ↓
+Worker generates cert 1... cert 2... cert 3... (in background)
+       ↓
+Frontend polls "how many done?" every 3 seconds → shows progress bar
+Simple analogy:
+
+Think of a restaurant. Currently your waiter (server) goes to the kitchen, cooks the food himself, then comes back — blocking all other customers. With a job queue, the waiter takes the order, passes it to the kitchen (worker), and immediately goes to serve the next customer. Kitchen works in the background.
+
+The tech:
+
+BullMQ — the queue manager (holds jobs, retries failures)
+Redis — where the queue is stored (BullMQ needs Redis)
+Worker — a separate Node.js process that reads from the queue and does the actual generation
+What changes in your code:
+
+POST /batches/:id/generate — instead of generating, just adds a job:
+
+
+await generationQueue.add('generate', { batchId, userId })
+res.json({ status: 'started' })
+New worker.ts file — does the actual generation:
+
+
+worker.process('generate', async (job) => {
+  const { batchId, userId } = job.data
+  // all the current generation code goes here
+})
+Frontend — polls every 3 seconds:
+
+
+// already works — just call GET /batches/:id
+// check generatedCount vs totalCount
+
+
+
+Features that drive adoption:
+
+1. Bulk WhatsApp with custom message
+
+Colleges want to send personalised messages, not just "here's your cert"
+Let them write a custom template with variables like {{name}}, {{event}}
+2. Certificate verification page that looks professional
+
+Right now /verify/:batchId/:certId exists but how does it look?
+Colleges share this link publicly — it needs to look legit and trustworthy
+Add org logo, event name, issue date, "Verified by Cephlow" badge
+3. QR code on the certificate itself
+
+Already partially built but make it dead simple to add
+Every college wants "scan to verify" on their certs
+4. Bulk email sending
+
+Not everyone uses WhatsApp for formal certs
+Gmail API already integrated — just expose it properly
+5. Certificate analytics
+
+How many people opened/viewed their certificate
+How many verified it
+Colleges love showing this to their management
+6. Multiple templates per batch (categories)
+
+First place / Second place / Participant — different designs
+Already partially built (categoryTemplateMap) — just needs better UI
+7. Download all certificates as ZIP
+
+Colleges always ask "can I download everything at once"
+What makes colleges CHOOSE you over alternatives:
+
+8. Free tier for small events
+
+Under 50 certs = free
+Gets student clubs hooked, they bring it to the college admin
+9. Org branding
+
+Upload college logo, set primary color
+Certificates and verification page show their branding
+10. One-click certificate sharing to LinkedIn
+
+Students love adding certificates to LinkedIn
+Add a "Share on LinkedIn" button on the student profile page
+LinkedIn has a direct certificate add API
+11. Event landing page
+
+Public page for each batch: cephlow.com/e/xcepthon-2025
+Shows event name, date, participating count
+Students can find and claim their certificate by searching their name
+12. WhatsApp bot (you already have this)
+
+Students message the bot to get their certificate
+This is a huge differentiator — no other tool does this

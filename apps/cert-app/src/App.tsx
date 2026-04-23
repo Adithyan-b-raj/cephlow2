@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Switch, Route, Router as WouterRouter, useRoute, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -16,6 +17,7 @@ import StudentProfile from "@/pages/StudentProfile";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/not-found";
 import Reports from "@/pages/Reports";
+import Landing from "@/pages/Landing";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -45,6 +47,18 @@ function AuthenticatedRouter() {
 
 function ConnectGoogleScreen() {
   const { connectGoogle, logout } = useAuth();
+  const [connecting, setConnecting] = useState(false);
+
+  const handleConnect = async () => {
+    if (connecting) return;
+    setConnecting(true);
+    try {
+      await connectGoogle();
+    } catch {
+      setConnecting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-6 p-8">
       <div className="text-center space-y-2">
@@ -55,10 +69,11 @@ function ConnectGoogleScreen() {
       </div>
       <div className="flex flex-col gap-3 w-full max-w-xs">
         <button
-          onClick={connectGoogle}
-          className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90"
+          onClick={handleConnect}
+          disabled={connecting}
+          className="w-full rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-60"
         >
-          Connect Google Account
+          {connecting ? "Redirecting..." : "Connect Google Account"}
         </button>
         <button
           onClick={logout}
@@ -97,7 +112,10 @@ function AppRouter() {
     );
   }
 
-  if (!user) return <Login />;
+  if (!user) {
+    if (location === "/") return <Landing />;
+    return <Login />;
+  }
   if (!hasGoogleAuth) return <ConnectGoogleScreen />;
 
   return (

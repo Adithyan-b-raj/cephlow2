@@ -4,6 +4,8 @@ const port = Number(process.env["PORT"]) || 3000;
 
 app.listen(port, () => {
   console.log(`Server listening on port ${port}`);
+  const jwt = process.env.SUPABASE_JWT_SECRET;
+  console.log("[JWT] Secret loaded:", jwt ? `${jwt.slice(0, 8)}... (${jwt.length} chars)` : "MISSING");
   console.log("[R2] Config check:", {
     R2_ACCOUNT_ID: !!process.env.R2_ACCOUNT_ID,
     R2_ACCESS_KEY_ID: !!process.env.R2_ACCESS_KEY_ID,

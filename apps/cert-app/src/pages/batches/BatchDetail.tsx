@@ -8,6 +8,7 @@ import {
   getGetBatchQueryKey,
   useSendBatchWhatsapp,
   useSendCertEmail,
+  useOpenCertSlide,
   useSendCertWhatsapp,
   useGenerateSmartBatch,
   useSyncBatch,
@@ -207,6 +208,26 @@ export default function BatchDetail() {
   const [indivWaVar1, setIndivWaVar1] = useState("");
   const [indivWaVar2, setIndivWaVar2] = useState("");
   const [indivWaVar3, setIndivWaVar3] = useState("<<EmailPrefix>>");
+
+  const [openingSlideCertId, setOpeningSlideCertId] = useState<string | null>(null);
+  const { mutateAsync: openCertSlideAsync } = useOpenCertSlide();
+
+  const handleOpenSlide = async (cert: any) => {
+    if (cert.slideUrl) {
+      window.open(cert.slideUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    try {
+      setOpeningSlideCertId(cert.id);
+      const res = await openCertSlideAsync({ batchId, certId: cert.id });
+      refetch();
+      if (res?.slideUrl) window.open(res.slideUrl, "_blank", "noopener,noreferrer");
+    } catch (err: any) {
+      toast({ title: "Open Slides failed", description: err?.message || err?.data?.error, variant: "destructive" });
+    } finally {
+      setOpeningSlideCertId(null);
+    }
+  };
 
   const { mutate: sendOneCertEmail, isPending: isSendingOne } = useSendCertEmail({
     mutation: {
@@ -529,9 +550,18 @@ export default function BatchDetail() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex flex-wrap items-center justify-end gap-1.5">
-                        {cert.slideUrl && (
-                          <Button variant="ghost" size="sm" asChild className="hover-elevate">
-                            <a href={`${cert.slideUrl}${cert.slideUrl.includes('?') ? '&' : '?'}v=${cert.updatedAt ? encodeURIComponent(cert.updatedAt) : Date.now()}`} target="_blank" rel="noopener noreferrer">Slides</a>
+                        {(cert.status === 'generated' || cert.status === 'sent') && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="hover-elevate"
+                            disabled={openingSlideCertId === cert.id}
+                            onClick={() => handleOpenSlide(cert)}
+                          >
+                            {openingSlideCertId === cert.id ? (
+                              <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                            ) : null}
+                            Slides
                           </Button>
                         )}
                         {(cert.r2PdfUrl || cert.pdfUrl) && (

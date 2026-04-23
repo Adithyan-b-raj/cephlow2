@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file=../../.env ./src/index.ts",
+    "worker": "tsx watch --env-file=../../.env ./src/worker.ts",
     "build": "tsx ./build.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
@@ -13,11 +14,15 @@
     "@aws-sdk/client-s3": "^3.1010.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/supabase": "workspace:*",
+    "bullmq": "^5.76.1",
     "cashfree-pg": "^5.1.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
     "express": "^5",
+    "express-rate-limit": "^8.4.0",
     "googleapis": "^148.0.0",
+    "ioredis": "^5.10.1",
+    "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4"
   },
   "devDependencies": {

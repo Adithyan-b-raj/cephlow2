@@ -80,6 +80,32 @@ export async function uploadPdfToR2(
 }
 
 /**
+ * Upload an arbitrary buffer (image, etc.) to R2 with a custom content type.
+ * Returns the R2 object key.
+ */
+export async function uploadBufferToR2(
+  key: string,
+  buffer: Buffer,
+  contentType: string
+): Promise<string> {
+  const config = getConfig();
+  if (!config.accountId || !config.accessKeyId || !config.secretAccessKey || !config.bucketName) {
+    throw new Error("Cloudflare R2 credentials are not fully configured");
+  }
+  const client = getR2Client(config);
+  const safeKey = key.replace(/[^a-zA-Z0-9+\-_./]/g, "_");
+  await client.send(
+    new PutObjectCommand({
+      Bucket: config.bucketName,
+      Key: safeKey,
+      Body: buffer,
+      ContentType: contentType,
+    })
+  );
+  return safeKey;
+}
+
+/**
  * Copy an existing R2 object to a new key.
  */
 export async function copyR2Object(sourceKey: string, destKey: string): Promise<void> {

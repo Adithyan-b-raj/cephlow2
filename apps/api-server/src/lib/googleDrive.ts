@@ -2,6 +2,7 @@ import { google } from "googleapis";
 import { Readable } from "stream";
 import QRCode from "qrcode";
 import { getAuthClientForUser } from "./googleAuth.js";
+import { uploadBufferToR2, getR2PublicUrl, isR2Configured, deleteR2Objects } from "./cloudflareR2.js";
 
 export async function getDriveClient(uid: string) {
   const auth = await getAuthClientForUser(uid);
@@ -545,6 +546,279 @@ export async function generateCertificate(
     fileId,
     url: `https://docs.google.com/presentation/d/${fileId}`,
   };
+}
+
+export interface BatchCertInput {
+  certId: string;
+  recipientName: string;
+  replacements: Record<string, string>;
+  qrCodeUrl: string;
+}
+
+export interface BatchCertResult {
+  certId: string;
+  pdfBuffer: Buffer;
+}
+
+const EMU_PER_PT = 12700;
+const CHAR_WIDTH_FACTOR = 0.62;
+const DEFAULT_INSET_EMU = 91440;
+const SLIDES_BATCH_LIMIT = 500; // max requests per batchUpdate call
+
+function getEffectiveLength(text: string): number {
+  let len = 0;
+  for (const char of text) {
+    if (['W', 'M'].includes(char)) len += 1.4;
+    else if (/[A-Z]/.test(char)) len += 1.2;
+    else if (['w', 'm'].includes(char)) len += 1.2;
+    else if (['i', 'j', 'l', 'f', '1', '.', ',', ';', ':', "'", '"', '|'].includes(char)) len += 0.35;
+    else if (['t', 'r'].includes(char)) len += 0.6;
+    else if (char === ' ') len += 0.35;
+    else len += 1.0;
+  }
+  return len;
+}
+
+async function flushBatchUpdate(
+  slides: any,
+  presentationId: string,
+  requests: any[]
+): Promise<void> {
+  for (let i = 0; i < requests.length; i += SLIDES_BATCH_LIMIT) {
+    await slides.presentations.batchUpdate({
+      presentationId,
+      requestBody: { requests: requests.slice(i, i + SLIDES_BATCH_LIMIT) },
+    });
+  }
+}
+
+export async function generateCertificateBatch(
+  uid: string,
+  templateId: string,
+  certs: BatchCertInput[],
+  slideIndex: number | null = null,
+  folderId: string | null = null,
+  baseUrl: string = "http://localhost:3000"
+): Promise<BatchCertResult[]> {
+  if (certs.length === 0) return [];
+
+  const drive = await getDriveClient(uid);
+  const slides = await getSlidesClient(uid);
+
+  // ── Step 1: Analyse template structure once ──────────────────────────────
+  const templateData = await slides.presentations.get({
+    presentationId: templateId,
+    fields: "slides(objectId,pageElements(objectId,title,size,transform,shape(text(textElements))))",
+  });
+  const templateSlides = templateData.data.slides || [];
+  const srcSlideIdx = (slideIndex != null && slideIndex >= 0 && slideIndex < templateSlides.length)
+    ? slideIndex : 0;
+
+  // ── Step 2: Copy template once ───────────────────────────────────────────
+  const copy = await drive.files.copy({
+    fileId: templateId,
+    requestBody: { name: `_batch_${Date.now()}`, parents: folderId ? [folderId] : undefined },
+    fields: "id",
+  });
+  const batchId = copy.data.id!;
+  const tempR2Keys: string[] = [];
+
+  try {
+    // ── Step 3: Delete unwanted slides if slideIndex is set ─────────────────
+    const initData = await slides.presentations.get({
+      presentationId: batchId,
+      fields: "slides(objectId)",
+    });
+    const initSlides = initData.data.slides || [];
+
+    if (slideIndex != null && initSlides.length > 1) {
+      const delRequests = initSlides
+        .map((s: any, i: number) => i !== srcSlideIdx ? { deleteObject: { objectId: s.objectId } } : null)
+        .filter(Boolean)
+        .reverse(); // delete from end to avoid index shifts
+      await slides.presentations.batchUpdate({
+        presentationId: batchId,
+        requestBody: { requests: delRequests },
+      });
+    }
+
+    // ── Step 4: Get the single base slide objectId ───────────────────────────
+    const baseData = await slides.presentations.get({
+      presentationId: batchId,
+      fields: "slides(objectId)",
+    });
+    const baseSlideObjectId = baseData.data.slides![0].objectId!;
+
+    // ── Step 5: Duplicate base slide N-1 times in one batchUpdate ────────────
+    if (certs.length > 1) {
+      const dupRequests = Array.from({ length: certs.length - 1 }, () => ({
+        duplicateObject: { objectId: baseSlideObjectId },
+      }));
+      await slides.presentations.batchUpdate({
+        presentationId: batchId,
+        requestBody: { requests: dupRequests },
+      });
+    }
+
+    // ── Step 6: Fetch full presentation with all element objectIds ────────────
+    const fullData = await slides.presentations.get({
+      presentationId: batchId,
+      fields: "slides(objectId,pageElements(objectId,title,size,transform,shape(text(textElements))))",
+    });
+    const allSlides = fullData.data.slides || [];
+
+    // ── Step 6b: Pre-generate QR PNGs and upload to R2 (publicly accessible) ─
+    const r2Configured = isR2Configured();
+    const qrUrlByCertId = new Map<string, string>();
+    await Promise.all(certs.map(async (cert) => {
+      let url: string;
+      if (r2Configured) {
+        try {
+          const png = await QRCode.toBuffer(cert.qrCodeUrl, {
+            type: "png",
+            width: 400,
+            margin: 1,
+            errorCorrectionLevel: "M",
+          });
+          const key = `_qr_tmp/${batchId}/${cert.certId}.png`;
+          await uploadBufferToR2(key, png, "image/png");
+          const publicUrl = getR2PublicUrl(key);
+          if (publicUrl) {
+            tempR2Keys.push(key);
+            url = publicUrl;
+          } else {
+            url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(cert.qrCodeUrl)}`;
+          }
+        } catch (e: any) {
+          console.error("[BATCH] QR R2 upload failed, falling back:", e.message);
+          url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(cert.qrCodeUrl)}`;
+        }
+      } else {
+        url = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(cert.qrCodeUrl)}`;
+      }
+      qrUrlByCertId.set(cert.certId, url);
+    }));
+
+    // ── Step 7: Build one giant batchUpdate for all certs ────────────────────
+    const allRequests: any[] = [];
+
+    for (let ci = 0; ci < certs.length; ci++) {
+      const cert = certs[ci];
+      const slide = allSlides[ci];
+      if (!slide) continue;
+      const slideObjId = slide.objectId!;
+
+      // Text replacements — scoped to this slide via pageObjectIds
+      for (const [placeholder, value] of Object.entries(cert.replacements)) {
+        allRequests.push({
+          replaceAllText: {
+            containsText: { text: placeholder, matchCase: true },
+            replaceText: value,
+            pageObjectIds: [slideObjId],
+          },
+        });
+      }
+
+      // Font scaling — scan elements on this slide for oversized values
+      for (const el of slide.pageElements || []) {
+        const textEls = el.shape?.text?.textElements || [];
+        const content = textEls.map((te: any) => te.textRun?.content || "").join("");
+        for (const [placeholder, value] of Object.entries(cert.replacements)) {
+          if (content.includes(placeholder)) {
+            const shapeWidthEmu = el.size?.width?.magnitude || 0;
+            const shapeWidth = (shapeWidthEmu - DEFAULT_INSET_EMU * 2) / EMU_PER_PT;
+            const runFontEl = textEls.find((te: any) => te.textRun?.style?.fontSize?.magnitude);
+            const currentFontSize = runFontEl?.textRun?.style?.fontSize?.magnitude || 28;
+            const estimatedWidth = getEffectiveLength(value) * currentFontSize * CHAR_WIDTH_FACTOR;
+            if (estimatedWidth > shapeWidth * 0.9) {
+              const scaled = Math.max(6, Math.floor(currentFontSize * ((shapeWidth * 0.9) / estimatedWidth)));
+              allRequests.push({
+                updateTextStyle: {
+                  objectId: el.objectId,
+                  style: { fontSize: { magnitude: scaled, unit: "PT" } },
+                  fields: "fontSize",
+                  textRange: { type: "ALL" },
+                },
+              });
+            }
+          }
+        }
+      }
+
+      // QR code — uploaded to R2 in Step 6b (publicly accessible)
+      const qrImageUrl = qrUrlByCertId.get(cert.certId)!;
+
+      allRequests.push({
+        replaceAllShapesWithImage: {
+          imageUrl: qrImageUrl,
+          imageReplaceMethod: "CENTER_INSIDE",
+          containsText: { text: "{{qr_code}}", matchCase: true },
+          pageObjectIds: [slideObjId],
+        },
+      });
+
+      // QR code — alt-text based <<qr_code>> shapes
+      const qrShapes = (slide.pageElements || []).filter((el: any) => el.title === "<<qr_code>>");
+      for (let qi = 0; qi < qrShapes.length; qi++) {
+        const shape = qrShapes[qi];
+        const newObjId = `qr_${ci}_${qi}_${Date.now()}`;
+        allRequests.push({ deleteObject: { objectId: shape.objectId } });
+        allRequests.push({
+          createImage: {
+            objectId: newObjId,
+            url: qrImageUrl,
+            elementProperties: {
+              pageObjectId: slideObjId,
+              size: shape.size,
+              transform: shape.transform,
+            },
+          },
+        });
+        allRequests.push({
+          updatePageElementsZOrder: {
+            pageElementObjectIds: [newObjId],
+            operation: "BRING_TO_FRONT",
+          },
+        });
+      }
+    }
+
+    // Flush in chunks of SLIDES_BATCH_LIMIT to stay under API limits
+    await flushBatchUpdate(slides, batchId, allRequests);
+
+    // ── Step 8: Export entire presentation as one PDF ────────────────────────
+    const exportRes = await drive.files.export(
+      { fileId: batchId, mimeType: "application/pdf" },
+      { responseType: "arraybuffer" }
+    );
+    const fullPdf = Buffer.from(exportRes.data as ArrayBuffer);
+
+    // ── Step 9: Split PDF by page using pdf-lib ──────────────────────────────
+    const { PDFDocument } = await import("pdf-lib");
+    const srcDoc = await PDFDocument.load(fullPdf);
+    const results: BatchCertResult[] = [];
+
+    for (let i = 0; i < certs.length; i++) {
+      const singleDoc = await PDFDocument.create();
+      const [page] = await singleDoc.copyPages(srcDoc, [i]);
+      singleDoc.addPage(page);
+      results.push({
+        certId: certs[i].certId,
+        pdfBuffer: Buffer.from(await singleDoc.save()),
+      });
+    }
+
+    return results;
+  } finally {
+    // Clean up batch presentation — fire and forget
+    drive.files.delete({ fileId: batchId })
+      .catch((e: any) => console.error("[BATCH] cleanup failed:", e.message));
+    // Clean up temp QR PNGs from R2
+    if (tempR2Keys.length > 0) {
+      deleteR2Objects(tempR2Keys)
+        .catch((e: any) => console.error("[BATCH] QR cleanup failed:", e.message));
+    }
+  }
 }
 
 export async function deleteFile(uid: string, fileId: string) {
