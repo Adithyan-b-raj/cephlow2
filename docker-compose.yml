@@ -1,16 +1,4 @@
 services:
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru", "--save", "60", "1"]
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
   api:
     build:
       context: .
@@ -21,12 +9,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - REDIS_URL=redis://redis:6379
     ports:
       - "127.0.0.1:3000:3000"
-    depends_on:
-      redis:
-        condition: service_healthy
     command: ["pnpm", "--filter", "@workspace/api-server", "exec", "tsx", "./src/index.ts"]
 
   worker:
@@ -38,12 +22,5 @@ services:
       - .env
     environment:
       - NODE_ENV=production
-      - REDIS_URL=redis://redis:6379
       - WORKER_CONCURRENCY=4
-    depends_on:
-      redis:
-        condition: service_healthy
     command: ["pnpm", "--filter", "@workspace/api-server", "exec", "tsx", "./src/worker.ts"]
-
-volumes:
-  redis_data:
