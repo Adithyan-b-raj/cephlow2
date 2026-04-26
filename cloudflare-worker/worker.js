@@ -10,6 +10,12 @@
  *   PHONE_NUMBER_ID — Your WhatsApp phone number ID  (secret)
  *   R2_PUBLIC_URL   — e.g. https://pub-xxxx.r2.dev  (no trailing slash)
  *   ANALYTICS_TOKEN — Password to access the /analytics dashboard  (secret)
+ *
+ *   Support bridge (Talk to Developer):
+ *   TG_BOT_TOKEN      — Telegram bot token                     (secret)
+ *   TG_SUPERGROUP_ID  — Telegram supergroup ID (negative int)  (var/secret)
+ *   SUPABASE_URL      — e.g. https://xxxx.supabase.co          (var)
+ *   SUPABASE_KEY      — Supabase service-role key              (secret)
  */
 
 const PAGE_SIZE = 8; // max 8 certs per list page (2 slots reserved for Prev/Next)
@@ -20,6 +26,14 @@ let schemaReady = false;
 export default {
   async fetch(req, env, ctx) {
     const url = new URL(req.url);
+
+    // ── Telegram webhook endpoint (developer replies → WhatsApp) ───────
+    if (req.method === 'POST' && url.pathname === '/telegram') {
+      let tgBody;
+      try { tgBody = await req.json(); } catch { return new Response('Bad Request', { status: 400 }); }
+      ctx.waitUntil(handleTelegramWebhook(tgBody, env).catch((err) => console.error('TG webhook err:', err)));
+      return new Response('OK');
+    }
 
     // ── Reports list (founders only) ────────────────────────────────────
     if (req.method === 'GET' && url.pathname === '/reports') {
@@ -100,11 +114,46 @@ export default {
       const userState = await getUserState(phone, env);
       const stateVal = userState?.state || '';
 
+      // ── Support mode: forward everything to Telegram until user exits ──
+      if (stateVal === 'support_active') {
+        const exitWords = ['/menu', '/exit', '/stop'];
+        const wantsExit = text && exitWords.includes(text.toLowerCase());
+
+        if (wantsExit) {
+          await clearUserState(phone, env);
+          await waPost({ to: phone, type: 'text', text: { body: '👋 You have left the chat with the developer. Send "hi" to see the menu again.' } }, env);
+          ctx.waitUntil(logInteraction(env, { phone, action: 'support_exit' }));
+          return new Response('OK');
+        }
+
+        // Everything else (text or media) → forward to developer's Telegram topic
+        const customerName = value?.contacts?.[0]?.profile?.name || phone;
+        ctx.waitUntil(
+          handleWhatsAppToTelegram(phone, customerName, msg, env)
+            .catch((err) => console.error('WA→TG forward failed:', err))
+        );
+        ctx.waitUntil(logInteraction(env, { phone, action: 'support_message' }));
+        return new Response('OK');
+      }
+
       // User is describing their issue — capture the text
       if (stateVal.startsWith('report_desc:') && msg.type === 'text' && text) {
         const certKey = stateVal.slice('report_desc:'.length);
         await handleReportText(phone, certKey, text, env);
         ctx.waitUntil(logInteraction(env, { phone, action: 'report_submitted', detail: certKey }));
+        // Notify the certifier via the api-server (email)
+        if (env.API_URL && env.WORKER_TO_API_TOKEN) {
+          ctx.waitUntil(
+            fetch(`${env.API_URL}/api/internal/report-notify`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-worker-token': env.WORKER_TO_API_TOKEN,
+              },
+              body: JSON.stringify({ phone, cert_key: certKey, message: text }),
+            }).catch((err) => console.error('report-notify failed:', err))
+          );
+        }
         return new Response('OK');
       }
 
@@ -136,6 +185,10 @@ export default {
       } else if (action === 'vote_scale') {
         await handleVoteScale(phone, env);
         ctx.waitUntil(logInteraction(env, { phone, action: 'vote_scale' }));
+
+      } else if (action === 'talk_developer') {
+        await handleTalkDeveloper(phone, value?.contacts?.[0]?.profile?.name || phone, env);
+        ctx.waitUntil(logInteraction(env, { phone, action: 'talk_developer' }));
 
       } else if (action === 'report_issue') {
         await handleReportIssue(phone, folder, env);
@@ -193,8 +246,9 @@ async function handleGreet(phone, env) {
           rows: [
             { id: 'send_all',     title: '📄 Send all certs',   description: 'Receive all your certificates' },
             { id: 'search_cert',  title: '🔍 Search a cert',    description: 'Browse and pick one certificate' },
-            { id: 'report_issue', title: '⚠️ Report Issue',     description: 'Something wrong with a cert?' },
-            { id: 'vote_scale',   title: '🚀 Vote to Scale',    description: 'Support & upvote this project!' },
+            { id: 'report_issue',   title: '⚠️ Report Issue',     description: 'Something wrong with a cert?' },
+            { id: 'vote_scale',     title: '🚀 Vote to Scale',    description: 'Support & upvote this project!' },
+            { id: 'talk_developer', title: '💬 Talk to Developer', description: 'Chat live with our developer' },
           ]
         }]
       }
@@ -543,9 +597,17 @@ async function handleAnalytics(env) {
         SELECT phone, action, detail, created_at
         FROM interactions ORDER BY created_at DESC LIMIT 50
       `).all(),
+
+      // Vote totals (distinct voters + today)
+      env.DB.prepare(`
+        SELECT COUNT(*) as total_votes,
+               SUM(CASE WHEN DATE(created_at) = DATE('now') THEN 1 ELSE 0 END) as today_votes,
+               SUM(CASE WHEN created_at >= DATE('now', '-7 days') THEN 1 ELSE 0 END) as week_votes
+        FROM votes
+      `).first(),
     ]);
 
-    const html = renderDashboard({ summary, today, thisWeek, daily: daily.results, monthly: monthly.results, yearly: yearly.results, actions: actions.results, recent: recent.results });
+    const html = renderDashboard({ summary, today, thisWeek, daily: daily.results, monthly: monthly.results, yearly: yearly.results, actions: actions.results, recent: recent.results, voteCount });
     return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } });
   } catch (err) {
     console.error('[Analytics] handleAnalytics error:', err);
@@ -565,17 +627,24 @@ function fmtDate(iso) {
 }
 
 const ACTION_LABELS = {
-  greet:       'GREET',
-  send_all:    'SEND ALL',
-  search_cert: 'SEARCH',
-  send_single: 'SEND SINGLE',
-  page:        'PAGINATE',
+  greet:            'GREET',
+  send_all:         'SEND ALL',
+  search_cert:      'SEARCH',
+  send_single:      'SEND SINGLE',
+  page:             'PAGINATE',
+  vote_scale:       'VOTE TO SCALE',
+  report_issue:     'REPORT ISSUE',
+  report_submitted: 'REPORT SUBMITTED',
+  talk_developer:   'TALK TO DEV',
+  support_message:  'SUPPORT MSG',
+  support_exit:     'SUPPORT EXIT',
 };
 
-function renderDashboard({ summary, today, thisWeek, daily, monthly, yearly, actions, recent }) {
-  const s  = summary  || {};
-  const t  = today    || {};
-  const tw = thisWeek || {};
+function renderDashboard({ summary, today, thisWeek, daily, monthly, yearly, actions, recent, voteCount }) {
+  const s  = summary    || {};
+  const t  = today      || {};
+  const tw = thisWeek   || {};
+  const v  = voteCount  || {};
 
   const dailyLabels = JSON.stringify(daily.map(r => r.day.slice(5))); // show MM-DD only
   const dailyUsers  = JSON.stringify(daily.map(r => r.users));
@@ -738,7 +807,7 @@ function renderDashboard({ summary, today, thisWeek, daily, monthly, yearly, act
 </div>
 
 <!-- STAT CARDS: row 2 (today / this week) -->
-<div class="stats" style="margin-bottom:2rem;border-top:none">
+<div class="stats" style="margin-bottom:0;border-top:none;border-bottom:none">
   <div class="stat">
     <div class="stat-label">Today — Users</div>
     <div class="stat-val" style="font-size:1.75rem">${(t.users || 0).toLocaleString()}</div>
@@ -753,6 +822,25 @@ function renderDashboard({ summary, today, thisWeek, daily, monthly, yearly, act
     <div class="stat-label">This Week</div>
     <div class="stat-val" style="font-size:1.75rem">${(tw.users || 0).toLocaleString()}</div>
     <div class="stat-sub">${(tw.downloads || 0)} DOWNLOADS</div>
+  </div>
+</div>
+
+<!-- STAT CARDS: row 3 (votes to scale) -->
+<div class="stats" style="margin-bottom:2rem;border-top:none">
+  <div class="stat">
+    <div class="stat-label">Total Votes</div>
+    <div class="stat-val">${(v.total_votes || 0).toLocaleString()}</div>
+    <div class="stat-sub">VOTES TO SCALE</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Votes — Today</div>
+    <div class="stat-val" style="font-size:1.75rem">${(v.today_votes || 0).toLocaleString()}</div>
+    <div class="stat-sub">NEW VOTERS TODAY</div>
+  </div>
+  <div class="stat" style="border-right:none">
+    <div class="stat-label">Votes — This Week</div>
+    <div class="stat-val" style="font-size:1.75rem">${(v.week_votes || 0).toLocaleString()}</div>
+    <div class="stat-sub">LAST 7 DAYS</div>
   </div>
 </div>
 
@@ -854,6 +942,294 @@ async function handleReports(env) {
   return new Response(JSON.stringify(result.results), {
     headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
   });
+}
+
+// ════════════════════════════════════════════════════════════════════
+// Talk to Developer — Support Bridge (WhatsApp ⇄ Telegram)
+// ════════════════════════════════════════════════════════════════════
+
+/** Enter support mode: create/reuse a Telegram topic and tell the user. */
+async function handleTalkDeveloper(phone, customerName, env) {
+  if (!env.TG_BOT_TOKEN || !env.TG_SUPERGROUP_ID || !env.SUPABASE_URL || !env.SUPABASE_KEY) {
+    await waPost({
+      to: phone, type: 'text',
+      text: { body: '⚠️ Developer chat is not configured right now. Please try again later.' }
+    }, env);
+    return;
+  }
+
+  // Ensure a Telegram topic exists for this phone
+  let existing = await sbGet(env, phone);
+  if (!existing) {
+    const topicName = `${customerName} | +${phone}`.slice(0, 128);
+    const topicRes  = await tgPost(env, 'createForumTopic', {
+      chat_id: env.TG_SUPERGROUP_ID,
+      name:    topicName,
+    });
+    const threadId = topicRes.result.message_thread_id;
+    await sbInsert(env, {
+      phone_e164: phone,
+      telegram_topic_id: threadId,
+      supergroup_id: String(env.TG_SUPERGROUP_ID),
+    });
+    // Post a small intro line inside the new topic
+    await tgPost(env, 'sendMessage', {
+      chat_id: env.TG_SUPERGROUP_ID,
+      message_thread_id: threadId,
+      text: `🟢 New support chat started by ${customerName} (+${phone}).`,
+    }).catch(() => {});
+  }
+
+  await setUserState(phone, 'support_active', env);
+  await waPost({
+    to: phone, type: 'text',
+    text: { body: '💬 You are now chatting with the developer. Send your message and we\'ll reply here.\n\nType */menu* to exit and go back to the main menu.' }
+  }, env);
+}
+
+/** Forward a WhatsApp message (text or media) into the user's Telegram topic */
+async function handleWhatsAppToTelegram(phone, customerName, msg, env) {
+  if (!env.TG_BOT_TOKEN || !env.TG_SUPERGROUP_ID || !env.SUPABASE_URL) return;
+
+  const supergroupId = env.TG_SUPERGROUP_ID;
+  let existing = await sbGet(env, phone);
+  let threadId;
+
+  if (existing) {
+    threadId = existing.telegram_topic_id;
+    try {
+      await forwardToTelegram(env, supergroupId, threadId, msg);
+      return;
+    } catch (err) {
+      const isDeadThread = /thread|not found|invalid/i.test(err.message);
+      if (!isDeadThread) throw err;
+      await sbDelete(env, phone);
+    }
+  }
+
+  const topicName = `${customerName} | +${phone}`.slice(0, 128);
+  const topicRes  = await tgPost(env, 'createForumTopic', {
+    chat_id: supergroupId,
+    name:    topicName,
+  });
+  threadId = topicRes.result.message_thread_id;
+  await sbInsert(env, {
+    phone_e164: phone,
+    telegram_topic_id: threadId,
+    supergroup_id: String(supergroupId),
+  });
+  await forwardToTelegram(env, supergroupId, threadId, msg);
+}
+
+async function forwardToTelegram(env, chatId, threadId, msg) {
+  const base = { chat_id: chatId, message_thread_id: threadId };
+
+  if (msg.type === 'text') {
+    await tgPost(env, 'sendMessage', { ...base, text: msg.text.body });
+    return;
+  }
+
+  const mediaMap = {
+    image:    { tgMethod: 'sendPhoto',    field: 'photo',    ext: 'jpg'  },
+    document: { tgMethod: 'sendDocument', field: 'document', ext: 'bin'  },
+    audio:    { tgMethod: 'sendAudio',    field: 'audio',    ext: 'mp3'  },
+    voice:    { tgMethod: 'sendVoice',    field: 'voice',    ext: 'ogg'  },
+    video:    { tgMethod: 'sendVideo',    field: 'video',    ext: 'mp4'  },
+    sticker:  { tgMethod: 'sendSticker',  field: 'sticker',  ext: 'webp' },
+  };
+
+  const meta = mediaMap[msg.type];
+  if (!meta) return;
+
+  const waMedia  = msg[msg.type];
+  const mediaId  = waMedia.id;
+  const caption  = waMedia.caption || msg.text?.body || undefined;
+  const filename = waMedia.filename || `file.${meta.ext}`;
+
+  const infoRes = await fetch(`https://graph.facebook.com/v19.0/${mediaId}`, {
+    headers: { Authorization: `Bearer ${env.WA_TOKEN}` },
+  });
+  if (!infoRes.ok) throw new Error(`WA media info ${infoRes.status}`);
+  const { url: downloadUrl, mime_type: mimeType } = await infoRes.json();
+
+  const fileRes = await fetch(downloadUrl, {
+    headers: { Authorization: `Bearer ${env.WA_TOKEN}` },
+  });
+  if (!fileRes.ok) throw new Error(`WA media download ${fileRes.status}`);
+  const buffer = await fileRes.arrayBuffer();
+
+  const form = new FormData();
+  form.append('chat_id',           String(chatId));
+  form.append('message_thread_id', String(threadId));
+  form.append(meta.field, new Blob([buffer], { type: mimeType }), filename);
+  if (caption) form.append('caption', caption);
+
+  const tgRes = await fetch(
+    `https://api.telegram.org/bot${env.TG_BOT_TOKEN}/${meta.tgMethod}`,
+    { method: 'POST', body: form }
+  );
+  if (!tgRes.ok) {
+    const err = await tgRes.text();
+    throw new Error(`Telegram ${meta.tgMethod} ${tgRes.status}: ${err}`);
+  }
+}
+
+/** Handle Telegram webhook: developer replies → WhatsApp user */
+async function handleTelegramWebhook(body, env) {
+  const msg = body?.message;
+  if (!msg) return;
+
+  const chatId   = String(msg.chat?.id);
+  const threadId = msg.message_thread_id;
+
+  if (!threadId || chatId !== String(env.TG_SUPERGROUP_ID)) return;
+
+  const row = await sbGetByThread(env, threadId);
+  if (!row) return;
+
+  const phone = row.phone_e164;
+
+  if (msg.text) {
+    await waPost({ to: phone, type: 'text', text: { body: msg.text } }, env);
+    return;
+  }
+
+  let fileId, mimeType, filename, waType;
+  const caption = msg.caption || undefined;
+
+  if (msg.photo) {
+    const photo = msg.photo[msg.photo.length - 1];
+    fileId = photo.file_id; mimeType = 'image/jpeg'; filename = 'photo.jpg'; waType = 'image';
+  } else if (msg.document) {
+    fileId = msg.document.file_id;
+    mimeType = msg.document.mime_type || 'application/octet-stream';
+    filename = msg.document.file_name || 'file'; waType = 'document';
+  } else if (msg.audio) {
+    fileId = msg.audio.file_id;
+    mimeType = msg.audio.mime_type || 'audio/mpeg';
+    filename = msg.audio.file_name || 'audio.mp3'; waType = 'audio';
+  } else if (msg.voice) {
+    fileId = msg.voice.file_id;
+    mimeType = msg.voice.mime_type || 'audio/ogg';
+    filename = 'voice.ogg'; waType = 'audio';
+  } else if (msg.video) {
+    fileId = msg.video.file_id;
+    mimeType = msg.video.mime_type || 'video/mp4';
+    filename = msg.video.file_name || 'video.mp4'; waType = 'video';
+  } else if (msg.sticker) {
+    const isAnimated = msg.sticker.is_animated || msg.sticker.is_video;
+    fileId = msg.sticker.file_id;
+    if (isAnimated) {
+      // Animated / video stickers aren't supported natively by WhatsApp.
+      // Send a note, then forward the raw file as a document so it's still received.
+      mimeType = msg.sticker.is_video ? 'video/webm' : 'application/x-tgsticker';
+      filename = msg.sticker.is_video ? 'sticker.webm' : 'sticker.tgs';
+      waType   = 'document';
+      await waPost({
+        to: phone, type: 'text',
+        text: { body: '🎞️ Developer sent an animated sticker (WhatsApp can\'t show it — the file is attached below).' }
+      }, env);
+    } else {
+      // Static .webp sticker → send as native WhatsApp sticker
+      mimeType = 'image/webp';
+      filename = 'sticker.webp';
+      waType   = 'sticker';
+    }
+  } else {
+    return;
+  }
+
+  const fileInfo = await tgPost(env, 'getFile', { file_id: fileId });
+  const filePath = fileInfo.result.file_path;
+
+  const dlRes = await fetch(`https://api.telegram.org/file/bot${env.TG_BOT_TOKEN}/${filePath}`);
+  if (!dlRes.ok) throw new Error(`TG download ${dlRes.status}`);
+  const buffer = await dlRes.arrayBuffer();
+
+  const form = new FormData();
+  form.append('messaging_product', 'whatsapp');
+  form.append('type', mimeType);
+  form.append('file', new Blob([buffer], { type: mimeType }), filename);
+
+  const uploadRes = await fetch(
+    `https://graph.facebook.com/v19.0/${env.PHONE_NUMBER_ID}/media`,
+    { method: 'POST', headers: { Authorization: `Bearer ${env.WA_TOKEN}` }, body: form }
+  );
+  if (!uploadRes.ok) {
+    const err = await uploadRes.text();
+    throw new Error(`WA media upload ${uploadRes.status}: ${err}`);
+  }
+  const { id: mediaId } = await uploadRes.json();
+
+  const mediaPayload = { id: mediaId };
+  // Stickers don't accept captions on WhatsApp
+  if (caption && waType !== 'sticker') mediaPayload.caption = caption;
+  if (waType === 'document' && filename) mediaPayload.filename = filename;
+
+  await waPost({ to: phone, type: waType, [waType]: mediaPayload }, env);
+}
+
+// ──── Supabase helpers (REST) ───────────────────────────────────────
+async function sbGet(env, phone) {
+  const url = `${env.SUPABASE_URL}/rest/v1/wa_tg_threads`
+    + `?phone_e164=eq.${encodeURIComponent(phone)}`
+    + `&supergroup_id=eq.${encodeURIComponent(env.TG_SUPERGROUP_ID)}`
+    + `&limit=1`;
+  const res  = await sbFetch(env, url);
+  const rows = await res.json();
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+}
+
+async function sbGetByThread(env, threadId) {
+  const url = `${env.SUPABASE_URL}/rest/v1/wa_tg_threads`
+    + `?telegram_topic_id=eq.${encodeURIComponent(threadId)}`
+    + `&limit=1`;
+  const res  = await sbFetch(env, url);
+  const rows = await res.json();
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+}
+
+async function sbDelete(env, phone) {
+  const url = `${env.SUPABASE_URL}/rest/v1/wa_tg_threads`
+    + `?phone_e164=eq.${encodeURIComponent(phone)}`
+    + `&supergroup_id=eq.${encodeURIComponent(env.TG_SUPERGROUP_ID)}`;
+  await sbFetch(env, url, { method: 'DELETE' });
+}
+
+async function sbInsert(env, row) {
+  const url = `${env.SUPABASE_URL}/rest/v1/wa_tg_threads`;
+  await sbFetch(env, url, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body:    JSON.stringify(row),
+  });
+}
+
+function sbFetch(env, url, opts = {}) {
+  return fetch(url, {
+    ...opts,
+    headers: {
+      apikey:        env.SUPABASE_KEY,
+      Authorization: `Bearer ${env.SUPABASE_KEY}`,
+      ...opts.headers,
+    },
+  });
+}
+
+async function tgPost(env, method, payload) {
+  const res = await fetch(
+    `https://api.telegram.org/bot${env.TG_BOT_TOKEN}/${method}`,
+    {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    }
+  );
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Telegram ${method} ${res.status}: ${err}`);
+  }
+  return res.json();
 }
 
 // ────────────────────────────────────────────────────────────────────

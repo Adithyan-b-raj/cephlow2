@@ -49,37 +49,19 @@ export async function upsertStudentProfile(params: {
   const { email, name, certId, batchId, batchName, r2PdfUrl, pdfUrl, slideUrl, status } = params;
   const emailKey = email.toLowerCase().replace(/[^a-z0-9]/g, "_");
 
-  const { data: indexRow } = await supabaseAdmin
-    .from("student_profile_index")
-    .select("slug")
-    .eq("email_key", emailKey)
-    .maybeSingle();
+  // Slug is derived deterministically from the email prefix — no collision loop needed.
+  // email_key is unique in student_profile_index, so one email always maps to one slug.
+  const slug = emailToSlug(email);
 
-  let slug: string;
-
-  if (indexRow) {
-    slug = indexRow.slug;
-  } else {
-    const baseSlug = emailToSlug(email);
-    slug = baseSlug;
-    let attempt = 2;
-    while (true) {
-      const { data: existing } = await supabaseAdmin
-        .from("student_profiles")
-        .select("slug")
-        .eq("slug", slug)
-        .maybeSingle();
-      if (!existing) break;
-      slug = `${baseSlug}-${attempt}`;
-      attempt++;
-    }
-    await supabaseAdmin
+  // Upsert profile and index in parallel — both are idempotent
+  await Promise.all([
+    supabaseAdmin
       .from("student_profiles")
-      .upsert({ slug, name, email, updated_at: new Date().toISOString() });
-    await supabaseAdmin
+      .upsert({ slug, name, email, updated_at: new Date().toISOString() }, { onConflict: "slug" }),
+    supabaseAdmin
       .from("student_profile_index")
-      .upsert({ email_key: emailKey, slug });
-  }
+      .upsert({ email_key: emailKey, slug }, { onConflict: "email_key" }),
+  ]);
 
   await supabaseAdmin.from("student_profile_certs").upsert(
     {

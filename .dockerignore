@@ -1,0 +1,23 @@
+node_modules
+**/node_modules
+**/dist
+**/.next
+.git
+.env
+.env.*
+*.log
+.DS_Store
+.vscode
+.idea
+.claude
+conductor
+firebase-service-account.json
+cloudflare-worker
+"cloudflare-worker with telegram 2 way support"
+maintenance.html
+PROJECT_DOCS.md
+SCALING.md
+SCALING.txt
+README.md
+apps/cert-app
+apps/mockup-sandbox

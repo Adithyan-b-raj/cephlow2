@@ -469,13 +469,33 @@ export async function generateCertificate(
   ];
   if (qrCodeUrl) {
     try {
-      const baseUrl = (process.env.PUBLIC_BASE_URL || "http://localhost:3000").replace(/\/$/, "");
-      const internalQrApiUrl = `${baseUrl}/api/qr?data=${encodeURIComponent(qrCodeUrl)}`;
-      
+      // Build a publicly accessible QR image URL so Google Slides can fetch it.
+      // Prefer R2 (upload PNG once); fall back to api.qrserver.com.
+      let publicQrUrl: string;
+      if (isR2Configured()) {
+        try {
+          const png = await QRCode.toBuffer(qrCodeUrl, {
+            type: "png", width: 400, margin: 1, errorCorrectionLevel: "M",
+          });
+          const key = `_qr_tmp/single/${fileId}.png`;
+          await uploadBufferToR2(key, png, "image/png");
+          const r2Url = getR2PublicUrl(key);
+          publicQrUrl = r2Url || `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrCodeUrl)}`;
+          // Schedule cleanup after Slides has had time to fetch the image
+          setTimeout(() => {
+            deleteR2Objects([key]).catch(() => {});
+          }, 60_000);
+        } catch {
+          publicQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrCodeUrl)}`;
+        }
+      } else {
+        publicQrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(qrCodeUrl)}`;
+      }
+
       // Method 1: Replace text placeholders containing {{qr_code}}
       requests.push({
         replaceAllShapesWithImage: {
-          imageUrl: internalQrApiUrl,
+          imageUrl: publicQrUrl,
           imageReplaceMethod: "CENTER_INSIDE",
           containsText: { text: "{{qr_code}}", matchCase: true },
         },
@@ -512,7 +532,7 @@ export async function generateCertificate(
           requests.push({
             createImage: {
               objectId: newObjectId,
-              url: internalQrApiUrl,
+              url: publicQrUrl,
               elementProperties: {
                 pageObjectId: shape.slideObjectId,
                 size: shape.size,
@@ -592,6 +612,11 @@ async function flushBatchUpdate(
   }
 }
 
+export interface BatchCertBatchResult {
+  results: BatchCertResult[];
+  tempR2Keys: string[];
+}
+
 export async function generateCertificateBatch(
   uid: string,
   templateId: string,
@@ -599,11 +624,13 @@ export async function generateCertificateBatch(
   slideIndex: number | null = null,
   folderId: string | null = null,
   baseUrl: string = "http://localhost:3000"
-): Promise<BatchCertResult[]> {
+): Promise<BatchCertBatchResult> {
   if (certs.length === 0) return [];
 
   const drive = await getDriveClient(uid);
   const slides = await getSlidesClient(uid);
+
+  console.log(`[BATCH] Starting: ${certs.length} certs`);
 
   // ── Step 1: Analyse template structure once ──────────────────────────────
   const templateData = await slides.presentations.get({
@@ -615,6 +642,7 @@ export async function generateCertificateBatch(
     ? slideIndex : 0;
 
   // ── Step 2: Copy template once ───────────────────────────────────────────
+  console.log(`[BATCH] Copying template...`);
   const copy = await drive.files.copy({
     fileId: templateId,
     requestBody: { name: `_batch_${Date.now()}`, parents: folderId ? [folderId] : undefined },
@@ -651,6 +679,7 @@ export async function generateCertificateBatch(
 
     // ── Step 5: Duplicate base slide N-1 times in one batchUpdate ────────────
     if (certs.length > 1) {
+      console.log(`[BATCH] Duplicating slide ${certs.length - 1} times...`);
       const dupRequests = Array.from({ length: certs.length - 1 }, () => ({
         duplicateObject: { objectId: baseSlideObjectId },
       }));
@@ -661,6 +690,7 @@ export async function generateCertificateBatch(
     }
 
     // ── Step 6: Fetch full presentation with all element objectIds ────────────
+    console.log(`[BATCH] Fetching slide elements...`);
     const fullData = await slides.presentations.get({
       presentationId: batchId,
       fields: "slides(objectId,pageElements(objectId,title,size,transform,shape(text(textElements))))",
@@ -784,9 +814,11 @@ export async function generateCertificateBatch(
     }
 
     // Flush in chunks of SLIDES_BATCH_LIMIT to stay under API limits
+    console.log(`[BATCH] Applying text replacements (${allRequests.length} requests)...`);
     await flushBatchUpdate(slides, batchId, allRequests);
 
     // ── Step 8: Export entire presentation as one PDF ────────────────────────
+    console.log(`[BATCH] Exporting PDF...`);
     const exportRes = await drive.files.export(
       { fileId: batchId, mimeType: "application/pdf" },
       { responseType: "arraybuffer" }
@@ -808,16 +840,14 @@ export async function generateCertificateBatch(
       });
     }
 
-    return results;
+    console.log(`[BATCH] Done — ${certs.length} certs processed.`);
+    return { results, tempR2Keys };
   } finally {
     // Clean up batch presentation — fire and forget
     drive.files.delete({ fileId: batchId })
       .catch((e: any) => console.error("[BATCH] cleanup failed:", e.message));
-    // Clean up temp QR PNGs from R2
-    if (tempR2Keys.length > 0) {
-      deleteR2Objects(tempR2Keys)
-        .catch((e: any) => console.error("[BATCH] QR cleanup failed:", e.message));
-    }
+    // QR PNGs are NOT deleted here — caller collects keys across all
+    // chunks and deletes them all at once after full generation.
   }
 }
 

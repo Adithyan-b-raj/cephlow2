@@ -9,15 +9,22 @@ function getConfig() {
   };
 }
 
+// Singleton S3Client — reused across all uploads to avoid opening
+// a new connection pool on every call.
+let _r2Client: S3Client | null = null;
 function getR2Client(config: ReturnType<typeof getConfig>): S3Client {
-  return new S3Client({
-    region: "auto",
-    endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
-    credentials: {
-      accessKeyId: config.accessKeyId!,
-      secretAccessKey: config.secretAccessKey!,
-    },
-  });
+  if (!_r2Client) {
+    _r2Client = new S3Client({
+      region: "auto",
+      endpoint: `https://${config.accountId}.r2.cloudflarestorage.com`,
+      credentials: {
+        accessKeyId: config.accessKeyId!,
+        secretAccessKey: config.secretAccessKey!,
+      },
+      maxAttempts: 3,
+    });
+  }
+  return _r2Client;
 }
 
 export function isR2Configured(): boolean {

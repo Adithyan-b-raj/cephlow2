@@ -6,6 +6,8 @@ pnpm --filter @workspace/api-server run dev
 ## Start frontend / cert-app (port 5173 or 5174)
 pnpm --filter @workspace/cert-app run dev
 
+
+pnpm --filter @workspace/api-server worker
 ## Start both at once (run in separate terminals)
 pnpm --filter @workspace/api-server run dev &
 pnpm --filter @workspace/cert-app run dev &

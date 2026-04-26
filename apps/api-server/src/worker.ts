@@ -6,19 +6,26 @@ import { processSendWhatsApp } from "./processors/sendWhatsApp.js";
 
 const CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || "2", 10);
 
+// Max time a job can run before BullMQ considers it stalled and re-queues it.
+// Generate jobs can take ~2 min for large batches; give 5 min headroom.
+const LOCK_DURATION = parseInt(process.env.WORKER_LOCK_DURATION_MS || String(5 * 60 * 1000), 10);
+
 const generateWorker = new Worker("cert-generate", processGenerate, {
   connection: redisConnection,
   concurrency: CONCURRENCY,
+  lockDuration: LOCK_DURATION,
 });
 
 const sendEmailWorker = new Worker("cert-send-email", processSendEmail, {
   connection: redisConnection,
   concurrency: CONCURRENCY,
+  lockDuration: LOCK_DURATION,
 });
 
 const sendWhatsAppWorker = new Worker("cert-send-whatsapp", processSendWhatsApp, {
   connection: redisConnection,
   concurrency: CONCURRENCY,
+  lockDuration: LOCK_DURATION,
 });
 
 for (const worker of [generateWorker, sendEmailWorker, sendWhatsAppWorker]) {

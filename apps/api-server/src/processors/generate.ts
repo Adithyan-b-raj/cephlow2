@@ -9,6 +9,7 @@ import {
   deleteFile,
   type BatchCertInput,
 } from "../lib/googleDrive.js";
+import { deleteR2Objects as deleteR2Keys } from "../lib/cloudflareR2.js";
 import {
   uploadPdfToR2,
   isR2Configured,
@@ -38,7 +39,9 @@ function resolveCertTemplate(cert: Certificate, batch: any): { templateId: strin
   return { templateId, slideIndex };
 }
 
-export async function processGenerate(job: Job<GenerateJobData>) {
+const LOCK_DURATION = parseInt(process.env.WORKER_LOCK_DURATION_MS || String(5 * 60 * 1000), 10);
+
+export async function processGenerate(job: Job<GenerateJobData>, token?: string) {
   const { batchId, userId, certIds, baseUrl } = job.data;
 
   const { data: batchRow, error: batchErr } = await supabaseAdmin
@@ -49,11 +52,16 @@ export async function processGenerate(job: Job<GenerateJobData>) {
   if (batchErr || !batchRow) throw new Error("Batch not found");
   const batch = toCamel(batchRow) as any;
 
+  // Fetch all certs for the batch and filter in memory.
+  // Avoids Supabase .in() URL length limit (~8KB) which silently returns
+  // 0 rows when certIds is large (e.g. 500 UUIDs ≈ 19KB).
   const { data: certsData } = await supabaseAdmin
     .from("certificates")
     .select("*")
-    .in("id", certIds);
-  const targetCerts = (certsData || []).map(toCamel) as Certificate[];
+    .eq("batch_id", batchId);
+  const certIdSet = new Set(certIds);
+  const targetCerts = ((certsData || []).map(toCamel) as Certificate[])
+    .filter(c => certIdSet.has(c.id));
 
   let generated = 0;
   let failed = 0;
@@ -113,10 +121,17 @@ export async function processGenerate(job: Job<GenerateJobData>) {
       .in("id", toGenerate.map(c => c.id));
   }
 
+  // Accumulate temp QR keys from all chunks — delete once after everything is done
+  const allTempR2Keys: string[] = [];
+
   // ── Process each group in sub-batches of MAX_BATCH_SIZE ──────────────────
   for (const { templateId, slideIndex, certs: groupCerts } of groups.values()) {
     for (let offset = 0; offset < groupCerts.length; offset += MAX_BATCH_SIZE) {
       const chunk = groupCerts.slice(offset, offset + MAX_BATCH_SIZE);
+
+      // Extend the job lock before each chunk so BullMQ doesn't mark
+      // the job as stalled mid-way through a large batch.
+      if (token) await job.extendLock(token, LOCK_DURATION).catch(() => {});
 
       // Build inputs for batch generator
       const batchInputs: BatchCertInput[] = chunk.map((cert) => {
@@ -133,7 +148,7 @@ export async function processGenerate(job: Job<GenerateJobData>) {
         };
       });
 
-      let batchResults: Awaited<ReturnType<typeof generateCertificateBatch>>;
+      let batchResults: BatchCertInput[] & { certId: string; pdfBuffer: Buffer }[];
       // Keep per-cert editable slide info when only 1 cert is generated
       const singleSlideInfoByCertId = new Map<string, { slideFileId: string; slideUrl: string }>();
       try {
@@ -152,11 +167,13 @@ export async function processGenerate(job: Job<GenerateJobData>) {
           );
           singleSlideInfoByCertId.set(cert.id, { slideFileId: slideRes.fileId, slideUrl: slideRes.url });
           const pdfBuffer = await exportSlidesToPdf(userId, slideRes.fileId);
-          batchResults = [{ certId: cert.id, pdfBuffer }];
+          batchResults = [{ certId: cert.id, pdfBuffer }] as any;
         } else {
-          batchResults = await generateCertificateBatch(
+          const { results, tempR2Keys } = await generateCertificateBatch(
             userId, templateId, batchInputs, slideIndex, batch.driveFolderId ?? null, baseUrl
           );
+          allTempR2Keys.push(...tempR2Keys);
+          batchResults = results as any;
         }
       } catch (batchErr: any) {
         // If the whole batch call fails, mark all certs in chunk as failed
@@ -174,10 +191,13 @@ export async function processGenerate(job: Job<GenerateJobData>) {
       }
 
       // Build a map for quick lookup: certId → pdfBuffer
-      const resultMap = new Map(batchResults.map(r => [r.certId, r.pdfBuffer]));
+      const resultMap = new Map((batchResults as any[]).map((r: any) => [r.certId, r.pdfBuffer]));
 
-      // Upload PDFs and update DB in parallel across the chunk
-      await Promise.all(chunk.map(async (cert) => {
+      // Upload PDFs and update DB — capped concurrency to avoid overwhelming R2
+      const UPLOAD_CONCURRENCY = parseInt(process.env.UPLOAD_CONCURRENCY || "5", 10);
+      for (let ui = 0; ui < chunk.length; ui += UPLOAD_CONCURRENCY) {
+        const uploadSlice = chunk.slice(ui, ui + UPLOAD_CONCURRENCY);
+      await Promise.all(uploadSlice.map(async (cert) => {
         try {
           const pdfBuffer = resultMap.get(cert.id) ?? null;
           const rowData = (cert.rowData as Record<string, string>) || {};
@@ -272,7 +292,14 @@ export async function processGenerate(job: Job<GenerateJobData>) {
           failed++;
         }
       }));
+      } // end upload concurrency loop
     }
+  }
+
+  // Delete all temp QR PNGs in one shot after all chunks are done
+  if (allTempR2Keys.length > 0) {
+    deleteR2Keys(allTempR2Keys)
+      .catch((e: any) => console.error("[BATCH] QR cleanup failed:", e.message));
   }
 
   const newStatus = failed === 0 ? "generated" : generated > 0 ? "partial" : "draft";

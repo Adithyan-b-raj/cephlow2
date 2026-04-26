@@ -8,6 +8,7 @@ import authRouter from "./routes/auth.js";
 import webhooksRouter from "./routes/webhooks.js";
 import profilesRouter from "./routes/profiles.js";
 import qrRouter from "./routes/qr.js";
+import internalRouter from "./routes/internal.js";
 import router from "./routes/index.js";
 
 const app: Express = express();
@@ -61,11 +62,15 @@ app.use("/api", webhooksRouter);
 // QR endpoint - public (Google Slides servers need access)
 app.use("/api", qrRouter);
 
-// Heavy operations get their own stricter limit
-app.use("/api/batches/:batchId/generate", heavyLimiter);
-app.use("/api/batches/:batchId/send", heavyLimiter);
-app.use("/api/batches/:batchId/send-whatsapp", heavyLimiter);
-app.use("/api/batches/:batchId/sync", heavyLimiter);
+// Internal server-to-server routes (guarded by shared-secret header, no user auth)
+app.use("/api", internalRouter);
+
+// Heavy operations: auth runs first so req.user is populated,
+// then the per-user rate limiter kicks in before the route handler.
+app.use("/api/batches/:batchId/generate", requireAuth, heavyLimiter);
+app.use("/api/batches/:batchId/send", requireAuth, heavyLimiter);
+app.use("/api/batches/:batchId/send-whatsapp", requireAuth, heavyLimiter);
+app.use("/api/batches/:batchId/sync", requireAuth, heavyLimiter);
 
 // All other routes require Firebase Auth
 app.use("/api", requireAuth, router);
