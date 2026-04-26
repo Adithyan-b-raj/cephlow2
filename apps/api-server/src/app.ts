@@ -12,6 +12,7 @@ import internalRouter from "./routes/internal.js";
 import router from "./routes/index.js";
 
 const app: Express = express();
+app.set("trust proxy", 1);
 
 // Global limiter — catches everything before auth
 const globalLimiter = rateLimit({
