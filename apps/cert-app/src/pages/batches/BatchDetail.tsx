@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRoute } from "wouter";
+import { useClientGenerate } from "@/hooks/useClientGenerate";
+import { Progress } from "@/components/ui/progress";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   useGetBatch,
@@ -10,7 +12,6 @@ import {
   useSendCertEmail,
   useOpenCertSlide,
   useSendCertWhatsapp,
-  useGenerateSmartBatch,
   useSyncBatch,
   useGetWalletBalance,
 } from "@workspace/api-client-react";
@@ -25,7 +26,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Play, Send, MailCheck, Loader2, FileText, CheckCircle2, XCircle, Clock, Share2, ExternalLink, QrCode, Copy, Check, MessageCircle, CheckCheck, Truck, RefreshCcw, Grid, Layout, Mail, Layers, Presentation, FileSpreadsheet, AlertCircle } from "lucide-react";
+import { Play, Send, MailCheck, Loader2, FileText, CheckCircle2, XCircle, Clock, Share2, ExternalLink, QrCode, Copy, Check, MessageCircle, CheckCheck, Truck, RefreshCcw, Grid, Layout, Mail, Layers, Presentation, FileSpreadsheet, AlertCircle, X } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -108,30 +109,38 @@ export default function BatchDetail() {
   // Dynamic capacity based on what's available
   const generationLimit = Math.floor(currentBalance / RATE);
 
-  const { mutate: generateCerts, isPending: isGenerating } = useGenerateSmartBatch({
-    mutation: {
-      onSuccess: () => {
-        toast({ title: "Generation started!" });
-        refetch();
-        refetchBalance();
-      },
-      onError: (err: any) => {
-        const isLowBalance = err.status === 402;
-        toast({ 
-          title: isLowBalance ? "Insufficient Balance" : "Generation failed", 
-          description: isLowBalance 
-            ? "Your wallet balance is too low to generate this batch. Please add credits to continue."
-            : (err.data?.error || "An unexpected error occurred"),
-          variant: "destructive",
-          action: isLowBalance ? (
-            <Button variant="outline" size="sm" onClick={() => window.location.href = '/wallet'}>
-              Top Up
-            </Button>
-          ) : undefined
-        });
-      }
+  // Client-side generation hook
+  const { generate: clientGenerateFn, cancel: cancelGeneration, isGenerating, progress: genProgress, error: genError } = useClientGenerate();
+
+  const handleGenerate = async () => {
+    try {
+      const result = await clientGenerateFn(batchId, selectedCertIds.length > 0 ? selectedCertIds : undefined);
+      toast({ 
+        title: result.failed === 0 ? "Generation complete!" : "Generation partially complete",
+        description: result.failed === 0 
+          ? `All ${result.generated} certificates generated successfully.`
+          : `${result.generated} generated, ${result.failed} failed.`,
+        variant: result.failed > 0 ? "destructive" : undefined,
+      });
+      refetch();
+      refetchBalance();
+    } catch (err: any) {
+      const isLowBalance = err.message?.includes('Insufficient funds') || err.message?.includes('402');
+      toast({ 
+        title: isLowBalance ? "Insufficient Balance" : "Generation failed", 
+        description: isLowBalance 
+          ? "Your wallet balance is too low to generate this batch. Please add credits to continue."
+          : (err.message || "An unexpected error occurred"),
+        variant: "destructive",
+        action: isLowBalance ? (
+          <Button variant="outline" size="sm" onClick={() => window.location.href = '/wallet'}>
+            Top Up
+          </Button>
+        ) : undefined
+      });
+      refetch();
     }
-  });
+  };
 
   const { mutate: syncData, isPending: isSyncing } = useSyncBatch({
     mutation: {
@@ -438,17 +447,28 @@ export default function BatchDetail() {
             {isSharing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Share2 className="w-4 h-4 mr-2" />}
             Share PDFs
           </Button>
-          <div className="relative flex items-center">
+          <div className="relative flex items-center gap-1">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => generateCerts({ batchId, selectedCertIds })}
+              onClick={handleGenerate}
               disabled={isGenerating || batch.status === 'generating' || selectedCertIds.length === 0}
               className="hover-elevate bg-background relative"
             >
               {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
-              {generateBtnText}
+              {isGenerating ? 'Generating...' : generateBtnText}
             </Button>
+            {isGenerating && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={cancelGeneration}
+                className="px-2"
+                title="Cancel generation"
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            )}
             <span className="absolute top-full left-1/2 -translate-x-1/2 mt-1 text-[10px] text-muted-foreground whitespace-nowrap">
               Generation Limit: {generationLimit.toLocaleString()}
             </span>
@@ -502,6 +522,41 @@ export default function BatchDetail() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Client-side generation progress bar */}
+      {genProgress && genProgress.phase !== "done" && (
+        <Card className="border-border/50 shadow-sm overflow-hidden animate-in slide-in-from-top-2 duration-300">
+          <CardContent className="p-5">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  <span className="text-sm font-medium">
+                    {genProgress.phase === "preparing" && "Preparing..."}
+                    {genProgress.phase === "generating" && "Generating Certificates"}
+                    {genProgress.phase === "uploading" && "Uploading to Cloud"}
+                    {genProgress.phase === "error" && "Error"}
+                  </span>
+                </div>
+                {genProgress.total > 0 && (
+                  <span className="text-xs text-muted-foreground font-mono">
+                    {genProgress.current}/{genProgress.total}
+                  </span>
+                )}
+              </div>
+              {genProgress.total > 0 && (
+                <Progress
+                  value={(genProgress.current / genProgress.total) * 100}
+                  className="h-2"
+                />
+              )}
+              <p className="text-xs text-muted-foreground truncate">
+                {genProgress.message}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-border/50 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">

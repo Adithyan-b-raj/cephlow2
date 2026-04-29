@@ -38,6 +38,7 @@ app.use(globalLimiter);
 app.use(cors());
 app.use(
   express.json({
+    limit: "25mb",
     verify: (req: any, res, buf) => {
       req.rawBody = buf.toString();
     },
@@ -69,6 +70,7 @@ app.use("/api", internalRouter);
 // Heavy operations: auth runs first so req.user is populated,
 // then the per-user rate limiter kicks in before the route handler.
 app.use("/api/batches/:batchId/generate", requireAuth, heavyLimiter);
+app.use("/api/batches/:batchId/client-generate", requireAuth, heavyLimiter);
 app.use("/api/batches/:batchId/send", requireAuth, heavyLimiter);
 app.use("/api/batches/:batchId/send-whatsapp", requireAuth, heavyLimiter);
 app.use("/api/batches/:batchId/sync", requireAuth, heavyLimiter);
