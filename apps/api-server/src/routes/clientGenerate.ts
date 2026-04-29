@@ -70,11 +70,18 @@ router.post("/batches/:batchId/client-generate", async (req, res) => {
 
     const targetCerts =
       selectedCertIds && Array.isArray(selectedCertIds) && selectedCertIds.length > 0
+        // Explicit selection: respect exactly what was chosen
         ? allCerts.filter((c) => selectedCertIds.includes(c.id))
-        : allCerts;
+        // No selection = "generate/resume all remaining" — skip already done certs
+        : allCerts.filter((c) => ["pending", "failed", "outdated"].includes(c.status));
 
     if (targetCerts.length === 0) {
-      return res.status(400).json({ error: "No certificates found to generate." });
+      const hasSelection = selectedCertIds && Array.isArray(selectedCertIds) && selectedCertIds.length > 0;
+      return res.status(400).json({
+        error: hasSelection
+          ? "None of the selected certificates need generation."
+          : "All certificates have already been generated. Nothing left to resume.",
+      });
     }
 
     const unpaidCerts = targetCerts.filter((c) => !c.isPaid);
@@ -283,23 +290,32 @@ router.post("/batches/:batchId/client-report", async (req, res) => {
 
 // ── POST /batches/:batchId/client-complete ──────────────────────────────────
 // Client signals that generation is complete (or partially complete).
+// `cancelled` flag distinguishes a user-aborted run from a true full completion.
 router.post("/batches/:batchId/client-complete", async (req, res) => {
   const userId = req.user?.uid;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   const { batchId } = req.params;
-  const { generated = 0, failed = 0 } = req.body;
+  const { generated = 0, failed = 0, cancelled = false } = req.body;
 
   try {
     const { data: batchRow } = await supabaseAdmin
       .from("batches")
-      .select("user_id")
+      .select("user_id, total_count")
       .eq("id", batchId)
       .single();
     if (!batchRow || batchRow.user_id !== userId)
       return res.status(403).json({ error: "Access denied" });
 
-    const newStatus = failed === 0 ? "generated" : generated > 0 ? "partial" : "draft";
+    let newStatus: string;
+    if (cancelled) {
+      // Aborted by user or unexpected error — never claim fully generated
+      newStatus = generated > 0 ? "partial" : "draft";
+    } else {
+      // Normal completion path
+      newStatus = failed === 0 ? "generated" : generated > 0 ? "partial" : "draft";
+    }
+
     await supabaseAdmin.from("batches").update({ status: newStatus }).eq("id", batchId);
 
     return res.json({ success: true, status: newStatus });
@@ -329,6 +345,55 @@ router.post("/batches/:batchId/client-cleanup", async (req, res) => {
       )
     );
     return res.json({ success: true, cleaned: tempFileIds.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// ── POST /batches/:batchId/recover-stuck ────────────────────────────────────
+// Called by the client on page load when it detects status="generating" but
+// no local generation is actually running (tab was force-closed / device off).
+// Derives the correct status from cert rows — no timestamps needed.
+router.post("/batches/:batchId/recover-stuck", async (req, res) => {
+  const userId = req.user?.uid;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const { batchId } = req.params;
+
+  try {
+    const { data: batchRow } = await supabaseAdmin
+      .from("batches")
+      .select("user_id, status")
+      .eq("id", batchId)
+      .single();
+
+    if (!batchRow || batchRow.user_id !== userId)
+      return res.status(403).json({ error: "Access denied" });
+
+    // Only act on stuck batches — if it's already resolved, return current state
+    if (batchRow.status !== "generating") {
+      return res.json({ recovered: false, status: batchRow.status });
+    }
+
+    // Derive the true status from the cert rows (source of truth)
+    const { data: certs } = await supabaseAdmin
+      .from("certificates")
+      .select("status")
+      .eq("batch_id", batchId);
+
+    const statuses = (certs || []).map((c: any) => c.status as string);
+    const doneCount = statuses.filter((s) => s === "generated" || s === "sent").length;
+    const totalCount = statuses.length;
+
+    const newStatus =
+      doneCount === totalCount ? "generated"
+      : doneCount > 0         ? "partial"
+      :                         "draft";
+
+    await supabaseAdmin.from("batches").update({ status: newStatus }).eq("id", batchId);
+
+    console.log(`[RECOVER-STUCK] Batch ${batchId}: generating → ${newStatus} (${doneCount}/${totalCount} done)`);
+    return res.json({ recovered: true, status: newStatus, doneCount, totalCount });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

@@ -89,10 +89,15 @@ export default function BatchDetail() {
 
   const [selectedCertIds, setSelectedCertIds] = useState<string[]>([]);
 
+  // Certs still needing generation (used for resume path)
+  const allCerts = (batch?.certificates || []) as any[];
+  const pendingCerts = allCerts.filter((c: any) => ["pending", "failed"].includes(c.status));
+  const pendingCount = pendingCerts.length;
+
   // Calculate unpaid count from selected certificates
-  const targetCerts = selectedCertIds.length > 0 
-    ? (batch?.certificates || []).filter((c: any) => selectedCertIds.includes(c.id))
-    : (batch?.certificates || []);
+  const targetCerts = selectedCertIds.length > 0
+    ? allCerts.filter((c: any) => selectedCertIds.includes(c.id))
+    : allCerts;
   const unpaidCount = targetCerts.filter((c: any) => !c.isPaid).length;
   const visualRegenCount = targetCerts.filter((c: any) => c.isPaid && c.status === "outdated" && c.requiresVisualRegen).length;
   const infoRegenCount = targetCerts.filter((c: any) => c.isPaid && c.status === "outdated" && !c.requiresVisualRegen).length;
@@ -101,7 +106,14 @@ export default function BatchDetail() {
   const REGEN_RATE = Number(import.meta.env.VITE_CERT_REGENERATION_RATE || 0.2);
   const totalCost = (unpaidCount * RATE) + (visualRegenCount * REGEN_RATE);
 
-  const generateBtnText = (unpaidCount > 0 ? `Generate Selected (${selectedCertIds.length})` : `Regenerate Selected (${selectedCertIds.length})`);
+  // Whether clicking Generate with no selection is valid (resume all remaining)
+  const canResumeAll = selectedCertIds.length === 0 && pendingCount > 0;
+
+  const generateBtnText = selectedCertIds.length > 0
+    ? (unpaidCount > 0 ? `Generate Selected (${selectedCertIds.length})` : `Regenerate Selected (${selectedCertIds.length})`)
+    : batch?.status === "partial"
+      ? `Resume (${pendingCount} remaining)`
+      : `Generate All (${pendingCount})`;
 
   const { data: balanceData, refetch: refetchBalance } = useGetWalletBalance();
   const currentBalance = balanceData?.currentBalance ?? 0;
@@ -125,22 +137,27 @@ export default function BatchDetail() {
       refetch();
       refetchBalance();
     } catch (err: any) {
+      const isCancelled = err.message === "Generation cancelled";
       const isLowBalance = err.message?.includes('Insufficient funds') || err.message?.includes('402');
       toast({ 
-        title: isLowBalance ? "Insufficient Balance" : "Generation failed", 
-        description: isLowBalance 
+        title: isCancelled ? "Generation cancelled" : isLowBalance ? "Insufficient Balance" : "Generation failed", 
+        description: isCancelled
+          ? "Generation was cancelled. Certificates processed so far have been saved."
+          : isLowBalance 
           ? "Your wallet balance is too low to generate this batch. Please add credits to continue."
           : (err.message || "An unexpected error occurred"),
-        variant: "destructive",
+        variant: isCancelled ? undefined : "destructive",
         action: isLowBalance ? (
           <Button variant="outline" size="sm" onClick={() => window.location.href = '/wallet'}>
             Top Up
           </Button>
         ) : undefined
       });
-      refetch();
+      // Small delay so the server's client-complete write lands before we re-read
+      setTimeout(() => { refetch(); refetchBalance(); }, 600);
     }
   };
+
 
   const { mutate: syncData, isPending: isSyncing } = useSyncBatch({
     mutation: {
@@ -352,8 +369,52 @@ export default function BatchDetail() {
     };
   }, [batch, toast]);
 
+  // ── Stuck-batch auto-recovery ─────────────────────────────────────────────
+  // If the tab was force-closed (device off, browser killed, network drop)
+  // during generation, the batch stays at status="generating" permanently.
+  // Detect this: status="generating" but isGenerating=false (no local run).
+  // Wait 2 s to let any in-flight sendBeacon from the *previous* session land,
+  // then call recover-stuck which recomputes status from cert rows.
+  useEffect(() => {
+    if (batch?.status !== "generating" || isGenerating) return;
+
+    const timer = setTimeout(async () => {
+      try {
+        const { supabase } = await import("@/lib/supabase");
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (!token) return;
+
+        const apiBaseUrl = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+        const res = await fetch(`${apiBaseUrl}/api/batches/${batchId}/recover-stuck`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+
+        const data = await res.json();
+        if (data.recovered) {
+          refetch();
+          toast({
+            title: "Generation interrupted",
+            description:
+              data.status === "partial"
+                ? `Previous session was interrupted. ${data.doneCount}/${data.totalCount} certificates were saved. Click Resume to continue.`
+                : data.status === "generated"
+                ? "All certificates were already generated — status has been corrected."
+                : "No certificates were saved from the previous session. You can start again.",
+          });
+        }
+      } catch { /* best-effort */ }
+    }, 2000);
+
+    return () => clearTimeout(timer);
+  }, [batch?.status, isGenerating, batchId, refetch, toast]);
+  // ──────────────────────────────────────────────────────────────────────────
+
   if (isLoading) return <div className="p-8 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>;
   if (!batch) return <div className="p-8 text-center text-muted-foreground">Batch not found</div>;
+
 
   const handleOpenSend = () => {
     setEmailSubject(batch.emailSubject || "");
@@ -452,7 +513,7 @@ export default function BatchDetail() {
               variant="outline"
               size="sm"
               onClick={handleGenerate}
-              disabled={isGenerating || batch.status === 'generating' || selectedCertIds.length === 0}
+              disabled={isGenerating || batch.status === 'generating' || (!canResumeAll && selectedCertIds.length === 0)}
               className="hover-elevate bg-background relative"
             >
               {isGenerating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}

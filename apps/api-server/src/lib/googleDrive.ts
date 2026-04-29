@@ -426,8 +426,11 @@ export async function generateCertificate(
       for (const [placeholder, value] of Object.entries(replacements)) {
         if (content.includes(placeholder) && !processedObjectIds.has(element.objectId!)) {
           const shapeWidthEmu = element.size?.width?.magnitude || 0;
+          // Account for the element's transform scaleX to get visual width
+          const scaleX = Math.abs((element.transform as any)?.scaleX ?? 1);
+          const visualWidthEmu = shapeWidthEmu * scaleX;
           // Subtract left+right insets from the available drawing width
-          const shapeWidth = (shapeWidthEmu - DEFAULT_INSET_EMU * 2) / EMU_PER_PT;
+          const shapeWidth = (visualWidthEmu - DEFAULT_INSET_EMU * 2) / EMU_PER_PT;
           // Font size priority: explicit run override > fallback
           const runFontEl = textElements.find((te: any) => te.textRun?.style?.fontSize?.magnitude);
           const currentFontSize =
@@ -756,7 +759,10 @@ export async function generateCertificateBatch(
         for (const [placeholder, value] of Object.entries(cert.replacements)) {
           if (content.includes(placeholder)) {
             const shapeWidthEmu = el.size?.width?.magnitude || 0;
-            const shapeWidth = (shapeWidthEmu - DEFAULT_INSET_EMU * 2) / EMU_PER_PT;
+            // Account for the element's transform scaleX to get visual width
+            const scaleX = Math.abs((el.transform as any)?.scaleX ?? 1);
+            const visualWidthEmu = shapeWidthEmu * scaleX;
+            const shapeWidth = (visualWidthEmu - DEFAULT_INSET_EMU * 2) / EMU_PER_PT;
             const runFontEl = textEls.find((te: any) => te.textRun?.style?.fontSize?.magnitude);
             const currentFontSize = runFontEl?.textRun?.style?.fontSize?.magnitude || 28;
             const estimatedWidth = getEffectiveLength(value) * currentFontSize * CHAR_WIDTH_FACTOR;

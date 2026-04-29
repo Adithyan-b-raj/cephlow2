@@ -271,14 +271,19 @@ async function generateChunk(
         });
       }
 
-      // Font scaling
+      // Font scaling — account for transform.scaleX to get actual visual width
+      const processedObjectIds = new Set<string>();
       for (const el of slide.pageElements || []) {
+        if (processedObjectIds.has(el.objectId)) continue;
         const textEls = el.shape?.text?.textElements || [];
         const content = textEls.map((te: any) => te.textRun?.content || "").join("");
         for (const [placeholder, value] of Object.entries(replacements)) {
-          if (content.includes(placeholder)) {
+          if (content.includes(placeholder) && !processedObjectIds.has(el.objectId)) {
+            // Visual width = intrinsic width × scaleX
             const shapeWidthEmu = el.size?.width?.magnitude || 0;
-            const shapeWidth = (shapeWidthEmu - DEFAULT_INSET_EMU * 2) / EMU_PER_PT;
+            const scaleX = Math.abs(el.transform?.scaleX ?? 1);
+            const visualWidthEmu = shapeWidthEmu * scaleX;
+            const shapeWidth = (visualWidthEmu - DEFAULT_INSET_EMU * 2) / EMU_PER_PT;
             const runFontEl = textEls.find(
               (te: any) => te.textRun?.style?.fontSize?.magnitude
             );
@@ -293,6 +298,7 @@ async function generateChunk(
                   currentFontSize * ((shapeWidth * 0.9) / estimatedWidth)
                 )
               );
+              processedObjectIds.add(el.objectId);
               allRequests.push({
                 updateTextStyle: {
                   objectId: el.objectId,
@@ -560,12 +566,20 @@ export async function clientGenerate(
   const allCerts: CertData[] = initData.certificates;
   const baseUrl: string = initData.baseUrl;
 
-  // Filter out certs that don't need rendering
+  // Certs that need a full visual re-render (new, failed, or outdated with visual changes)
   const toGenerate = allCerts.filter(
-    (c) => c.requiresVisualRegen !== false || !c.slideFileId
+    (c) =>
+      c.status !== "generated" &&
+      c.status !== "sent" &&
+      (c.requiresVisualRegen !== false || !c.r2PdfUrl)
   );
+  // Certs that are outdated but only metadata changed — no re-render, just a DB update
   const metadataOnly = allCerts.filter(
-    (c) => c.requiresVisualRegen === false && c.slideFileId
+    (c) =>
+      c.status !== "generated" &&
+      c.status !== "sent" &&
+      c.requiresVisualRegen === false &&
+      !!c.r2PdfUrl
   );
 
   const totalToProcess = toGenerate.length + metadataOnly.length;
