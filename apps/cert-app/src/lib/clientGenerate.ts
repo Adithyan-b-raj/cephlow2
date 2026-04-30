@@ -425,25 +425,24 @@ async function reportCertResult(
   apiBaseUrl: string,
   batchId: string,
   certId: string,
-  pdfBuffer: Uint8Array,
   cert: CertData,
   batchName: string,
+  r2PdfUrl: string | null = null,
   drivePdfFileId?: string,
   drivePdfUrl?: string,
-): Promise<{ r2PdfUrl: string | null }> {
+): Promise<{ success: boolean }> {
   const supabaseToken = await getSupabaseToken();
 
-  // Convert to base64
-  let binary = "";
-  const bytes = pdfBuffer;
-  const chunkSize = 32768;
-  for (let i = 0; i < bytes.length; i += chunkSize) {
-    binary += String.fromCharCode.apply(
-      null,
-      Array.from(bytes.slice(i, i + chunkSize))
-    );
-  }
-  const pdfBase64 = btoa(binary);
+  const payload = {
+    certId,
+    recipientName: cert.recipientName,
+    recipientEmail: cert.recipientEmail || "",
+    batchName,
+    rowData: cert.rowData,
+    r2PdfUrl,
+    drivePdfFileId: drivePdfFileId || null,
+    drivePdfUrl: drivePdfUrl || null,
+  };
 
   const res = await fetch(`${apiBaseUrl}/api/batches/${batchId}/client-report`, {
     method: "POST",
@@ -451,16 +450,7 @@ async function reportCertResult(
       "Content-Type": "application/json",
       Authorization: `Bearer ${supabaseToken}`,
     },
-    body: JSON.stringify({
-      certId,
-      recipientName: cert.recipientName,
-      recipientEmail: cert.recipientEmail,
-      pdfBase64,
-      drivePdfFileId: drivePdfFileId || null,
-      drivePdfUrl: drivePdfUrl || null,
-      rowData: cert.rowData,
-      batchName,
-    }),
+    body: JSON.stringify(payload),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -624,9 +614,9 @@ export async function clientGenerate(
           apiBaseUrl,
           batchId,
           cert.id,
-          new Uint8Array(0), // No PDF buffer for metadata-only
           cert,
-          batch.name
+          batch.name,
+          cert.r2PdfUrl
         );
         generated++;
       } catch {
@@ -692,7 +682,18 @@ export async function clientGenerate(
           );
           tempFileIds.push(tempFileId);
 
-          // Upload results to server one at a time
+          // 1. Get presigned URLs for this chunk
+          const presignedRes = await fetch(`${apiBaseUrl}/api/batches/${batchId}/presigned-urls`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${await getSupabaseToken()}`
+            },
+            body: JSON.stringify({ certificates: chunk.map(c => ({ certId: c.id, recipientName: c.recipientName, rowData: c.rowData })), batchName: batch.name })
+          });
+          const { presignedUrls } = await presignedRes.json();
+
+          // 2. Upload results directly to R2 and report to server
           onProgress({
             phase: "uploading",
             current: generated + failed,
@@ -707,13 +708,37 @@ export async function clientGenerate(
 
             const cert = chunk.find((c) => c.id === result.certId)!;
             try {
+              const urlInfo = presignedUrls?.find((u: any) => u.certId === cert.id);
+              
+              if (urlInfo && urlInfo.uploadUrl) {
+                // Direct upload to Cloudflare R2 with retry (3 attempts)
+                let uploadSuccess = false;
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                  try {
+                    const uploadRes = await fetch(urlInfo.uploadUrl, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/pdf" },
+                      body: result.pdfBuffer,
+                    });
+                    if (!uploadRes.ok) throw new Error(`R2 upload HTTP ${uploadRes.status}`);
+                    uploadSuccess = true;
+                    break;
+                  } catch (uploadErr) {
+                    console.warn(`[CLIENT] R2 upload attempt ${attempt}/3 failed for ${cert.recipientName}:`, uploadErr);
+                    if (attempt < 3) await new Promise(r => setTimeout(r, 1000 * attempt)); // 1s, 2s backoff
+                  }
+                }
+                if (!uploadSuccess) throw new Error("Direct R2 upload failed after 3 attempts");
+              }
+
+              // Report success to API server
               await reportCertResult(
                 apiBaseUrl,
                 batchId,
                 result.certId,
-                result.pdfBuffer,
                 cert,
-                batch.name
+                batch.name,
+                urlInfo?.r2PdfUrl || null
               );
               generated++;
             } catch (err: any) {

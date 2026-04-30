@@ -12,16 +12,15 @@
   "main": "dist/index.cjs",
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1010.0",
+    "@aws-sdk/s3-request-presigner": "^3.1039.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/supabase": "workspace:*",
-    "bullmq": "^5.76.1",
     "cashfree-pg": "^5.1.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
     "express": "^5",
     "express-rate-limit": "^8.4.0",
     "googleapis": "^148.0.0",
-    "ioredis": "^5.10.1",
     "nodemailer": "^8.0.5",
     "pdf-lib": "^1.17.1",
     "qrcode": "^1.5.4"

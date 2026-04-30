@@ -2,8 +2,21 @@ import { Router, type IRouter } from "express";
 import { supabaseAdmin, toCamel, type Certificate } from "@workspace/supabase";
 import { getAuthClientForUser } from "../lib/googleAuth.js";
 import { deleteFile } from "../lib/googleDrive.js";
+import { upsertStudentProfile, extractPhoneNumber } from "../lib/certUtils.js";
+import { generatePresignedPutUrl, getR2PublicUrl } from "../lib/cloudflareR2.js";
+import { rateLimit } from "express-rate-limit";
 
 const router: IRouter = Router();
+
+// Rate limiter for presigned URL generation: 20 requests per minute per user
+const presignedUrlLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  keyGenerator: (req) => req.user?.uid || req.ip || "unknown",
+  message: { error: "Too many presigned URL requests. Please slow down." },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 // ── GET /auth/google/access-token ──────────────────────────────────────────
 // Returns a short-lived Google access token for the current user.
@@ -160,9 +173,53 @@ router.post("/batches/:batchId/client-generate", async (req, res) => {
   }
 });
 
+// ── POST /batches/:batchId/presigned-urls ──────────────────────────────────
+// Returns an array of presigned URLs for direct browser-to-R2 uploads
+router.post("/batches/:batchId/presigned-urls", presignedUrlLimiter, async (req, res) => {
+  const userId = req.user?.uid;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const { batchId } = req.params;
+  const { certificates, batchName } = req.body;
+
+  if (!Array.isArray(certificates)) {
+    return res.status(400).json({ error: "certificates array is required" });
+  }
+
+  try {
+    // Verify batch ownership
+    const { data: batchRow } = await supabaseAdmin
+      .from("batches")
+      .select("user_id")
+      .eq("id", batchId)
+      .single();
+    if (!batchRow || batchRow.user_id !== userId) {
+      return res.status(403).json({ error: "Access denied" });
+    }
+
+    const presignedUrls = [];
+    for (const cert of certificates) {
+      const { certId, recipientName, rowData } = cert;
+      const pdfName = `${(recipientName || "cert").replace(/[^a-zA-Z0-9]/g, "_")}_${(batchName || "batch").replace(/[^a-zA-Z0-9]/g, "_")}`;
+      const phoneNumber = extractPhoneNumber(rowData || {});
+      const folderName = phoneNumber || (recipientName || "unknown").replace(/[^a-zA-Z0-9]/g, "_");
+
+      const { url, key } = await generatePresignedPutUrl(folderName, pdfName);
+      const r2PdfUrl = getR2PublicUrl(key);
+
+      presignedUrls.push({ certId, uploadUrl: url, r2PdfUrl });
+    }
+
+    console.log(`[PRESIGNED-URLS] Generated ${presignedUrls.length} direct upload URLs for batch: ${batchId}`);
+    return res.json({ presignedUrls });
+  } catch (err: any) {
+    console.error("[PRESIGNED-URLS] Failed:", err);
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ── POST /batches/:batchId/client-report ───────────────────────────────────
-// Client reports per-cert completion. Server updates DB immediately and
-// queues the R2 upload to a background worker so the API stays fast.
+// Client reports per-cert completion. Server updates DB immediately.
 router.post("/batches/:batchId/client-report", async (req, res) => {
   const userId = req.user?.uid;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -172,7 +229,7 @@ router.post("/batches/:batchId/client-report", async (req, res) => {
     certId,
     recipientName,
     recipientEmail,
-    pdfBase64,
+    r2PdfUrl,
     drivePdfFileId,
     drivePdfUrl,
     driveSlideFileId,
@@ -193,14 +250,15 @@ router.post("/batches/:batchId/client-report", async (req, res) => {
     if (!batchRow || batchRow.user_id !== userId)
       return res.status(403).json({ error: "Access denied" });
 
-    // Mark cert as generated immediately (DB write is fast)
+    // Mark cert as generated immediately
     const updateData: Record<string, any> = {
       status: "generated",
       error_message: null,
       updated_at: new Date().toISOString(),
       requires_visual_regen: false,
     };
-    // Drive info if provided (usually null from client-side gen)
+    
+    if (r2PdfUrl) updateData.r2_pdf_url = r2PdfUrl;
     if (drivePdfFileId) updateData.pdf_file_id = drivePdfFileId;
     if (drivePdfUrl) updateData.pdf_url = drivePdfUrl;
     if (driveSlideFileId) updateData.slide_file_id = driveSlideFileId;
@@ -215,29 +273,24 @@ router.post("/batches/:batchId/client-report", async (req, res) => {
       p_amount: 1,
     });
 
-    // Queue R2 upload + student profile upsert to background worker (via tasks table)
-    if (pdfBase64) {
-      await supabaseAdmin.from("tasks").insert({
-        batch_id: batchId,
-        certificate_id: certId,
-        type: "generate", // reusing generate type for R2 upload since client-side generation replaced server-side
-        payload: {
-          action: "r2_upload",
-          certId,
-          batchId,
-          recipientName: recipientName || "cert",
-          recipientEmail: recipientEmail || "",
-          batchName: batchName || "batch",
-          pdfBase64,
-          rowData: rowData || {},
-          drivePdfFileId: drivePdfFileId || null,
-          drivePdfUrl: drivePdfUrl || null,
-          driveSlideFileId: driveSlideFileId || null,
-          driveSlideUrl: driveSlideUrl || null,
-        }
-      });
+    // Upsert student profile directly since worker is removed for R2 uploads
+    if (recipientEmail) {
+      await upsertStudentProfile({
+        email: recipientEmail,
+        name: recipientName || "Unknown",
+        certId,
+        batchId,
+        batchName: batchName || "",
+        r2PdfUrl: r2PdfUrl || null,
+        pdfUrl: drivePdfUrl || null,
+        slideUrl: driveSlideUrl || null,
+        status: "generated",
+      }).catch((e: any) =>
+        console.error("[CLIENT-REPORT] Profile upsert failed:", recipientEmail, e.message)
+      );
     }
 
+    console.log(`[CLIENT-REPORT] Successfully recorded cert generation: ${recipientName || certId}`);
     return res.json({ success: true });
   } catch (err: any) {
     // Mark cert as failed

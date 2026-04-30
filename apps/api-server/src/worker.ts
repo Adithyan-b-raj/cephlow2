@@ -2,8 +2,6 @@
 import { supabaseAdmin } from "@workspace/supabase";
 import { processSendEmail } from "./processors/sendEmail.js";
 import { processSendWhatsApp } from "./processors/sendWhatsApp.js";
-import { processR2Upload } from "./processors/r2Upload.js";
-
 const CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || "10", 10);
 const POLL_INTERVAL = 2000; // poll every 2 seconds
 
@@ -11,12 +9,7 @@ let isShuttingDown = false;
 
 async function executeTask(task: any) {
   try {
-    if (task.type === "generate") {
-      // Reusing 'generate' for r2_upload since client-side generation replaced server-side
-      if (task.payload?.action === "r2_upload") {
-        await processR2Upload(task.payload);
-      }
-    } else if (task.type === "send_email") {
+    if (task.type === "send_email") {
       await processSendEmail(task.payload);
     } else if (task.type === "send_whatsapp") {
       await processSendWhatsApp(task.payload);

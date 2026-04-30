@@ -1,5 +1,5 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand, DeleteObjectsCommand, CopyObjectCommand } from "@aws-sdk/client-s3";
-
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 function getConfig() {
   return {
     accountId: process.env.R2_ACCOUNT_ID,
@@ -171,3 +171,36 @@ export async function deleteR2Objects(keys: string[]): Promise<void> {
   }
 }
 
+/**
+ * Generate a presigned URL for direct uploads from the browser to Cloudflare R2.
+ * @param folderName The target folder
+ * @param fileName The target filename
+ * @param contentType Defaults to application/pdf
+ * @param expiresIn Seconds until the URL expires (default 15 minutes)
+ * @returns { url: string, key: string }
+ */
+export async function generatePresignedPutUrl(
+  folderName: string,
+  fileName: string,
+  contentType: string = "application/pdf",
+  expiresIn: number = 900
+): Promise<{ url: string; key: string }> {
+  const config = getConfig();
+  if (!config.accountId || !config.accessKeyId || !config.secretAccessKey || !config.bucketName) {
+    throw new Error("Cloudflare R2 credentials are not fully configured");
+  }
+
+  const client = getR2Client(config);
+  const safeFolderName = folderName.replace(/[^a-zA-Z0-9+\-_.]/g, "_");
+  const safeFileName = fileName.replace(/[^a-zA-Z0-9+\-_.]/g, "_");
+  const key = `${safeFolderName}/${safeFileName.endsWith(".pdf") ? safeFileName : `${safeFileName}.pdf`}`;
+
+  const command = new PutObjectCommand({
+    Bucket: config.bucketName,
+    Key: key,
+    ContentType: contentType,
+  });
+
+  const url = await getSignedUrl(client, command, { expiresIn });
+  return { url, key };
+}
