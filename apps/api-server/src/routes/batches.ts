@@ -1,12 +1,11 @@
 import { Router, type IRouter } from "express";
 import { supabaseAdmin, toCamel, type Certificate } from "@workspace/supabase";
 import { getSheetsClient } from "../lib/googleSheets.js";
-import { createFolder, makeFilePublic, exportSlidesToPdf, generateCertificate } from "../lib/googleDrive.js";
+import { createFolder, makeFilePublic, generateCertificate } from "../lib/googleDrive.js";
 import { deleteR2Objects, isR2Configured } from "../lib/cloudflareR2.js";
 import { isWhatsAppConfigured, sendWhatsAppDocument } from "../lib/whatsapp.js";
-import { sendEmail } from "../lib/gmail.js";
 import { extractPhoneNumber } from "../lib/certUtils.js";
-import { generateQueue, sendEmailQueue, sendWhatsAppQueue } from "../queue/queues.js";
+import { sendEmailQueue, sendWhatsAppQueue } from "../queue/queues.js";
 
 const router: IRouter = Router();
 
@@ -291,98 +290,6 @@ router.post("/batches/:batchId/sync", async (req, res) => {
   }
 });
 
-// Generate certificates for a batch
-router.post("/batches/:batchId/generate", async (req, res) => {
-  console.log("[GENERATE] endpoint hit");
-  const userId = req.user?.uid;
-  if (!userId) return res.status(401).json({ error: "Unauthorized" });
-
-  const { batchId } = req.params;
-  const { selectedCertIds } = req.body || {};
-
-  try {
-    const { data: batchRow, error: batchErr } = await supabaseAdmin
-      .from("batches")
-      .select("*")
-      .eq("id", batchId)
-      .single();
-    if (batchErr || !batchRow) return res.status(404).json({ error: "Batch not found" });
-    const batch = toCamel(batchRow) as any;
-    if (batch.userId !== userId) return res.status(403).json({ error: "Access denied" });
-
-    const { data: certsData } = await supabaseAdmin
-      .from("certificates")
-      .select("*")
-      .eq("batch_id", batchId);
-    const allCerts = (certsData || []).map(toCamel) as Certificate[];
-
-    const targetCerts = selectedCertIds && Array.isArray(selectedCertIds) && selectedCertIds.length > 0
-      ? allCerts.filter(c => selectedCertIds.includes(c.id))
-      : allCerts;
-
-    if (targetCerts.length === 0) {
-      return res.status(400).json({ error: "No certificates found to generate." });
-    }
-
-    const unpaidCerts = targetCerts.filter(c => !c.isPaid);
-    const visualRegenCerts = targetCerts.filter(c => c.isPaid && c.status === "outdated" && c.requiresVisualRegen);
-
-    const unpaidCount = unpaidCerts.length;
-    const visualRegenCount = visualRegenCerts.length;
-
-    const RATE = Number(process.env.VITE_CERT_GENERATION_RATE || 1);
-    const REGEN_RATE = Number(process.env.VITE_CERT_REGENERATION_RATE || 0.2);
-    const cost = (unpaidCount * RATE) + (visualRegenCount * REGEN_RATE);
-
-    const ledgerId = `gen_${batchId}_${Date.now()}`;
-    const unpaidCertIds = unpaidCerts.map(c => c.id);
-
-    const { error: rpcErr } = await supabaseAdmin.rpc("start_batch_generation", {
-      p_user_id: userId,
-      p_batch_id: batchId,
-      p_cost: cost,
-      p_unpaid_cert_ids: unpaidCertIds,
-      p_ledger_id: ledgerId,
-      p_batch_name: batch.name,
-      p_unpaid_count: unpaidCount,
-      p_regen_count: visualRegenCount,
-      p_rate: RATE,
-      p_regen_rate: REGEN_RATE,
-    });
-
-    if (rpcErr) {
-      const msg = rpcErr.message || "";
-      if (msg.includes("already_generating")) return res.status(409).json({ error: "Batch is already generating" });
-      if (msg.includes("currently_sending")) return res.status(409).json({ error: "Batch is currently being sent" });
-      if (msg.includes("insufficient_funds")) {
-        const parts = msg.split(":");
-        const detail = parts[1] || msg;
-        const err: any = new Error(`Insufficient funds: ${detail}`);
-        err.statusCode = 402;
-        throw err;
-      }
-      throw rpcErr;
-    }
-
-    const baseUrl = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
-    const job = await generateQueue.add("generate", {
-      batchId,
-      userId,
-      certIds: targetCerts.map((c) => c.id),
-      baseUrl,
-    });
-
-    return res.json({ success: true, message: "Generation queued", jobId: job.id });
-  } catch (err: any) {
-    console.error("[GENERATE] Initial request failed:", err);
-    try {
-      await supabaseAdmin.from("batches").update({ status: "draft" }).eq("id", batchId);
-    } catch {}
-    const status = err.statusCode || 500;
-    return res.status(status).json({ error: err.message });
-  }
-});
-
 // Send certificates via Gmail
 router.post("/batches/:batchId/send", async (req, res) => {
   const userId = req.user?.uid;
@@ -448,7 +355,7 @@ router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
   }
 });
 
-// Send a single certificate via email
+// Send a single certificate via email (queued to background worker)
 router.post("/batches/:batchId/certificates/:certId/send", async (req, res) => {
   const userId = req.user?.uid;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -456,48 +363,33 @@ router.post("/batches/:batchId/certificates/:certId/send", async (req, res) => {
   const { batchId, certId } = req.params;
 
   try {
-    const { data: batchRow, error: batchErr } = await supabaseAdmin.from("batches").select("*").eq("id", batchId).single();
+    const { data: batchRow, error: batchErr } = await supabaseAdmin.from("batches").select("user_id").eq("id", batchId).single();
     if (batchErr || !batchRow) return res.status(404).json({ error: "Batch not found" });
-    const batch = toCamel(batchRow) as any;
-    if (batch.userId !== userId) return res.status(403).json({ error: "Access denied" });
+    if (batchRow.user_id !== userId) return res.status(403).json({ error: "Access denied" });
 
-    const { data: certRow, error: certErr } = await supabaseAdmin.from("certificates").select("*").eq("id", certId).single();
+    const { data: certRow, error: certErr } = await supabaseAdmin.from("certificates").select("recipient_email, status, r2_pdf_url, slide_file_id").eq("id", certId).single();
     if (certErr || !certRow) return res.status(404).json({ error: "Certificate not found" });
-    const cert = toCamel(certRow) as any;
 
-    if (!cert.recipientEmail) return res.status(400).json({ error: "Certificate has no email address" });
-    if (!cert.slideFileId) return res.status(400).json({ error: "Certificate has not been generated yet" });
+    if (!certRow.recipient_email) return res.status(400).json({ error: "Certificate has no email address" });
+    if (!certRow.r2_pdf_url && !certRow.slide_file_id) return res.status(400).json({ error: "Certificate has not been generated yet" });
 
     const { emailSubject: reqSubject, emailBody: reqBody } = req.body;
-    const subject = reqSubject || batch.emailSubject || "Your Certificate";
-    const body = reqBody || batch.emailBody || "Please find your certificate attached.";
 
-    const pdfBuffer = await exportSlidesToPdf(userId, cert.slideFileId);
-    const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
+    const { data: batchFull } = await supabaseAdmin.from("batches").select("email_subject, email_body").eq("id", batchId).single();
+    const subject = reqSubject || batchFull?.email_subject || "Your Certificate";
+    const body = reqBody || batchFull?.email_body || "Please find your certificate attached.";
 
-    const rowData = (cert.rowData as Record<string, string>) || {};
-    let personalizedSubject = subject;
-    let personalizedBody = body;
-    for (const [placeholder, column] of Object.entries(batch.columnMap || {})) {
-      const value = rowData[String(column)] || "";
-      personalizedSubject = personalizedSubject.replace(new RegExp(`<<${placeholder}>>`, "gi"), value);
-      personalizedBody = personalizedBody.replace(new RegExp(`<<${placeholder}>>`, "gi"), value);
-    }
-    for (const [col, value] of Object.entries(rowData)) {
-      personalizedSubject = personalizedSubject.replace(new RegExp(`<<${col}>>`, "gi"), value);
-      personalizedBody = personalizedBody.replace(new RegExp(`<<${col}>>`, "gi"), value);
-    }
+    // Queue to worker — responds instantly
+    await sendEmailQueue.add("send-email", {
+      batchId,
+      userId,
+      subject,
+      body,
+      certId,
+    });
 
-    await sendEmail(userId, { to: cert.recipientEmail, subject: personalizedSubject, body: personalizedBody, pdfBuffer, pdfFilename });
-    await supabaseAdmin.from("certificates").update({ status: "sent", sent_at: new Date().toISOString(), error_message: null }).eq("id", certId);
-
-    const { data: allCerts } = await supabaseAdmin.from("certificates").select("status").eq("batch_id", batchId);
-    const sentCount = (allCerts || []).filter((c: { status: string }) => c.status === "sent").length;
-    await supabaseAdmin.from("batches").update({ sent_count: sentCount }).eq("id", batchId);
-
-    return res.json({ success: true, message: `Certificate sent to ${cert.recipientEmail}` });
+    return res.json({ success: true, message: "Email send queued" });
   } catch (err: any) {
-    await supabaseAdmin.from("certificates").update({ status: "failed", error_message: err.message }).eq("id", certId);
     return res.status(500).json({ error: err.message });
   }
 });

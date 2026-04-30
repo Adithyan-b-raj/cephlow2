@@ -1,14 +1,8 @@
 import { Router, type IRouter } from "express";
 import { supabaseAdmin, toCamel, type Certificate } from "@workspace/supabase";
 import { getAuthClientForUser } from "../lib/googleAuth.js";
-import {
-  uploadPdfToR2,
-  isR2Configured,
-  getR2PublicUrl,
-  deleteR2Object,
-} from "../lib/cloudflareR2.js";
-import { extractPhoneNumber, upsertStudentProfile } from "../lib/certUtils.js";
 import { deleteFile } from "../lib/googleDrive.js";
+import { r2UploadQueue } from "../queue/queues.js";
 
 const router: IRouter = Router();
 
@@ -168,8 +162,8 @@ router.post("/batches/:batchId/client-generate", async (req, res) => {
 });
 
 // ── POST /batches/:batchId/client-report ───────────────────────────────────
-// Client reports per-cert completion. Server uploads to R2 and updates DB.
-// Accepts multipart-like JSON with base64 PDF buffer.
+// Client reports per-cert completion. Server updates DB immediately and
+// queues the R2 upload to a background worker so the API stays fast.
 router.post("/batches/:batchId/client-report", async (req, res) => {
   const userId = req.user?.uid;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -200,84 +194,46 @@ router.post("/batches/:batchId/client-report", async (req, res) => {
     if (!batchRow || batchRow.user_id !== userId)
       return res.status(403).json({ error: "Access denied" });
 
-    let r2PdfUrl: string | null = null;
-
-    // Upload PDF to R2 if buffer provided
-    if (pdfBase64 && isR2Configured()) {
-      try {
-        const pdfBuffer = Buffer.from(pdfBase64, "base64");
-        const pdfName = `${(recipientName || "cert").replace(/[^a-zA-Z0-9]/g, "_")}_${(batchName || "batch").replace(/[^a-zA-Z0-9]/g, "_")}`;
-        const phoneNumber = extractPhoneNumber(rowData || {});
-        const r2Folder = phoneNumber || (recipientName || "unknown").replace(/[^a-zA-Z0-9]/g, "_");
-
-        // Clean up old R2 object if regenerating
-        const { data: existingCert } = await supabaseAdmin
-          .from("certificates")
-          .select("r2_pdf_url")
-          .eq("id", certId)
-          .single();
-        if (existingCert?.r2_pdf_url) {
-          const r2PublicBase = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
-          if (r2PublicBase && existingCert.r2_pdf_url.startsWith(r2PublicBase + "/")) {
-            deleteR2Object(existingCert.r2_pdf_url.slice(r2PublicBase.length + 1)).catch(
-              (e: any) => console.error("Cleanup error (R2):", e)
-            );
-          }
-        }
-
-        const r2Key = await uploadPdfToR2(r2Folder, pdfName, pdfBuffer);
-        r2PdfUrl = getR2PublicUrl(r2Key);
-      } catch (e: any) {
-        console.error("[CLIENT-REPORT] R2 upload failed:", certId, e.message);
-      }
-    }
-
-    // Update certificate in Supabase
+    // Mark cert as generated immediately (DB write is fast)
     const updateData: Record<string, any> = {
       status: "generated",
       error_message: null,
       updated_at: new Date().toISOString(),
       requires_visual_regen: false,
     };
+    // Drive info if provided (usually null from client-side gen)
     if (drivePdfFileId) updateData.pdf_file_id = drivePdfFileId;
     if (drivePdfUrl) updateData.pdf_url = drivePdfUrl;
     if (driveSlideFileId) updateData.slide_file_id = driveSlideFileId;
     if (driveSlideUrl) updateData.slide_url = driveSlideUrl;
-    if (r2PdfUrl) updateData.r2_pdf_url = r2PdfUrl;
 
     await supabaseAdmin.from("certificates").update(updateData).eq("id", certId);
 
     // Increment generated count
-    const { data: certRow } = await supabaseAdmin
-      .from("certificates")
-      .select("status")
-      .eq("id", certId)
-      .single();
-    // Only increment if it was not already generated/sent before
     await supabaseAdmin.rpc("increment_batch_column", {
       p_batch_id: batchId,
       p_column: "generated_count",
       p_amount: 1,
     });
 
-    // Upsert student profile
-    if (recipientEmail) {
-      upsertStudentProfile({
-        email: recipientEmail,
-        name: recipientName || "Unknown",
+    // Queue R2 upload + student profile upsert to background worker
+    if (pdfBase64) {
+      await r2UploadQueue.add("r2-upload", {
         certId,
         batchId,
-        batchName: batchName || "",
-        r2PdfUrl,
-        pdfUrl: drivePdfUrl || null,
-        slideUrl: driveSlideUrl || null,
-        status: "generated",
-      }).catch((e: any) =>
-        console.error("[PROFILE] upsert failed:", recipientEmail, e)
-      );
+        recipientName: recipientName || "cert",
+        recipientEmail: recipientEmail || "",
+        batchName: batchName || "batch",
+        pdfBase64,
+        rowData: rowData || {},
+        drivePdfFileId: drivePdfFileId || null,
+        drivePdfUrl: drivePdfUrl || null,
+        driveSlideFileId: driveSlideFileId || null,
+        driveSlideUrl: driveSlideUrl || null,
+      });
     }
 
-    return res.json({ success: true, r2PdfUrl });
+    return res.json({ success: true });
   } catch (err: any) {
     // Mark cert as failed
     await supabaseAdmin
