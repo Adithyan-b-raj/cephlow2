@@ -2,7 +2,6 @@ import { Router, type IRouter } from "express";
 import { supabaseAdmin, toCamel, type Certificate } from "@workspace/supabase";
 import { getAuthClientForUser } from "../lib/googleAuth.js";
 import { deleteFile } from "../lib/googleDrive.js";
-import { r2UploadQueue } from "../queue/queues.js";
 
 const router: IRouter = Router();
 
@@ -216,20 +215,26 @@ router.post("/batches/:batchId/client-report", async (req, res) => {
       p_amount: 1,
     });
 
-    // Queue R2 upload + student profile upsert to background worker
+    // Queue R2 upload + student profile upsert to background worker (via tasks table)
     if (pdfBase64) {
-      await r2UploadQueue.add("r2-upload", {
-        certId,
-        batchId,
-        recipientName: recipientName || "cert",
-        recipientEmail: recipientEmail || "",
-        batchName: batchName || "batch",
-        pdfBase64,
-        rowData: rowData || {},
-        drivePdfFileId: drivePdfFileId || null,
-        drivePdfUrl: drivePdfUrl || null,
-        driveSlideFileId: driveSlideFileId || null,
-        driveSlideUrl: driveSlideUrl || null,
+      await supabaseAdmin.from("tasks").insert({
+        batch_id: batchId,
+        certificate_id: certId,
+        type: "generate", // reusing generate type for R2 upload since client-side generation replaced server-side
+        payload: {
+          action: "r2_upload",
+          certId,
+          batchId,
+          recipientName: recipientName || "cert",
+          recipientEmail: recipientEmail || "",
+          batchName: batchName || "batch",
+          pdfBase64,
+          rowData: rowData || {},
+          drivePdfFileId: drivePdfFileId || null,
+          drivePdfUrl: drivePdfUrl || null,
+          driveSlideFileId: driveSlideFileId || null,
+          driveSlideUrl: driveSlideUrl || null,
+        }
       });
     }
 

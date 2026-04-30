@@ -1,50 +1,78 @@
-import { Worker } from "bullmq";
-import { redisConnection } from "./queue/connection.js";
+
+import { supabaseAdmin } from "@workspace/supabase";
 import { processSendEmail } from "./processors/sendEmail.js";
 import { processSendWhatsApp } from "./processors/sendWhatsApp.js";
 import { processR2Upload } from "./processors/r2Upload.js";
 
-const CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || "2", 10);
+const CONCURRENCY = parseInt(process.env.WORKER_CONCURRENCY || "10", 10);
+const POLL_INTERVAL = 2000; // poll every 2 seconds
 
-// Max time a job can run before BullMQ considers it stalled and re-queues it.
-const LOCK_DURATION = parseInt(process.env.WORKER_LOCK_DURATION_MS || String(5 * 60 * 1000), 10);
+let isShuttingDown = false;
 
-const sendEmailWorker = new Worker("cert-send-email", processSendEmail, {
-  connection: redisConnection,
-  concurrency: CONCURRENCY,
-  lockDuration: LOCK_DURATION,
-});
+async function executeTask(task: any) {
+  try {
+    if (task.type === "generate") {
+      // Reusing 'generate' for r2_upload since client-side generation replaced server-side
+      if (task.payload?.action === "r2_upload") {
+        await processR2Upload(task.payload);
+      }
+    } else if (task.type === "send_email") {
+      await processSendEmail(task.payload);
+    } else if (task.type === "send_whatsapp") {
+      await processSendWhatsApp(task.payload);
+    }
 
-const sendWhatsAppWorker = new Worker("cert-send-whatsapp", processSendWhatsApp, {
-  connection: redisConnection,
-  concurrency: CONCURRENCY,
-  lockDuration: LOCK_DURATION,
-});
-
-// R2 uploads are I/O-bound — safe to run at higher concurrency
-const R2_CONCURRENCY = parseInt(process.env.R2_UPLOAD_CONCURRENCY || "10", 10);
-
-const r2UploadWorker = new Worker("r2-upload", processR2Upload, {
-  connection: redisConnection,
-  concurrency: R2_CONCURRENCY,
-  lockDuration: 60_000, // individual uploads should be fast — 60s is plenty
-});
-
-for (const worker of [sendEmailWorker, sendWhatsAppWorker, r2UploadWorker]) {
-  worker.on("completed", (job, result) => {
-    console.log(`[${job.queueName}] job ${job.id} completed`, result);
-  });
-  worker.on("failed", (job, err) => {
-    console.error(`[${job?.queueName}] job ${job?.id} failed:`, err.message);
-  });
+    // Success -> Mark completed
+    await supabaseAdmin
+      .from("tasks")
+      .update({ status: "completed", updated_at: new Date().toISOString() })
+      .eq("id", task.id);
+      
+    console.log(`[Task ${task.id}] ${task.type} completed successfully`);
+  } catch (error: any) {
+    console.error(`[Task ${task.id}] ${task.type} failed:`, error.message);
+    
+    // Failure -> Mark failed (or increment attempts if you want to implement retries)
+    await supabaseAdmin
+      .from("tasks")
+      .update({ 
+        status: "failed", 
+        error_message: error.message,
+        updated_at: new Date().toISOString()
+      })
+      .eq("id", task.id);
+  }
 }
 
-console.log(`Workers started (send=${CONCURRENCY}, r2Upload=${R2_CONCURRENCY})`);
+async function pollTasks() {
+  if (isShuttingDown) return;
+
+  try {
+    const { data: tasks, error } = await supabaseAdmin.rpc("grab_pending_tasks", {
+      p_limit: CONCURRENCY,
+    });
+
+    if (error) {
+      console.error("[Worker] Error grabbing tasks:", error.message);
+    } else if (tasks && tasks.length > 0) {
+      // Execute all grabbed tasks concurrently
+      await Promise.all(tasks.map((task: any) => executeTask(task)));
+    }
+  } catch (err: any) {
+    console.error("[Worker] Polling exception:", err.message);
+  }
+
+  // Schedule next poll. If we grabbed tasks, poll immediately again, otherwise wait
+  setTimeout(pollTasks, POLL_INTERVAL);
+}
+
+console.log(`🚀 Supabase Tasks Worker started (concurrency=${CONCURRENCY})`);
+pollTasks();
 
 async function shutdown() {
-  await Promise.all([sendEmailWorker.close(), sendWhatsAppWorker.close(), r2UploadWorker.close()]);
-  redisConnection.disconnect();
-  process.exit(0);
+  console.log("Shutting down worker gracefully...");
+  isShuttingDown = true;
+  setTimeout(() => process.exit(0), 1000);
 }
 
 process.on("SIGTERM", shutdown);

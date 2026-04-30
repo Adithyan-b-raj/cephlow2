@@ -5,7 +5,6 @@ import { createFolder, makeFilePublic, generateCertificate } from "../lib/google
 import { deleteR2Objects, isR2Configured } from "../lib/cloudflareR2.js";
 import { isWhatsAppConfigured, sendWhatsAppDocument } from "../lib/whatsapp.js";
 import { extractPhoneNumber } from "../lib/certUtils.js";
-import { sendEmailQueue, sendWhatsAppQueue } from "../queue/queues.js";
 
 const router: IRouter = Router();
 
@@ -316,8 +315,13 @@ router.post("/batches/:batchId/send", async (req, res) => {
       .update({ status: "sending", email_subject: subject, email_body: body })
       .eq("id", batchId);
 
-    const job = await sendEmailQueue.add("send-email", { batchId, userId, subject, body });
-    return res.json({ success: true, message: "Send queued", jobId: job.id });
+    const { data: taskData } = await supabaseAdmin.from("tasks").insert({
+      batch_id: batchId,
+      type: "send_email",
+      payload: { batchId, userId, subject, body }
+    }).select("id").single();
+    
+    return res.json({ success: true, message: "Send queued", jobId: taskData?.id });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
@@ -347,8 +351,13 @@ router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
     const { var1Template, var2Template, var3Template } = req.body;
     await supabaseAdmin.from("batches").update({ status: "sending" }).eq("id", batchId);
 
-    const job = await sendWhatsAppQueue.add("send-whatsapp", { batchId, userId, var1Template, var2Template, var3Template });
-    return res.json({ success: true, message: "WhatsApp send queued", jobId: job.id });
+    const { data: taskData } = await supabaseAdmin.from("tasks").insert({
+      batch_id: batchId,
+      type: "send_whatsapp",
+      payload: { batchId, userId, var1Template, var2Template, var3Template }
+    }).select("id").single();
+    
+    return res.json({ success: true, message: "WhatsApp send queued", jobId: taskData?.id });
   } catch (err: any) {
     await supabaseAdmin.from("batches").update({ status: "generated" }).eq("id", batchId);
     return res.status(500).json({ error: err.message });
@@ -379,13 +388,18 @@ router.post("/batches/:batchId/certificates/:certId/send", async (req, res) => {
     const subject = reqSubject || batchFull?.email_subject || "Your Certificate";
     const body = reqBody || batchFull?.email_body || "Please find your certificate attached.";
 
-    // Queue to worker — responds instantly
-    await sendEmailQueue.add("send-email", {
-      batchId,
-      userId,
-      subject,
-      body,
-      certId,
+    // Queue to worker via tasks table
+    await supabaseAdmin.from("tasks").insert({
+      batch_id: batchId,
+      certificate_id: certId,
+      type: "send_email",
+      payload: {
+        batchId,
+        userId,
+        subject,
+        body,
+        certId,
+      }
     });
 
     return res.json({ success: true, message: "Email send queued" });

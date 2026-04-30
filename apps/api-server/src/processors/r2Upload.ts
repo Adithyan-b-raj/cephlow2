@@ -1,6 +1,5 @@
-import { type Job } from "bullmq";
 import { supabaseAdmin } from "@workspace/supabase";
-import type { R2UploadJobData } from "../queue/types.js";
+import type { R2UploadJobData } from "../types.js";
 import {
   uploadPdfToR2,
   getR2PublicUrl,
@@ -8,7 +7,7 @@ import {
 } from "../lib/cloudflareR2.js";
 import { extractPhoneNumber, upsertStudentProfile } from "../lib/certUtils.js";
 
-export async function processR2Upload(job: Job<R2UploadJobData>) {
+export async function processR2Upload(payload: R2UploadJobData) {
   const {
     certId,
     batchId,
@@ -21,7 +20,7 @@ export async function processR2Upload(job: Job<R2UploadJobData>) {
     drivePdfUrl,
     driveSlideFileId,
     driveSlideUrl,
-  } = job.data;
+  } = payload;
 
   const pdfBuffer = Buffer.from(pdfBase64, "base64");
   const pdfName = `${(recipientName || "cert").replace(/[^a-zA-Z0-9]/g, "_")}_${(batchName || "batch").replace(/[^a-zA-Z0-9]/g, "_")}`;

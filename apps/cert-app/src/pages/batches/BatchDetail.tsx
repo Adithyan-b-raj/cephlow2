@@ -91,6 +91,22 @@ export default function BatchDetail() {
 
   // Certs still needing generation (used for resume path)
   const allCerts = (batch?.certificates || []) as any[];
+  
+  const sortedCertificates = [...allCerts].sort((a, b) => {
+    const priority: Record<string, number> = {
+      sent: 1,
+      generated: 2,
+      failed: 3,
+      outdated: 4,
+      generating: 5,
+      pending: 6,
+    };
+    const pA = priority[a.status.toLowerCase()] || 99;
+    const pB = priority[b.status.toLowerCase()] || 99;
+    if (pA !== pB) return pA - pB;
+    return (a.recipientName || "").localeCompare(b.recipientName || "");
+  });
+
   const pendingCerts = allCerts.filter((c: any) => ["pending", "failed"].includes(c.status));
   const pendingCount = pendingCerts.length;
 
@@ -644,12 +660,12 @@ export default function BatchDetail() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {batch.certificates.length === 0 ? (
+              {sortedCertificates.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No recipients found.</TableCell>
                 </TableRow>
               ) : (
-                batch.certificates.map((cert: any) => (
+                sortedCertificates.map((cert: any) => (
                   <TableRow key={cert.id} className={certHasReport(cert) ? 'bg-foreground text-background [&_*]:text-background [&_*]:border-background hover:bg-foreground' : 'hover:bg-muted/50 transition-colors'}>
                     <TableCell className="text-center">
                       <Checkbox 

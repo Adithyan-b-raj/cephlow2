@@ -1,6 +1,5 @@
-import { type Job } from "bullmq";
 import { supabaseAdmin, toCamel, type Certificate } from "@workspace/supabase";
-import type { SendEmailJobData } from "../queue/types.js";
+import type { SendEmailJobData } from "../types.js";
 import { exportSlidesToPdf } from "../lib/googleDrive.js";
 import { sendEmail } from "../lib/gmail.js";
 
@@ -24,14 +23,19 @@ async function getPdfBuffer(
       console.error("[SEND-EMAIL] R2 fetch failed, falling back to Slides:", e.message);
     }
   }
-  // Fallback: export from Google Slides (for legacy certs with slideFileId)
+
+  // Fallback to Slides export
   if (cert.slideFileId) {
-    return exportSlidesToPdf(userId, cert.slideFileId);
+    try {
+      return await exportSlidesToPdf(userId, cert.slideFileId);
+    } catch (e: any) {
+      console.error("[SEND-EMAIL] Slides export failed:", e.message);
+    }
   }
   return undefined;
 }
 
-function personalizeTemplate(
+function applyPersonalization(
   template: string,
   batch: any,
   rowData: Record<string, string>
@@ -47,8 +51,8 @@ function personalizeTemplate(
   return result;
 }
 
-export async function processSendEmail(job: Job<SendEmailJobData>) {
-  const { batchId, userId, subject, body, certId } = job.data;
+export async function processSendEmail(payload: SendEmailJobData) {
+  const { batchId, userId, subject, body, certId } = payload;
 
   const { data: batchRow, error } = await supabaseAdmin
     .from("batches")

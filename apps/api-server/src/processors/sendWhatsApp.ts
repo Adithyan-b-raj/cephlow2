@@ -1,11 +1,10 @@
-import { type Job } from "bullmq";
 import { supabaseAdmin, toCamel, type Certificate } from "@workspace/supabase";
-import type { SendWhatsAppJobData } from "../queue/types.js";
+import type { SendWhatsAppJobData } from "../types.js";
 import { sendWhatsAppDocument } from "../lib/whatsapp.js";
 import { extractPhoneNumber } from "../lib/certUtils.js";
 
-export async function processSendWhatsApp(job: Job<SendWhatsAppJobData>) {
-  const { batchId, userId, var1Template, var2Template, var3Template } = job.data;
+export async function processSendWhatsApp(payload: SendWhatsAppJobData) {
+  const { batchId, userId, var1Template, var2Template, var3Template } = payload;
 
   const { data: batchRow, error } = await supabaseAdmin
     .from("batches")
