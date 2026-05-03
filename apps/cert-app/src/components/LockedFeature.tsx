@@ -38,9 +38,13 @@ export function LockedFeature({ children, feature, inline, className = "" }: Loc
   const { isApproved, loading } = useApproval();
   const [open, setOpen] = useState(false);
 
-  // While loading we render children without a lock to avoid flash-of-locked
-  if (loading || isApproved) {
-    return <>{children}</>;
+  if (isApproved) return <>{children}</>;
+  if (loading) {
+    return (
+      <span className={inline ? "relative inline-flex" : "relative"}>
+        <span className="opacity-40 pointer-events-none select-none">{children}</span>
+      </span>
+    );
   }
 
   const handleClick = (e: MouseEvent) => {
