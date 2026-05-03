@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { Router, type IRouter } from "express";
 import { supabaseAdmin, toCamel, type Certificate } from "@workspace/supabase";
 import { getAuthClientForUser } from "../lib/googleAuth.js";
@@ -107,7 +108,7 @@ router.post("/batches/:batchId/client-generate", async (req, res) => {
     const REGEN_RATE = Number(process.env.VITE_CERT_REGENERATION_RATE || 0.2);
     const cost = unpaidCount * RATE + visualRegenCount * REGEN_RATE;
 
-    const ledgerId = `gen_${batchId}_${Date.now()}`;
+    const ledgerId = randomUUID();
     const unpaidCertIds = unpaidCerts.map((c) => c.id);
 
     // Atomic wallet deduction + batch status update
