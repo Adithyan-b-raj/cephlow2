@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { supabaseAdmin, toCamel } from "@workspace/supabase";
+import { isAdminOrOwner } from "../middlewares/requireWorkspace.js";
 
 const router: IRouter = Router({ mergeParams: true });
 
@@ -12,14 +13,17 @@ router.get("/certificates", async (req, res) => {
     const batchId = req.query.batchId as string | undefined;
     const status = req.query.status as string | undefined;
 
+    const { id: workspaceId, role } = req.workspace!;
+
     if (batchId) {
       const { data: batch, error: batchErr } = await supabaseAdmin
         .from("batches")
-        .select("user_id")
+        .select("user_id, workspace_id")
         .eq("id", batchId)
         .single();
       if (batchErr || !batch) return res.status(404).json({ error: "Batch not found" });
-      if (batch.user_id !== userId) return res.status(403).json({ error: "Access denied" });
+      if (batch.workspace_id !== workspaceId) return res.status(403).json({ error: "Access denied" });
+      if (!isAdminOrOwner(role) && batch.user_id !== userId) return res.status(403).json({ error: "Access denied" });
 
       let query = supabaseAdmin.from("certificates").select("*").eq("batch_id", batchId);
       if (status) query = query.eq("status", status);
@@ -29,17 +33,20 @@ router.get("/certificates", async (req, res) => {
       return res.json({ certificates, total: certificates.length });
     }
 
-    // No batchId — get all certs for the user via join
+    // No batchId — get all certs in the workspace (role-scoped)
     let query = supabaseAdmin
       .from("certificates")
-      .select("*, batches!inner(user_id)")
-      .eq("batches.user_id", userId);
+      .select("*, batches!inner(user_id, workspace_id)")
+      .eq("batches.workspace_id", workspaceId);
+    if (!isAdminOrOwner(role)) {
+      query = (query as any).eq("batches.user_id", userId);
+    }
     if (status) query = query.eq("status", status);
     const { data, error } = await query.order("created_at", { ascending: false });
     if (error) throw error;
 
-    const certificates = (data || []).map((row) => {
-      const { batches: _, ...cert } = row as any;
+    const certificates = (data || []).map((row: any) => {
+      const { batches: _, ...cert } = row;
       return toCamel(cert);
     });
 

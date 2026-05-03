@@ -11,10 +11,13 @@ export async function signInWithPassword(email: string, password: string) {
 }
 
 export async function signUpWithPassword(email: string, password: string) {
-  const { error } = await supabase.auth.signUp({ email, password });
+  const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) throw error;
-  // Sign in immediately so a session is established regardless of email confirmation settings
-  await signInWithPassword(email, password);
+  // If auto-confirm is off, signUp won't return a session — user must verify email first
+  if (!data.session) {
+    throw new Error("Check your email to confirm your account before signing in.");
+  }
+  // When auto-confirm is on, signUp already establishes a session (picked up by onAuthStateChange)
 }
 
 export async function signOut() {

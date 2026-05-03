@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(pnpm add *)"
+      "Bash(pnpm add *)",
+      "Read(//c/c/cephloe after akshay contributuin/after changing generation to client side/**)",
+      "Bash(pnpm --filter api-server exec tsc --noEmit)"
     ]
   }
 }

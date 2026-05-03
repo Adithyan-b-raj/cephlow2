@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
+import { useApproval } from "@/hooks/use-approval";
+import { useLockedFeatureGuard } from "@/components/LockedFeature";
 import {
   useListSheets,
   useGetSheetData,
@@ -10,6 +12,8 @@ import {
   useCreateBatch,
   getListBatchesQueryKey,
   customFetch,
+  useListBuiltinTemplates,
+  useGetBuiltinTemplate,
 } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,7 +21,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileSpreadsheet, Presentation, ChevronRight, CheckCircle2, Loader2, Link2, Send, Layers } from "lucide-react";
+import { FileSpreadsheet, Presentation, ChevronRight, CheckCircle2, Loader2, Link2, Send, Layers, PenTool } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
 
@@ -43,8 +47,24 @@ export default function NewBatchWizard() {
   const [sheetName, setSheetName] = useState("");
   const [tabName, setTabName] = useState("");
 
+  const { isApproved } = useApproval();
+  const slidesGuard = useLockedFeatureGuard("Google Slides templates");
+
   const [templateId, setTemplateId] = useState("");
   const [templateName, setTemplateName] = useState("");
+  // Default unapproved users to the builtin editor (Slides is locked).
+  const [templateKind, setTemplateKind] = useState<"slides" | "builtin">(
+    isApproved ? "slides" : "builtin",
+  );
+
+  // Snap to builtin if approval state changes after mount
+  useEffect(() => {
+    if (!isApproved && templateKind === "slides") {
+      setTemplateKind("builtin");
+      setTemplateId("");
+      setTemplateName("");
+    }
+  }, [isApproved, templateKind]);
 
   // Multi-template routing (slides within one presentation)
   const [multiTemplateMode, setMultiTemplateMode] = useState(false);
@@ -78,7 +98,24 @@ export default function NewBatchWizard() {
     return [...new Set(values)] as string[];
   })();
   const { data: templatesRes, isLoading: templatesLoading } = useListSlideTemplates();
-  const { data: placeholdersRes, isLoading: placeholdersLoading } = useGetSlidePlaceholders(templateId, { query: { enabled: !!templateId } as any });
+  const { data: builtinTemplatesRes, isLoading: builtinTemplatesLoading } = useListBuiltinTemplates();
+  const { data: slidesPlaceholdersRes, isLoading: slidesPlaceholdersLoading } = useGetSlidePlaceholders(
+    templateKind === "slides" ? templateId : "",
+    { query: { enabled: templateKind === "slides" && !!templateId } as any },
+  );
+  const { data: builtinDetailRes, isLoading: builtinDetailLoading } = useGetBuiltinTemplate(
+    templateKind === "builtin" ? templateId : "",
+    { query: { enabled: templateKind === "builtin" && !!templateId } as any },
+  );
+
+  const placeholdersRes =
+    templateKind === "builtin"
+      ? builtinDetailRes
+        ? { placeholders: builtinDetailRes.placeholders }
+        : undefined
+      : slidesPlaceholdersRes;
+  const placeholdersLoading =
+    templateKind === "builtin" ? builtinDetailLoading : slidesPlaceholdersLoading;
 
   // Fetch slide info for the selected template (for multi-template mode)
   const { data: slidesInfoRes, isLoading: slidesInfoLoading } = useQuery({
@@ -120,6 +157,7 @@ export default function NewBatchWizard() {
         tabName,
         templateId,
         templateName,
+        templateKind,
         columnMap,
         emailColumn,
         nameColumn,
@@ -246,23 +284,76 @@ export default function NewBatchWizard() {
                   <p className="text-muted-foreground">Choose one template for all recipients, or use multiple slides from a single presentation.</p>
                 </div>
 
-                {/* Mode toggle */}
+                {/* Source kind toggle */}
                 <div className="flex gap-3">
                   <button
-                    onClick={() => { setMultiTemplateMode(false); setCategoryColumn(""); setCategorySlideMap({}); }}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${!multiTemplateMode ? "border-primary bg-primary/5 text-foreground" : "border-border/50 text-muted-foreground hover:border-primary/30"}`}
+                    onClick={slidesGuard.guard(() => { setTemplateKind("slides"); setTemplateId(""); setTemplateName(""); setCategorySlideMap({}); })}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${templateKind === "slides" ? "border-primary bg-primary/5 text-foreground" : "border-border/50 text-muted-foreground hover:border-primary/30"} ${!slidesGuard.isApproved ? "opacity-60" : ""}`}
                   >
-                    <Presentation className="w-4 h-4" /> Single Template
+                    <Presentation className="w-4 h-4" /> Google Slides {!slidesGuard.isApproved && "🔒"}
                   </button>
                   <button
-                    onClick={() => setMultiTemplateMode(true)}
-                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${multiTemplateMode ? "border-primary bg-primary/5 text-foreground" : "border-border/50 text-muted-foreground hover:border-primary/30"}`}
+                    onClick={() => { setTemplateKind("builtin"); setTemplateId(""); setTemplateName(""); setMultiTemplateMode(false); setCategorySlideMap({}); }}
+                    className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${templateKind === "builtin" ? "border-primary bg-primary/5 text-foreground" : "border-border/50 text-muted-foreground hover:border-primary/30"}`}
                   >
-                    <Layers className="w-4 h-4" /> Multi Template
+                    <PenTool className="w-4 h-4" /> Builtin Editor
                   </button>
                 </div>
+                {slidesGuard.modal}
 
-                {templatesLoading ? (
+                {/* Multi-template mode toggle (only for Slides) */}
+                {templateKind === "slides" && (
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => { setMultiTemplateMode(false); setCategoryColumn(""); setCategorySlideMap({}); }}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${!multiTemplateMode ? "border-primary bg-primary/5 text-foreground" : "border-border/50 text-muted-foreground hover:border-primary/30"}`}
+                    >
+                      <Presentation className="w-4 h-4" /> Single Template
+                    </button>
+                    <button
+                      onClick={() => setMultiTemplateMode(true)}
+                      className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border-2 text-sm font-medium transition-all ${multiTemplateMode ? "border-primary bg-primary/5 text-foreground" : "border-border/50 text-muted-foreground hover:border-primary/30"}`}
+                    >
+                      <Layers className="w-4 h-4" /> Multi Template
+                    </button>
+                  </div>
+                )}
+
+                {templateKind === "builtin" ? (
+                  builtinTemplatesLoading ? (
+                    <div className="flex items-center gap-3 text-muted-foreground p-8"><Loader2 className="animate-spin" /> Loading builtin templates...</div>
+                  ) : (builtinTemplatesRes?.templates?.length ?? 0) === 0 ? (
+                    <div className="border border-dashed border-border rounded-2xl p-8 text-center space-y-3">
+                      <PenTool className="w-8 h-8 mx-auto text-muted-foreground/60" />
+                      <p className="text-sm text-muted-foreground">You don't have any builtin templates yet.</p>
+                      <Button variant="outline" onClick={() => setLocation("/templates/builtin/new")}>
+                        Open Builtin Editor
+                      </Button>
+                    </div>
+                  ) : (
+                    <div>
+                      <Label className="text-sm mb-2 block">Select a builtin template</Label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[300px] overflow-y-auto p-1">
+                        {builtinTemplatesRes?.templates.map((tpl) => (
+                          <div
+                            key={tpl.id}
+                            onClick={() => { setTemplateId(tpl.id); setTemplateName(tpl.name); }}
+                            className={`group p-4 rounded-xl border-2 cursor-pointer transition-all hover-elevate flex flex-col gap-4 ${templateId === tpl.id ? "border-primary bg-primary/5 ring-4 ring-primary/10" : "border-border/50 bg-card hover:border-primary/30"}`}
+                          >
+                            {tpl.thumbnailUrl ? (
+                              <img src={tpl.thumbnailUrl} alt={tpl.name} className="w-full aspect-[4/3] object-contain bg-secondary rounded-lg border border-border/50" />
+                            ) : (
+                              <div className="w-full aspect-[4/3] bg-secondary rounded-lg flex items-center justify-center">
+                                <PenTool className="w-10 h-10 text-muted-foreground/50" />
+                              </div>
+                            )}
+                            <div className="font-semibold text-sm line-clamp-2">{tpl.name}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                ) : templatesLoading ? (
                   <div className="flex items-center gap-3 text-muted-foreground p-8"><Loader2 className="animate-spin" /> Loading templates...</div>
                 ) : (
                   <>

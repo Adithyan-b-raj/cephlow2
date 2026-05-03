@@ -5,21 +5,36 @@ import { createFolder, makeFilePublic, generateCertificate } from "../lib/google
 import { deleteR2Objects, isR2Configured } from "../lib/cloudflareR2.js";
 import { isWhatsAppConfigured, sendWhatsAppDocument } from "../lib/whatsapp.js";
 import { extractPhoneNumber } from "../lib/certUtils.js";
+import { isUserApproved } from "../lib/approval.js";
+import { requireApproval } from "../middlewares/requireApproval.js";
+import { isAdminOrOwner } from "../middlewares/requireWorkspace.js";
+import type { Request } from "express";
 
 const router: IRouter = Router();
+
+function canAccessBatch(batch: { workspace_id: string; user_id: string }, req: Request): boolean {
+  if (!req.workspace || batch.workspace_id !== req.workspace.id) return false;
+  return isAdminOrOwner(req.workspace.role) || batch.user_id === req.user!.uid;
+}
 
 // List all batches
 router.get("/batches", async (req, res) => {
   try {
     const userId = req.user?.uid;
     if (!userId) return res.status(401).json({ error: "Unauthorized" });
+    const { id: workspaceId, role } = req.workspace!;
 
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from("batches")
       .select("*")
-      .eq("user_id", userId)
+      .eq("workspace_id", workspaceId)
       .order("created_at", { ascending: false });
 
+    if (!isAdminOrOwner(role)) {
+      query = query.eq("user_id", userId);
+    }
+
+    const { data, error } = await query;
     if (error) throw error;
     const batches = (data || []).map(toCamel);
     return res.json({ batches });
@@ -36,6 +51,7 @@ router.post("/batches", async (req, res) => {
 
     const {
       name, sheetId, sheetName, tabName, templateId, templateName,
+      templateKind,
       columnMap, emailColumn, nameColumn, emailSubject, emailBody,
       categoryColumn, categoryTemplateMap, categorySlideMap, categorySlideIndexes,
     } = req.body;
@@ -48,27 +64,44 @@ router.post("/batches", async (req, res) => {
     const headers = rows[0] as string[];
     const dataRows = rows.slice(1).filter((r) => r.length > 0);
 
-    let driveFolderId = null;
-    let pdfFolderId = null;
-    try {
-      driveFolderId = await createFolder(userId, name);
-      if (driveFolderId) {
-        pdfFolderId = await createFolder(userId, "pdf", driveFolderId);
+    const approved = await isUserApproved(userId);
+
+    // Free tier (unapproved): force builtin templates only.
+    let kind = templateKind === "builtin" ? "builtin" : "slides";
+    if (!approved && kind === "slides") {
+      return res.status(403).json({
+        error: "Google Slides templates are restricted to approved organizations. Use the builtin editor instead.",
+        code: "APPROVAL_REQUIRED",
+      });
+    }
+
+    // Drive folder: always for slides; also for builtin when user is unapproved
+    // (free tier stores PDFs in their Google Drive instead of R2).
+    let driveFolderId: string | null = null;
+    let pdfFolderId: string | null = null;
+    if (kind === "slides" || !approved) {
+      try {
+        driveFolderId = await createFolder(userId, name);
+        if (driveFolderId) {
+          pdfFolderId = await createFolder(userId, "pdf", driveFolderId);
+        }
+      } catch (err) {
+        console.error("Failed to create Google Drive folders:", err);
       }
-    } catch (err) {
-      console.error("Failed to create Google Drive folders:", err);
     }
 
     const { data: batchRow, error: batchErr } = await supabaseAdmin
       .from("batches")
       .insert({
         user_id: userId,
+        workspace_id: req.workspace!.id,
         name,
         sheet_id: sheetId,
         sheet_name: sheetName,
         tab_name: tabName || null,
         template_id: templateId,
         template_name: templateName,
+        template_kind: kind,
         column_map: columnMap,
         email_column: emailColumn,
         name_column: nameColumn,
@@ -135,7 +168,7 @@ router.get("/batches/:batchId", async (req, res) => {
       .single();
 
     if (error || !batch) return res.status(404).json({ error: "Batch not found" });
-    if (batch.user_id !== userId) return res.status(403).json({ error: "Access denied" });
+    if (!canAccessBatch(batch, req)) return res.status(403).json({ error: "Access denied" });
 
     const result = toCamel(batch);
     result.certificates = (batch.certificates || []).map(toCamel);
@@ -158,7 +191,7 @@ router.post("/batches/:batchId/share-folder", async (req, res) => {
       .eq("id", batchId)
       .single();
     if (error || !batch) return res.status(404).json({ error: "Batch not found" });
-    if (batch.user_id !== userId) return res.status(403).json({ error: "Access denied" });
+    if (!canAccessBatch(batch, req)) return res.status(403).json({ error: "Access denied" });
     if (!batch.pdf_folder_id) return res.status(400).json({ error: "PDF folder does not exist for this batch" });
 
     await makeFilePublic(userId, batch.pdf_folder_id);
@@ -182,7 +215,7 @@ router.post("/batches/:batchId/sync", async (req, res) => {
       .eq("id", batchId)
       .single();
     if (batchErr || !batch) return res.status(404).json({ error: "Batch not found" });
-    if (batch.user_id !== userId) return res.status(403).json({ error: "Access denied" });
+    if (!canAccessBatch(batch, req)) return res.status(403).json({ error: "Access denied" });
 
     const sheets = await getSheetsClient(userId);
     const range = batch.tab_name ? batch.tab_name : "A:ZZ";
@@ -304,7 +337,7 @@ router.post("/batches/:batchId/send", async (req, res) => {
       .single();
     if (error || !batchRow) return res.status(404).json({ error: "Batch not found" });
     const batch = toCamel(batchRow) as any;
-    if (batch.userId !== userId) return res.status(403).json({ error: "Access denied" });
+    if (!canAccessBatch(batchRow, req)) return res.status(403).json({ error: "Access denied" });
 
     const { emailSubject: reqSubject, emailBody: reqBody } = req.body;
     const subject = reqSubject || batch.emailSubject || "Your Certificate";
@@ -328,7 +361,7 @@ router.post("/batches/:batchId/send", async (req, res) => {
 });
 
 // Send certificates via WhatsApp
-router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
+router.post("/batches/:batchId/send-whatsapp", requireApproval, async (req, res) => {
   const userId = req.user?.uid;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -346,7 +379,7 @@ router.post("/batches/:batchId/send-whatsapp", async (req, res) => {
       .single();
     if (error || !batchRow) return res.status(404).json({ error: "Batch not found" });
     const batch = toCamel(batchRow) as any;
-    if (batch.userId !== userId) return res.status(403).json({ error: "Access denied" });
+    if (!canAccessBatch(batchRow, req)) return res.status(403).json({ error: "Access denied" });
 
     const { var1Template, var2Template, var3Template } = req.body;
     await supabaseAdmin.from("batches").update({ status: "sending" }).eq("id", batchId);
@@ -372,9 +405,9 @@ router.post("/batches/:batchId/certificates/:certId/send", async (req, res) => {
   const { batchId, certId } = req.params;
 
   try {
-    const { data: batchRow, error: batchErr } = await supabaseAdmin.from("batches").select("user_id").eq("id", batchId).single();
+    const { data: batchRow, error: batchErr } = await supabaseAdmin.from("batches").select("user_id, workspace_id").eq("id", batchId).single();
     if (batchErr || !batchRow) return res.status(404).json({ error: "Batch not found" });
-    if (batchRow.user_id !== userId) return res.status(403).json({ error: "Access denied" });
+    if (!canAccessBatch(batchRow, req)) return res.status(403).json({ error: "Access denied" });
 
     const { data: certRow, error: certErr } = await supabaseAdmin.from("certificates").select("recipient_email, status, r2_pdf_url, slide_file_id").eq("id", certId).single();
     if (certErr || !certRow) return res.status(404).json({ error: "Certificate not found" });
@@ -419,7 +452,7 @@ router.post("/batches/:batchId/certificates/:certId/open-slide", async (req, res
     const { data: batchRow, error: batchErr } = await supabaseAdmin.from("batches").select("*").eq("id", batchId).single();
     if (batchErr || !batchRow) return res.status(404).json({ error: "Batch not found" });
     const batch = toCamel(batchRow) as any;
-    if (batch.userId !== userId) return res.status(403).json({ error: "Access denied" });
+    if (!canAccessBatch(batchRow, req)) return res.status(403).json({ error: "Access denied" });
 
     const { data: certRow, error: certErr } = await supabaseAdmin.from("certificates").select("*").eq("id", certId).single();
     if (certErr || !certRow) return res.status(404).json({ error: "Certificate not found" });
@@ -477,7 +510,7 @@ router.post("/batches/:batchId/certificates/:certId/open-slide", async (req, res
 });
 
 // Send a single certificate via WhatsApp
-router.post("/batches/:batchId/certificates/:certId/send-whatsapp", async (req, res) => {
+router.post("/batches/:batchId/certificates/:certId/send-whatsapp", requireApproval, async (req, res) => {
   const userId = req.user?.uid;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
@@ -491,7 +524,7 @@ router.post("/batches/:batchId/certificates/:certId/send-whatsapp", async (req, 
     const { data: batchRow, error: batchErr } = await supabaseAdmin.from("batches").select("*").eq("id", batchId).single();
     if (batchErr || !batchRow) return res.status(404).json({ error: "Batch not found" });
     const batch = toCamel(batchRow) as any;
-    if (batch.userId !== userId) return res.status(403).json({ error: "Access denied" });
+    if (!canAccessBatch(batchRow, req)) return res.status(403).json({ error: "Access denied" });
 
     const { data: certRow, error: certErr } = await supabaseAdmin.from("certificates").select("*").eq("id", certId).single();
     if (certErr || !certRow) return res.status(404).json({ error: "Certificate not found" });
@@ -553,9 +586,9 @@ router.patch("/batches/:batchId", async (req, res) => {
   const updateData = req.body;
 
   try {
-    const { data: batch, error } = await supabaseAdmin.from("batches").select("user_id").eq("id", batchId).single();
+    const { data: batch, error } = await supabaseAdmin.from("batches").select("user_id, workspace_id").eq("id", batchId).single();
     if (error || !batch) return res.status(404).json({ error: "Batch not found" });
-    if (batch.user_id !== userId) return res.status(403).json({ error: "Access denied" });
+    if (!canAccessBatch(batch, req)) return res.status(403).json({ error: "Access denied" });
 
     const fieldMap: Record<string, string> = {
       name: "name", sheetId: "sheet_id", sheetName: "sheet_name", tabName: "tab_name",
@@ -591,9 +624,9 @@ router.delete("/batches/:batchId", async (req, res) => {
   const { batchId } = req.params;
 
   try {
-    const { data: batch, error } = await supabaseAdmin.from("batches").select("user_id").eq("id", batchId).single();
+    const { data: batch, error } = await supabaseAdmin.from("batches").select("user_id, workspace_id").eq("id", batchId).single();
     if (error || !batch) return res.status(404).json({ error: "Batch not found" });
-    if (batch.user_id !== userId) return res.status(403).json({ error: "Access denied" });
+    if (!canAccessBatch(batch, req)) return res.status(403).json({ error: "Access denied" });
 
     const { data: certsData } = await supabaseAdmin.from("certificates").select("id, r2_pdf_url, recipient_email").eq("batch_id", batchId);
     const certs = certsData || [];

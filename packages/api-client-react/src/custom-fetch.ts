@@ -11,6 +11,7 @@ type AuthTokenProvider = () => Promise<string | null>;
 
 let _authTokenProvider: AuthTokenProvider | null = null;
 let _baseUrl: string = "";
+let _workspaceIdProvider: (() => string | null) | null = null;
 
 export function setAuthTokenProvider(provider: AuthTokenProvider) {
   _authTokenProvider = provider;
@@ -18,6 +19,10 @@ export function setAuthTokenProvider(provider: AuthTokenProvider) {
 
 export function setBaseUrl(url: string) {
   _baseUrl = url.endsWith("/") ? url.slice(0, -1) : url;
+}
+
+export function setWorkspaceIdProvider(provider: () => string | null) {
+  _workspaceIdProvider = provider;
 }
 
 const NO_BODY_STATUS = new Set([204, 205, 304]);
@@ -323,6 +328,14 @@ export async function customFetch<T = unknown>(
         `Authentication failed: unable to retrieve token. Please sign in again.`,
         { cause: err }
       );
+    }
+  }
+
+  // Inject active workspace ID
+  if (_workspaceIdProvider && !headers.has("x-workspace-id")) {
+    const workspaceId = _workspaceIdProvider();
+    if (workspaceId) {
+      headers.set("x-workspace-id", workspaceId);
     }
   }
 

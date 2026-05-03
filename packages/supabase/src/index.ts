@@ -72,6 +72,7 @@ export interface Batch {
   tabName?: string | null;
   templateId: string;
   templateName: string;
+  templateKind?: "slides" | "builtin";
   columnMap: Record<string, string>;
   emailColumn: string;
   nameColumn: string;

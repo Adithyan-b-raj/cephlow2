@@ -2,13 +2,31 @@ import { Router, type IRouter } from "express";
 import { supabaseAdmin } from "@workspace/supabase";
 import QRCode from "qrcode";
 import { getR2PublicUrl } from "../lib/cloudflareR2.js";
+import { isUserApproved } from "../lib/approval.js";
 
 const router: IRouter = Router();
+
+// Returns true if the batch's owner is currently approved. Verification is a
+// premium feature, so unapproved owners' certs must not resolve publicly.
+async function isBatchOwnerApproved(batchId: string): Promise<boolean> {
+  const { data } = await supabaseAdmin
+    .from("batches")
+    .select("user_id")
+    .eq("id", batchId)
+    .maybeSingle();
+  if (!data?.user_id) return false;
+  return isUserApproved(data.user_id);
+}
 
 // Public endpoint — no auth required
 router.get("/verify/:batchId/:certId", async (req, res) => {
   try {
     const { batchId, certId } = req.params;
+
+    if (!(await isBatchOwnerApproved(batchId))) {
+      res.status(404).json({ error: "Certificate not found" });
+      return;
+    }
 
     const { data, error } = await supabaseAdmin
       .from("certificates")
@@ -50,6 +68,12 @@ router.get("/verify/:batchId/:certId", async (req, res) => {
 router.get("/verify/:batchId/:certId/qr", async (req, res) => {
   try {
     const { batchId, certId } = req.params;
+
+    if (!(await isBatchOwnerApproved(batchId))) {
+      res.status(404).json({ error: "Certificate not found" });
+      return;
+    }
+
     const baseUrl = (process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`).replace(/\/$/, "");
     const verifyUrl = `${baseUrl}/verify/${batchId}/${certId}`;
 

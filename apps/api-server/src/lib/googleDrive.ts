@@ -280,6 +280,20 @@ export async function exportSlidesToPdf(uid: string, fileId: string): Promise<Bu
   return Buffer.from(res.data as ArrayBuffer);
 }
 
+/**
+ * Download the raw bytes of a regular Drive file (PDF, etc.) by file ID.
+ * Used for free-tier certificates that were uploaded directly to the user's
+ * Drive (no R2 mirror, no Slides export).
+ */
+export async function downloadDriveFile(uid: string, fileId: string): Promise<Buffer> {
+  const drive = await getDriveClient(uid);
+  const res = await drive.files.get(
+    { fileId, alt: "media" },
+    { responseType: "arraybuffer" }
+  );
+  return Buffer.from(res.data as ArrayBuffer);
+}
+
 export async function createFolder(
   uid: string,
   name: string,

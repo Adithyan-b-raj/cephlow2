@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
+import { useLockedFeatureGuard } from "@/components/LockedFeature";
 import { useMutation } from "@tanstack/react-query";
 import {
   useCreateSlideTemplate,
@@ -27,6 +28,7 @@ import {
   SkipForward,
   Layers,
   Upload,
+  PenTool,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
@@ -46,10 +48,11 @@ export default function NewTemplate() {
   const [step, setStep] = useState(0);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const slidesGuard = useLockedFeatureGuard("Google Slides templates");
 
   const [templateName, setTemplateName] = useState("");
   const [multiTemplate, setMultiTemplate] = useState(false);
-  const [sourceMode, setSourceMode] = useState<"new" | "existing" | "upload">("new");
+  const [sourceMode, setSourceMode] = useState<"new" | "existing" | "upload" | "builtin">("new");
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [createdTemplate, setCreatedTemplate] = useState<CreatedFile | null>(null);
   const [createdSheet, setCreatedSheet] = useState<CreatedFile | null>(null);
@@ -266,36 +269,46 @@ export default function NewTemplate() {
                 </div>
 
                 {/* Source Mode Toggle */}
-                <div className="flex p-1 bg-secondary/50 rounded-xl">
+                <div className="grid grid-cols-2 sm:grid-cols-4 p-1 bg-secondary/50 rounded-xl gap-1">
                   <button
-                    onClick={() => setSourceMode("new")}
-                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+                    onClick={slidesGuard.guard(() => setSourceMode("new"))}
+                    className={`py-2 text-sm font-medium rounded-lg transition-all ${
                       sourceMode === "new"
                         ? "bg-background shadow-sm text-foreground"
                         : "text-muted-foreground hover:text-foreground"
-                    }`}
+                    } ${!slidesGuard.isApproved ? "opacity-50" : ""}`}
                   >
-                    Create New
+                    Google Slides {!slidesGuard.isApproved && "🔒"}
                   </button>
                   <button
-                    onClick={() => setSourceMode("existing")}
-                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+                    onClick={slidesGuard.guard(() => setSourceMode("existing"))}
+                    className={`py-2 text-sm font-medium rounded-lg transition-all ${
                       sourceMode === "existing"
                         ? "bg-background shadow-sm text-foreground"
                         : "text-muted-foreground hover:text-foreground"
-                    }`}
+                    } ${!slidesGuard.isApproved ? "opacity-50" : ""}`}
                   >
-                    Use Existing
+                    Use Existing {!slidesGuard.isApproved && "🔒"}
                   </button>
                   <button
-                    onClick={() => setSourceMode("upload")}
-                    className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+                    onClick={slidesGuard.guard(() => setSourceMode("upload"))}
+                    className={`py-2 text-sm font-medium rounded-lg transition-all ${
                       sourceMode === "upload"
+                        ? "bg-background shadow-sm text-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    } ${!slidesGuard.isApproved ? "opacity-50" : ""}`}
+                  >
+                    Upload PPTX {!slidesGuard.isApproved && "🔒"}
+                  </button>
+                  <button
+                    onClick={() => setSourceMode("builtin")}
+                    className={`py-2 text-sm font-medium rounded-lg transition-all ${
+                      sourceMode === "builtin"
                         ? "bg-background shadow-sm text-foreground"
                         : "text-muted-foreground hover:text-foreground"
                     }`}
                   >
-                    Upload PPTX
+                    Design in App
                   </button>
                 </div>
 
@@ -331,7 +344,44 @@ export default function NewTemplate() {
                   </button>
                 </div>
 
-                {sourceMode === "new" ? (
+                {sourceMode === "builtin" ? (
+                  <div className="space-y-4">
+                    <div className="bg-primary/5 border border-primary/20 rounded-2xl p-5 space-y-3">
+                      <div className="flex items-start gap-3">
+                        <div className="bg-primary/15 text-primary p-2 rounded-xl shrink-0">
+                          <PenTool className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-semibold mb-1">Design certificates inside Cephloe</p>
+                          <p className="text-sm text-muted-foreground">
+                            A full canvas editor with text, images, shapes, alignment guides,
+                            layers and undo/redo. Templates render to PDF entirely in your browser —
+                            no Google Slides required.
+                          </p>
+                        </div>
+                      </div>
+                      <ul className="text-sm space-y-1 text-muted-foreground pl-1">
+                        <li>• Drag, resize, rotate any element</li>
+                        <li>• Bundled fonts: Inter, Roboto, Lora, Playfair, Montserrat, Dancing Script</li>
+                        <li>• Insert <code className="bg-secondary px-1 rounded">{"<<placeholders>>"}</code>, QR codes, logos</li>
+                        <li>• Saved templates appear in the batch wizard</li>
+                      </ul>
+                    </div>
+                    <Button
+                      onClick={() => setLocation("/templates/builtin/new")}
+                      className="w-full h-11"
+                    >
+                      <PenTool className="w-4 h-4 mr-2" /> Open Builtin Editor
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => setLocation("/templates")}
+                      className="w-full h-11"
+                    >
+                      View My Builtin Templates
+                    </Button>
+                  </div>
+                ) : sourceMode === "new" ? (
                   <div className="space-y-2">
                     <Label htmlFor="template-name">Template name</Label>
                     <Input
@@ -451,7 +501,7 @@ export default function NewTemplate() {
                   </div>
                 )}
 
-                {sourceMode === "upload" ? (
+                {sourceMode === "builtin" ? null : sourceMode === "upload" ? (
                   <Button
                     onClick={handleUploadPptx}
                     disabled={uploadingPptx || !pptxFile || !templateName.trim()}
@@ -749,6 +799,7 @@ export default function NewTemplate() {
           </motion.div>
         </AnimatePresence>
       </Card>
+      {slidesGuard.modal}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { Cashfree, CFEnvironment } from "cashfree-pg";
 import { CreateOrderBody } from "@workspace/api-zod";
+import { supabaseAdmin } from "@workspace/supabase";
 
 const env = process.env.VITE_CASHFREE_ENV === "PRODUCTION" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX;
 
@@ -37,6 +38,13 @@ router.post("/payments/create-order", async (req, res) => {
     const response = await (cashfree as any).PGCreateOrder(request);
     
     if (response.data && response.data.payment_session_id) {
+      // Record workspace → order mapping so the webhook can credit the right wallet
+      await supabaseAdmin.from("payment_orders").insert({
+        order_id: response.data.order_id,
+        workspace_id: req.workspace!.id,
+        user_id: uid,
+        amount: result.amount,
+      });
       return res.json({
         payment_session_id: response.data.payment_session_id,
         order_id: response.data.order_id,

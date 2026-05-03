@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { useRoute } from "wouter";
 import { useClientGenerate } from "@/hooks/useClientGenerate";
+import { LockedFeature } from "@/components/LockedFeature";
+import { useApproval } from "@/hooks/use-approval";
 import { Progress } from "@/components/ui/progress";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -33,9 +35,14 @@ import { useToast } from "@/hooks/use-toast";
 
 function QrCodePopover({ batchId, certId }: { batchId: string; certId: string }) {
   const [copied, setCopied] = useState(false);
+  const { isApproved } = useApproval();
   const verifyUrl = `${window.location.origin}/verify/${batchId}/${certId}`;
   // Add a timestamp for cache busting if available
   const qrSrc = `/api/verify/${batchId}/${certId}/qr`;
+
+  // Free tier doesn't get public verification pages — hide the QR popover
+  // entirely so users don't share a URL that won't resolve.
+  if (!isApproved) return null;
 
   const copyUrl = () => {
     navigator.clipboard.writeText(verifyUrl);
@@ -558,15 +565,17 @@ export default function BatchDetail() {
             {isSending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Send className="w-4 h-4 mr-2" />}
             Send Emails
           </Button>
-          <Button
-            variant="outline"
-            onClick={handleOpenWa}
-            disabled={isSendingWhatsapp || batch.status === 'sending' || batch.generatedCount === 0}
-            className="hover-elevate bg-background"
-          >
-            {isSendingWhatsapp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />}
-            Send via WhatsApp
-          </Button>
+          <LockedFeature feature="WhatsApp delivery" inline>
+            <Button
+              variant="outline"
+              onClick={handleOpenWa}
+              disabled={isSendingWhatsapp || batch.status === 'sending' || batch.generatedCount === 0}
+              className="hover-elevate bg-background"
+            >
+              {isSendingWhatsapp ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-2" />}
+              Send via WhatsApp
+            </Button>
+          </LockedFeature>
         </div>
       </div>
 
@@ -776,16 +785,18 @@ export default function BatchDetail() {
                           </Button>
                         )}
                         {(cert.status === 'generated' || cert.status === 'sent' || cert.status === 'failed') && (cert as any).r2PdfUrl && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="hover-elevate"
-                            title="Send via WhatsApp"
-                            onClick={() => handleOpenIndivWa(cert as any)}
-                          >
-                            <MessageCircle className="w-3.5 h-3.5 mr-1" />
-                            WA
-                          </Button>
+                          <LockedFeature feature="WhatsApp delivery" inline>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="hover-elevate"
+                              title="Send via WhatsApp"
+                              onClick={() => handleOpenIndivWa(cert as any)}
+                            >
+                              <MessageCircle className="w-3.5 h-3.5 mr-1" />
+                              WA
+                            </Button>
+                          </LockedFeature>
                         )}
                         {(cert.status === 'generated' || cert.status === 'sent') && (
                           <QrCodePopover batchId={batchId} certId={cert.id} />

@@ -204,3 +204,27 @@ export async function generatePresignedPutUrl(
   const url = await getSignedUrl(client, command, { expiresIn });
   return { url, key };
 }
+
+/**
+ * Generic presigned PUT URL for arbitrary assets (no implicit .pdf extension).
+ * Caller supplies the full object key — caller is responsible for any sanitisation.
+ */
+export async function generatePresignedAssetPutUrl(
+  key: string,
+  contentType: string,
+  expiresIn: number = 600
+): Promise<{ url: string; key: string }> {
+  const config = getConfig();
+  if (!config.accountId || !config.accessKeyId || !config.secretAccessKey || !config.bucketName) {
+    throw new Error("Cloudflare R2 credentials are not fully configured");
+  }
+  const client = getR2Client(config);
+  const safeKey = key.replace(/[^a-zA-Z0-9+\-_./]/g, "_");
+  const command = new PutObjectCommand({
+    Bucket: config.bucketName,
+    Key: safeKey,
+    ContentType: contentType,
+  });
+  const url = await getSignedUrl(client, command, { expiresIn });
+  return { url, key: safeKey };
+}

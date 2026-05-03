@@ -8,6 +8,12 @@
 
 import { PDFDocument } from "pdf-lib";
 import QRCode from "qrcode";
+import {
+  renderCanvasToPdf,
+  preloadCanvasResources,
+  createBatchAssetCache,
+} from "@/components/template-editor/pdfRenderer";
+import type { CanvasDocument } from "@/components/template-editor/types";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -26,12 +32,19 @@ export interface BatchConfig {
   id: string;
   name: string;
   templateId: string;
+  templateKind?: "slides" | "builtin";
   columnMap: Record<string, string>;
   driveFolderId: string | null;
   pdfFolderId: string | null;
   categoryColumn: string | null;
   categoryTemplateMap: Record<string, { templateId: string }> | null;
   categorySlideMap: Record<string, number> | null;
+  builtinTemplate?: {
+    id: string;
+    name: string;
+    canvas: CanvasDocument;
+    placeholders: string[];
+  } | null;
 }
 
 export interface GenerationProgress {
@@ -503,6 +516,53 @@ async function cleanupTempFiles(
   }
 }
 
+// ── Drive-upload helper for unapproved (free-tier) builtin generation ─────
+// Uploads the rendered PDF directly to the user's Google Drive using a
+// multipart request. Returns { fileId, webViewLink } to report back.
+async function uploadPdfToDrive(
+  googleToken: string,
+  pdfBytes: Uint8Array,
+  filename: string,
+  parentFolderId: string | null,
+): Promise<{ fileId: string; webViewLink: string | null }> {
+  const boundary = "cephlow_drive_upload_" + Math.random().toString(36).slice(2);
+  const metadata: Record<string, any> = { name: filename, mimeType: "application/pdf" };
+  if (parentFolderId) metadata.parents = [parentFolderId];
+
+  const head =
+    `--${boundary}\r\n` +
+    `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
+    JSON.stringify(metadata) +
+    `\r\n--${boundary}\r\n` +
+    `Content-Type: application/pdf\r\n\r\n`;
+  const tail = `\r\n--${boundary}--`;
+
+  const headBytes = new TextEncoder().encode(head);
+  const tailBytes = new TextEncoder().encode(tail);
+  const body = new Uint8Array(headBytes.length + pdfBytes.length + tailBytes.length);
+  body.set(headBytes, 0);
+  body.set(pdfBytes, headBytes.length);
+  body.set(tailBytes, headBytes.length + pdfBytes.length);
+
+  const res = await fetch(
+    `${UPLOAD_API}?uploadType=multipart&fields=id,webViewLink`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${googleToken}`,
+        "Content-Type": `multipart/related; boundary=${boundary}`,
+      },
+      body: body as unknown as BodyInit,
+    },
+  );
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Drive upload failed (${res.status}): ${text.slice(0, 200)}`);
+  }
+  const j = await res.json();
+  return { fileId: j.id, webViewLink: j.webViewLink || null };
+}
+
 // ── Main generation function ───────────────────────────────────────────────
 
 export interface ClientGenerateOptions {
@@ -555,6 +615,7 @@ export async function clientGenerate(
   const batch: BatchConfig = initData.batch;
   const allCerts: CertData[] = initData.certificates;
   const baseUrl: string = initData.baseUrl;
+  const isApproved: boolean = initData.isApproved !== false; // default to approved if missing
 
   // Certs that need a full visual re-render (new, failed, or outdated with visual changes)
   const toGenerate = allCerts.filter(
@@ -629,6 +690,194 @@ export async function clientGenerate(
         currentCertName: cert.recipientName,
         message: `Metadata update: ${cert.recipientName}`,
       });
+    }
+
+    // Builtin path — render PDFs entirely client-side via pdf-lib, no Slides API
+    if (batch.templateKind === "builtin") {
+      if (!batch.builtinTemplate) {
+        throw new Error("Builtin template data missing for this batch");
+      }
+      const tpl = batch.builtinTemplate;
+      try {
+        await preloadCanvasResources(tpl.canvas);
+      } catch {
+        // best-effort
+      }
+      // Shared across the whole batch so we fetch each image only once.
+      const batchAssetCache = createBatchAssetCache();
+
+      // Get presigned URLs for the whole set in chunks to keep payload bounded
+      const PRESIGN_CHUNK = 25;
+      for (let off = 0; off < toGenerate.length; off += PRESIGN_CHUNK) {
+        if (abortSignal?.aborted) throw new Error("Generation cancelled");
+
+        const chunk = toGenerate.slice(off, off + PRESIGN_CHUNK);
+        // Approved orgs upload to R2 (presigned URLs).
+        // Free-tier (unapproved) skips R2 entirely and uploads directly to
+        // the user's Google Drive folder using their access token.
+        let presignedUrls: Array<{ certId: string; uploadUrl: string; r2PdfUrl: string | null }> = [];
+        if (isApproved) {
+          const presignedRes = await fetch(
+            `${apiBaseUrl}/api/batches/${batchId}/presigned-urls`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${await getSupabaseToken()}`,
+              },
+              body: JSON.stringify({
+                certificates: chunk.map((c) => ({
+                  certId: c.id,
+                  recipientName: c.recipientName,
+                  rowData: c.rowData,
+                })),
+                batchName: batch.name,
+              }),
+            },
+          );
+          const j = await presignedRes.json();
+          presignedUrls = j.presignedUrls || [];
+        }
+
+        // Sliding window of CONCURRENCY workers pulling from a shared queue.
+        // CPU-bound render interleaves with the network-bound upload + report
+        // of other in-flight certs, so total chunk time ≈ max(render, network)
+        // instead of render + network per cert.
+        const CONCURRENCY = 6;
+        let nextIdx = 0;
+
+        const processCert = async (cert: CertData) => {
+          onProgress({
+            phase: "generating",
+            current: generated + failed,
+            total: totalToProcess,
+            currentCertName: cert.recipientName,
+            message: `Rendering: ${cert.recipientName}`,
+          });
+
+          try {
+            const replacements: Record<string, string> = {};
+            for (const [placeholder, column] of Object.entries(batch.columnMap || {})) {
+              replacements[placeholder] = (cert.rowData || {})[column] || "";
+            }
+            const qrUrl = `${baseUrl}/verify/${batch.id}/${cert.id}`;
+
+            const pdfBuffer = await renderCanvasToPdf({
+              doc: tpl.canvas,
+              replacements,
+              qrUrl,
+              batchCache: batchAssetCache,
+            });
+
+            let r2PdfUrl: string | null = null;
+            let drivePdfFileId: string | null = null;
+            let drivePdfUrl: string | null = null;
+
+            if (isApproved) {
+              const urlInfo = presignedUrls?.find((u: any) => u.certId === cert.id);
+              if (urlInfo?.uploadUrl) {
+                let ok = false;
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                  try {
+                    const upRes = await fetch(urlInfo.uploadUrl, {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/pdf" },
+                      body: pdfBuffer as unknown as BodyInit,
+                    });
+                    if (!upRes.ok) throw new Error(`R2 upload HTTP ${upRes.status}`);
+                    ok = true;
+                    break;
+                  } catch (uErr) {
+                    console.warn(
+                      `[CLIENT-BUILTIN] R2 upload attempt ${attempt}/3 failed for ${cert.recipientName}:`,
+                      uErr,
+                    );
+                    if (attempt < 3) await new Promise((r) => setTimeout(r, 1000 * attempt));
+                  }
+                }
+                if (!ok) throw new Error("R2 upload failed after 3 attempts");
+                r2PdfUrl = urlInfo.r2PdfUrl;
+              }
+            } else {
+              // Free tier: upload to the batch's Google Drive folder
+              const safeName = (cert.recipientName || "cert").replace(/[^a-zA-Z0-9]/g, "_");
+              const safeBatch = (batch.name || "batch").replace(/[^a-zA-Z0-9]/g, "_");
+              const filename = `${safeName}_${safeBatch}.pdf`;
+              let lastErr: any = null;
+              for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                  const tok = await ensureToken();
+                  const { fileId, webViewLink } = await uploadPdfToDrive(
+                    tok,
+                    pdfBuffer,
+                    filename,
+                    batch.pdfFolderId || batch.driveFolderId || null,
+                  );
+                  drivePdfFileId = fileId;
+                  drivePdfUrl = webViewLink;
+                  lastErr = null;
+                  break;
+                } catch (e) {
+                  lastErr = e;
+                  if (attempt < 3) await new Promise((r) => setTimeout(r, 1000 * attempt));
+                }
+              }
+              if (lastErr) throw lastErr;
+            }
+
+            await reportCertResult(
+              apiBaseUrl,
+              batchId,
+              cert.id,
+              cert,
+              batch.name,
+              r2PdfUrl,
+              drivePdfFileId || undefined,
+              drivePdfUrl || undefined,
+            );
+            generated++;
+          } catch (err: any) {
+            console.error(`[CLIENT-BUILTIN] cert ${cert.recipientName} failed:`, err);
+            failed++;
+          }
+
+          onProgress({
+            phase: "uploading",
+            current: generated + failed,
+            total: totalToProcess,
+            currentCertName: cert.recipientName,
+            message: `Uploaded: ${cert.recipientName} (${generated + failed}/${totalToProcess})`,
+          });
+        };
+
+        const runWorker = async () => {
+          while (true) {
+            if (abortSignal?.aborted) throw new Error("Generation cancelled");
+            const i = nextIdx++;
+            if (i >= chunk.length) return;
+            await processCert(chunk[i]);
+          }
+        };
+
+        await Promise.all(
+          Array.from({ length: Math.min(CONCURRENCY, chunk.length) }, runWorker),
+        );
+      }
+
+      const status =
+        failed === 0 ? "generated" : generated > 0 ? "partial" : "draft";
+      await reportBatchComplete(apiBaseUrl, batchId, generated, failed);
+      onProgress({
+        phase: "done",
+        current: totalToProcess,
+        total: totalToProcess,
+        currentCertName: "",
+        message:
+          failed === 0
+            ? `All ${generated} certificates generated successfully!`
+            : `${generated} generated, ${failed} failed.`,
+      });
+      return { generated, failed, status: status as any };
     }
 
     // Step 4: Group visual-regen certs by (templateId, slideIndex)

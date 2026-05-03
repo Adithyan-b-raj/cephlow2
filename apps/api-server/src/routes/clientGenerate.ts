@@ -4,7 +4,9 @@ import { getAuthClientForUser } from "../lib/googleAuth.js";
 import { deleteFile } from "../lib/googleDrive.js";
 import { upsertStudentProfile, extractPhoneNumber } from "../lib/certUtils.js";
 import { generatePresignedPutUrl, getR2PublicUrl } from "../lib/cloudflareR2.js";
-import { rateLimit } from "express-rate-limit";
+import { isUserApproved } from "../lib/approval.js";
+import { isAdminOrOwner } from "../middlewares/requireWorkspace.js";
+import { rateLimit, ipKeyGenerator } from "express-rate-limit";
 
 const router: IRouter = Router();
 
@@ -12,7 +14,7 @@ const router: IRouter = Router();
 const presignedUrlLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 20,
-  keyGenerator: (req) => req.user?.uid || req.ip || "unknown",
+  keyGenerator: (req) => req.user?.uid || ipKeyGenerator(req.ip ?? "") || "unknown",
   message: { error: "Too many presigned URL requests. Please slow down." },
   standardHeaders: true,
   legacyHeaders: false,
@@ -66,7 +68,10 @@ router.post("/batches/:batchId/client-generate", async (req, res) => {
       .single();
     if (batchErr || !batchRow) return res.status(404).json({ error: "Batch not found" });
     const batch = toCamel(batchRow) as any;
-    if (batch.userId !== userId) return res.status(403).json({ error: "Access denied" });
+    const canAccess = req.workspace &&
+      batchRow.workspace_id === req.workspace.id &&
+      (isAdminOrOwner(req.workspace.role) || batchRow.user_id === userId);
+    if (!canAccess) return res.status(403).json({ error: "Access denied" });
 
     const { data: certsData } = await supabaseAdmin
       .from("certificates")
@@ -137,19 +142,43 @@ router.post("/batches/:batchId/client-generate", async (req, res) => {
       process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`
     ).replace(/\/$/, "");
 
+    // For builtin templates, surface the canvas JSON so the client can render PDFs locally
+    let builtinTemplate: any = null;
+    if (batch.templateKind === "builtin") {
+      const { data: tplRow } = await supabaseAdmin
+        .from("builtin_templates")
+        .select("id, name, canvas, placeholders")
+        .eq("id", batch.templateId)
+        .eq("workspace_id", req.workspace!.id)
+        .single();
+      if (tplRow) {
+        builtinTemplate = {
+          id: tplRow.id,
+          name: tplRow.name,
+          canvas: tplRow.canvas,
+          placeholders: tplRow.placeholders,
+        };
+      }
+    }
+
+    const approved = await isUserApproved(userId);
+
     // Return everything the client needs to process locally
     return res.json({
       success: true,
+      isApproved: approved,
       batch: {
         id: batch.id,
         name: batch.name,
         templateId: batch.templateId,
+        templateKind: batch.templateKind || "slides",
         columnMap: batch.columnMap,
         driveFolderId: batch.driveFolderId,
         pdfFolderId: batch.pdfFolderId,
         categoryColumn: batch.categoryColumn,
         categoryTemplateMap: batch.categoryTemplateMap,
         categorySlideMap: batch.categorySlideMap,
+        builtinTemplate,
       },
       certificates: targetCerts.map((c) => ({
         id: c.id,
@@ -174,7 +203,8 @@ router.post("/batches/:batchId/client-generate", async (req, res) => {
 });
 
 // ── POST /batches/:batchId/presigned-urls ──────────────────────────────────
-// Returns an array of presigned URLs for direct browser-to-R2 uploads
+// Returns an array of presigned URLs for direct browser-to-R2 uploads.
+// Restricted to approved organizations — free tier uploads to Drive instead.
 router.post("/batches/:batchId/presigned-urls", presignedUrlLimiter, async (req, res) => {
   const userId = req.user?.uid;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -187,13 +217,24 @@ router.post("/batches/:batchId/presigned-urls", presignedUrlLimiter, async (req,
   }
 
   try {
+    const approved = await isUserApproved(userId);
+    if (!approved) {
+      return res.status(403).json({
+        error: "R2 storage is restricted to approved organizations. Free tier uploads to Google Drive.",
+        code: "APPROVAL_REQUIRED",
+      });
+    }
+
     // Verify batch ownership
     const { data: batchRow } = await supabaseAdmin
       .from("batches")
-      .select("user_id")
+      .select("user_id, workspace_id")
       .eq("id", batchId)
       .single();
-    if (!batchRow || batchRow.user_id !== userId) {
+    const canAccess = batchRow && req.workspace &&
+      batchRow.workspace_id === req.workspace.id &&
+      (isAdminOrOwner(req.workspace.role) || batchRow.user_id === userId);
+    if (!canAccess) {
       return res.status(403).json({ error: "Access denied" });
     }
 
@@ -244,10 +285,13 @@ router.post("/batches/:batchId/client-report", async (req, res) => {
     // Verify batch ownership
     const { data: batchRow } = await supabaseAdmin
       .from("batches")
-      .select("user_id")
+      .select("user_id, workspace_id")
       .eq("id", batchId)
       .single();
-    if (!batchRow || batchRow.user_id !== userId)
+    const canAccess2 = batchRow && req.workspace &&
+      batchRow.workspace_id === req.workspace.id &&
+      (isAdminOrOwner(req.workspace.role) || batchRow.user_id === userId);
+    if (!canAccess2)
       return res.status(403).json({ error: "Access denied" });
 
     // Mark cert as generated immediately
@@ -273,21 +317,25 @@ router.post("/batches/:batchId/client-report", async (req, res) => {
       p_amount: 1,
     });
 
-    // Upsert student profile directly since worker is removed for R2 uploads
+    // Upsert student profile only for approved organizations.
+    // Free tier doesn't get public verification pages.
     if (recipientEmail) {
-      await upsertStudentProfile({
-        email: recipientEmail,
-        name: recipientName || "Unknown",
-        certId,
-        batchId,
-        batchName: batchName || "",
-        r2PdfUrl: r2PdfUrl || null,
-        pdfUrl: drivePdfUrl || null,
-        slideUrl: driveSlideUrl || null,
-        status: "generated",
-      }).catch((e: any) =>
-        console.error("[CLIENT-REPORT] Profile upsert failed:", recipientEmail, e.message)
-      );
+      const approved = await isUserApproved(userId);
+      if (approved) {
+        await upsertStudentProfile({
+          email: recipientEmail,
+          name: recipientName || "Unknown",
+          certId,
+          batchId,
+          batchName: batchName || "",
+          r2PdfUrl: r2PdfUrl || null,
+          pdfUrl: drivePdfUrl || null,
+          slideUrl: driveSlideUrl || null,
+          status: "generated",
+        }).catch((e: any) =>
+          console.error("[CLIENT-REPORT] Profile upsert failed:", recipientEmail, e.message)
+        );
+      }
     }
 
     console.log(`[CLIENT-REPORT] Successfully recorded cert generation: ${recipientName || certId}`);
@@ -315,10 +363,13 @@ router.post("/batches/:batchId/client-complete", async (req, res) => {
   try {
     const { data: batchRow } = await supabaseAdmin
       .from("batches")
-      .select("user_id, total_count")
+      .select("user_id, workspace_id, total_count")
       .eq("id", batchId)
       .single();
-    if (!batchRow || batchRow.user_id !== userId)
+    const canAccess3 = batchRow && req.workspace &&
+      batchRow.workspace_id === req.workspace.id &&
+      (isAdminOrOwner(req.workspace.role) || batchRow.user_id === userId);
+    if (!canAccess3)
       return res.status(403).json({ error: "Access denied" });
 
     let newStatus: string;
@@ -377,11 +428,14 @@ router.post("/batches/:batchId/recover-stuck", async (req, res) => {
   try {
     const { data: batchRow } = await supabaseAdmin
       .from("batches")
-      .select("user_id, status")
+      .select("user_id, workspace_id, status")
       .eq("id", batchId)
       .single();
 
-    if (!batchRow || batchRow.user_id !== userId)
+    const canAccess4 = batchRow && req.workspace &&
+      batchRow.workspace_id === req.workspace.id &&
+      (isAdminOrOwner(req.workspace.role) || batchRow.user_id === userId);
+    if (!canAccess4)
       return res.status(403).json({ error: "Access denied" });
 
     // Only act on stuck batches — if it's already resolved, return current state

@@ -1,17 +1,18 @@
 import { supabaseAdmin, toCamel, type Certificate } from "@workspace/supabase";
 import type { SendEmailJobData } from "../types.js";
-import { exportSlidesToPdf } from "../lib/googleDrive.js";
+import { downloadDriveFile, exportSlidesToPdf } from "../lib/googleDrive.js";
 import { sendEmail } from "../lib/gmail.js";
 
 /**
- * Downloads a PDF from an R2 public URL and returns it as a Buffer.
- * Falls back to exporting from Google Slides if R2 URL is not available.
+ * Downloads a PDF for sending. Resolution order:
+ *   1. R2 public URL (approved tier)
+ *   2. Drive file ID  (free tier — PDF was uploaded straight to Drive)
+ *   3. Slides export  (legacy slides flow)
  */
 async function getPdfBuffer(
   userId: string,
-  cert: Certificate & { r2PdfUrl?: string; slideFileId?: string }
+  cert: Certificate & { r2PdfUrl?: string; pdfFileId?: string; slideFileId?: string }
 ): Promise<Buffer | undefined> {
-  // Prefer R2 (no Google API call needed)
   if ((cert as any).r2PdfUrl) {
     try {
       const res = await fetch((cert as any).r2PdfUrl);
@@ -20,7 +21,16 @@ async function getPdfBuffer(
         return Buffer.from(arrayBuf);
       }
     } catch (e: any) {
-      console.error("[SEND-EMAIL] R2 fetch failed, falling back to Slides:", e.message);
+      console.error("[SEND-EMAIL] R2 fetch failed, trying Drive:", e.message);
+    }
+  }
+
+  // Free-tier path: PDF is in the user's Google Drive
+  if ((cert as any).pdfFileId) {
+    try {
+      return await downloadDriveFile(userId, (cert as any).pdfFileId);
+    } catch (e: any) {
+      console.error("[SEND-EMAIL] Drive download failed, trying Slides:", e.message);
     }
   }
 
@@ -85,8 +95,8 @@ export async function processSendEmail(payload: SendEmailJobData) {
         const pdfBuffer = await getPdfBuffer(userId, cert as any);
         const pdfFilename = `${cert.recipientName.replace(/[^a-zA-Z0-9]/g, "_")}_${batch.name.replace(/[^a-zA-Z0-9]/g, "_")}.pdf`;
         const rowData = (cert.rowData as Record<string, string>) || {};
-        const personalizedSubject = personalizeTemplate(subject, batch, rowData);
-        const personalizedBody = personalizeTemplate(body, batch, rowData);
+        const personalizedSubject = applyPersonalization(subject, batch, rowData);
+        const personalizedBody = applyPersonalization(body, batch, rowData);
 
         await sendEmail(userId, { to: cert.recipientEmail, subject: personalizedSubject, body: personalizedBody, pdfBuffer, pdfFilename });
         await supabaseAdmin.from("certificates").update({

@@ -9,6 +9,7 @@ export default function Login() {
     const [mode, setMode] = useState<"signin" | "signup">("signin");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
 
@@ -21,6 +22,11 @@ export default function Login() {
             if (mode === "signin") {
                 await login(email.trim(), password);
             } else {
+                if (password !== confirmPassword) {
+                    setError("Passwords do not match.");
+                    setLoading(false);
+                    return;
+                }
                 await signup(email.trim(), password);
             }
         } catch (err: any) {
@@ -61,6 +67,17 @@ export default function Login() {
                             minLength={6}
                             className="border-2 border-foreground rounded-none h-11"
                         />
+                        {mode === "signup" && (
+                            <Input
+                                type="password"
+                                placeholder="Confirm Password"
+                                value={confirmPassword}
+                                onChange={(e) => setConfirmPassword(e.target.value)}
+                                required
+                                minLength={6}
+                                className="border-2 border-foreground rounded-none h-11"
+                            />
+                        )}
                         {error && <p className="text-xs text-destructive">{error}</p>}
                         <Button
                             type="submit"
@@ -72,7 +89,7 @@ export default function Login() {
                         </Button>
                     </form>
                     <button
-                        onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); }}
+                        onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setConfirmPassword(""); }}
                         className="text-xs text-muted-foreground underline mt-4 block mx-auto text-center w-full"
                     >
                         {mode === "signin" ? "No account? Sign up" : "Already have an account? Sign in"}

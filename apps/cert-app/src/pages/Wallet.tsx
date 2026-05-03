@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Wallet as WalletIcon, IndianRupee, History, Plus, Loader2, FileBadge } from "lucide-react";
+import { Wallet as WalletIcon, IndianRupee, History, Plus, Loader2, FileBadge, Users } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -19,8 +19,14 @@ import {
 } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
+import { useWorkspace } from "@/hooks/use-workspace";
 
 export default function Wallet() {
+  const { activeWorkspace, workspaces, role } = useWorkspace();
+  const isAdmin = role === "owner" || role === "admin";
+  const memberCount = activeWorkspace
+    ? workspaces.find((w) => w.id === activeWorkspace.id) ? workspaces.length : 1
+    : 1;
   const { data: balanceData, isLoading: isLoadingBalance, refetch: refetchBalance } = useGetWalletBalance();
   const { data: historyData, isLoading: isLoadingHistory, refetch: refetchHistory } = useGetWalletHistory();
   const { mutateAsync: createOrder } = useCreateOrder() as any;
@@ -60,7 +66,14 @@ export default function Wallet() {
         <div>
           <h1 className="text-2xl font-display font-black">Prepaid Wallet</h1>
           <p className="text-xs text-muted-foreground mt-1 normal-case tracking-normal font-normal">Manage credits for certificate generation.</p>
+          {activeWorkspace && (
+            <p className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1 uppercase tracking-widest">
+              <Users className="w-3 h-3" />
+              Shared with {memberCount} member{memberCount !== 1 ? "s" : ""} · {activeWorkspace.name}
+            </p>
+          )}
         </div>
+        {isAdmin && (
         <Dialog open={isTopUpOpen} onOpenChange={setIsTopUpOpen}>
           <DialogTrigger asChild>
             <Button className="font-bold uppercase tracking-widest text-xs h-10 gap-2 border-2">
@@ -95,6 +108,7 @@ export default function Wallet() {
             </div>
           </DialogContent>
         </Dialog>
+        )}
       </div>
 
       {/* Balance cards */}
@@ -145,6 +159,7 @@ export default function Wallet() {
                 <tr className="border-b-2 border-foreground bg-muted">
                   <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest">Date</th>
                   <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest">Description</th>
+                  {isAdmin && <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest">By</th>}
                   <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest">Type</th>
                   <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-widest">Amount</th>
                   <th className="px-4 py-3 text-right text-[10px] font-bold uppercase tracking-widest">Balance</th>
@@ -157,6 +172,11 @@ export default function Wallet() {
                       {format(new Date(ledger.createdAt), "dd MMM yyyy, HH:mm")}
                     </td>
                     <td className="px-4 py-3 normal-case tracking-normal font-normal">{ledger.description}</td>
+                    {isAdmin && (
+                      <td className="px-4 py-3 font-mono text-[10px] text-muted-foreground">
+                        {ledger.userId ? String(ledger.userId).slice(0, 8) + "…" : "—"}
+                      </td>
+                    )}
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-bold uppercase tracking-widest border ${
                         ledger.type === 'topup'
