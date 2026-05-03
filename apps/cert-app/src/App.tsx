@@ -415,7 +415,7 @@ const KNOWN_APP_PATHS = ["/login", "/batches", "/history", "/wallet", "/template
 
 function AppRouter() {
   const { user, loading, hasGoogleAuth } = useAuth();
-  const [location] = useLocation();
+  const [location, setLocation] = useLocation();
   const [isVerifyRoute] = useRoute("/verify/:batchId/:certId");
   const [isProfileRoute] = useRoute("/:username");
 
@@ -441,6 +441,12 @@ function AppRouter() {
     return <Login />;
   }
   if (!hasGoogleAuth) return <ConnectGoogleScreen />;
+
+  // Redirect authenticated users from /login to dashboard
+  if (location === "/login") {
+    setLocation("/", { replace: true });
+    return null;
+  }
 
   return (
     <Switch>
