@@ -436,26 +436,27 @@ export default function Landing() {
     <div className="min-h-screen bg-white font-mono">
 
       {/* ── Nav ── */}
-      <nav className="border-b border-black px-6 py-4 flex items-center justify-between sticky top-0 bg-white z-50">
+      <nav className="border-b border-black px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between sticky top-0 bg-white z-50">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-black flex items-center justify-center">
+          <div className="w-6 h-6 bg-black flex items-center justify-center shrink-0">
             <span className="text-white text-[10px] font-bold">C</span>
           </div>
           <span className="font-bold tracking-widest text-sm">CEPHLOW</span>
-          <span className="text-[9px] text-gray-400 tracking-widest">AUTOMATION</span>
+          <span className="hidden sm:inline text-[9px] text-gray-400 tracking-widest">AUTOMATION</span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4">
           <button
             onClick={() => navigate("/login")}
-            className="text-xs tracking-wider border border-black px-4 py-2 hover:bg-black hover:text-white transition-colors"
+            className="text-[10px] sm:text-xs tracking-wider border border-black px-3 sm:px-4 py-1.5 sm:py-2 hover:bg-black hover:text-white transition-colors"
           >
             SIGN IN
           </button>
           <button
             onClick={() => document.getElementById("request-access")?.scrollIntoView({ behavior: "smooth" })}
-            className="text-xs tracking-wider bg-black text-white px-4 py-2 hover:bg-gray-800 transition-colors"
+            className="text-[10px] sm:text-xs tracking-wider bg-black text-white px-3 sm:px-4 py-1.5 sm:py-2 hover:bg-gray-800 transition-colors"
           >
-            REQUEST ACCESS
+            <span className="sm:hidden">ACCESS</span>
+            <span className="hidden sm:inline">REQUEST ACCESS</span>
           </button>
         </div>
       </nav>
