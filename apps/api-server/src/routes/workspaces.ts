@@ -167,7 +167,7 @@ router.post("/workspaces/:id/invites", async (req, res) => {
     .single();
   if (error) return res.status(500).json({ error: error.message });
 
-  const appUrl = process.env.APP_URL || process.env.VITE_APP_URL || "";
+  const appUrl = (process.env.APP_URL || process.env.FRONTEND_URL || process.env.VITE_APP_URL || "").replace(/\/$/, "");
   const link = `${appUrl}/invite?token=${encodeURIComponent(token)}`;
   const wsName = ws?.name || "a workspace";
   try {
@@ -217,6 +217,22 @@ router.delete("/workspaces/:id/invites/:inviteId", async (req, res) => {
     .eq("workspace_id", id);
   if (error) return res.status(500).json({ error: error.message });
   return res.json({ ok: true });
+});
+
+// Pending invites for the current user's email
+router.get("/me/invites", async (req, res) => {
+  const userEmail = (req.user?.email || "").toLowerCase();
+  if (!userEmail) return res.status(401).json({ error: "Unauthorized" });
+
+  const { data, error } = await supabaseAdmin
+    .from("workspace_invites")
+    .select("id, token, role, expires_at, workspaces(id, name)")
+    .eq("email", userEmail)
+    .is("accepted_at", null)
+    .gt("expires_at", new Date().toISOString());
+
+  if (error) return res.status(500).json({ error: error.message });
+  return res.json({ invites: (data || []).map(toCamel) });
 });
 
 // Accept invite — must NOT require workspace context

@@ -24,6 +24,7 @@ import Reports from "@/pages/Reports";
 import Landing from "@/pages/Landing";
 import WorkspaceMembers from "@/pages/workspace/Members";
 import WorkspaceBrand from "@/pages/workspace/Brand";
+import Invitations from "@/pages/workspace/Invitations";
 import InviteAccept from "@/pages/InviteAccept";
 
 const queryClient = new QueryClient({
@@ -56,6 +57,7 @@ function AuthenticatedRouter() {
         <Route path="/templates/new" component={NewTemplate} />
         <Route path="/workspace/members" component={WorkspaceMembers} />
         <Route path="/workspace/brand" component={WorkspaceBrand} />
+        <Route path="/workspace/invitations" component={Invitations} />
         <Route path="/invite" component={InviteAccept} />
         <Route component={NotFound} />
       </Switch>

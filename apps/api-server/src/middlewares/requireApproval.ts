@@ -1,12 +1,12 @@
 import type { Request, Response, NextFunction } from "express";
-import { isUserApproved } from "../lib/approval.js";
+import { isApprovedInContext } from "../lib/approval.js";
 
 /**
  * Express middleware that enforces the "approved organization" tier on a
  * route. Must run AFTER `requireAuth` so `req.user.uid` is populated.
  *
- * Returns HTTP 403 with `{ error, code: "APPROVAL_REQUIRED" }` if the
- * caller is not yet approved, so the frontend can show a friendly modal.
+ * A user passes if they are personally approved OR if their active workspace
+ * is owned by an approved organization.
  */
 export async function requireApproval(
   req: Request,
@@ -16,7 +16,8 @@ export async function requireApproval(
   const userId = req.user?.uid;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
   try {
-    const ok = await isUserApproved(userId);
+    const workspaceId = req.workspace?.id ?? null;
+    const ok = await isApprovedInContext(userId, workspaceId);
     if (!ok) {
       return res.status(403).json({
         error: "Organization approval required to use this feature.",

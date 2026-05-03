@@ -64,7 +64,7 @@ router.post("/batches", async (req, res) => {
     const headers = rows[0] as string[];
     const dataRows = rows.slice(1).filter((r) => r.length > 0);
 
-    const approved = await isUserApproved(userId);
+    const approved = await isApprovedInContext(userId, req.workspace?.id);
 
     // Free tier (unapproved): force builtin templates only.
     let kind = templateKind === "builtin" ? "builtin" : "slides";

@@ -1,17 +1,19 @@
 import { Router, type IRouter } from "express";
-import { ensureUserProfile, isUserApproved } from "../lib/approval.js";
+import { ensureUserProfile, isApprovedInContext } from "../lib/approval.js";
 
 const router: IRouter = Router();
 
 // Returns the current user's approval state. Auto-creates a profile row
 // on first call so unapproved users get a stable record we can later flip.
+// Also checks the active workspace owner's approval so members inherit access.
 router.get("/me/approval", async (req, res) => {
   const userId = req.user?.uid;
   const email = req.user?.email ?? null;
+  const workspaceId = (req.headers["x-workspace-id"] as string) || null;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
   try {
     await ensureUserProfile(userId, email);
-    const approved = await isUserApproved(userId);
+    const approved = await isApprovedInContext(userId, workspaceId);
     return res.json({ isApproved: approved, userId, email });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

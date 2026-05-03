@@ -15,6 +15,7 @@ import {
   Palette,
   Lock,
   MessageCircle,
+  MailOpen,
 } from "lucide-react";
 import {
   Sidebar,
@@ -58,6 +59,12 @@ const NAV_ITEMS = [
   { title: "Reports", url: "/reports", icon: MessageSquareWarning, approvedOnly: false },
 ];
 
+// Visible to all users, never locked
+const WORKSPACE_PUBLIC_ITEMS = [
+  { title: "Invitations", url: "/workspace/invitations", icon: MailOpen },
+];
+
+// Visible to workspace admins/owners only, locked when unapproved
 const ADMIN_NAV_ITEMS = [
   { title: "Members", url: "/workspace/members", icon: Users },
   { title: "Brand Kit", url: "/workspace/brand", icon: Palette },
@@ -171,26 +178,32 @@ export function AppSidebar() {
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {isAdmin && (
-            <SidebarGroup>
-              <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-4 pt-4 pb-1">
-                Workspace
-              </SidebarGroupLabel>
-              <SidebarGroupContent>
-                <SidebarMenu className="mt-1">
-                  {ADMIN_NAV_ITEMS.map((item) => {
-                    const isActive = location.startsWith(item.url);
-                    const locked = !isApproved;
-                    return (
-                      <SidebarMenuItem key={item.title}>
-                        {renderNavItem(item.title, item.url, item.icon, locked, isActive)}
-                      </SidebarMenuItem>
-                    );
-                  })}
-                </SidebarMenu>
-              </SidebarGroupContent>
-            </SidebarGroup>
-          )}
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-4 pt-4 pb-1">
+              Workspace
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="mt-1">
+                {WORKSPACE_PUBLIC_ITEMS.map((item) => {
+                  const isActive = location.startsWith(item.url);
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      {renderNavItem(item.title, item.url, item.icon, false, isActive)}
+                    </SidebarMenuItem>
+                  );
+                })}
+                {isAdmin && ADMIN_NAV_ITEMS.map((item) => {
+                  const isActive = location.startsWith(item.url);
+                  const locked = !isApproved;
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      {renderNavItem(item.title, item.url, item.icon, locked, isActive)}
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
         </SidebarContent>
 
         {/* User footer */}

@@ -1,5 +1,6 @@
 import { Link } from "wouter";
 import { useListBatches, useListCertificates } from "@workspace/api-client-react";
+import { PendingInviteBanner } from "@/components/PendingInviteBanner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,6 +17,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
+      <PendingInviteBanner />
 
       {/* Hero */}
       <div className="bg-foreground text-background p-8 md:p-12 border-2 border-foreground">

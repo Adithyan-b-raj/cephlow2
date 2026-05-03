@@ -22,6 +22,29 @@ export async function isUserApproved(userId: string): Promise<boolean> {
 }
 
 /**
+ * Returns true if the user is approved OR if they are a member of a workspace
+ * whose owner is approved. This lets workspace members inherit org-level access.
+ */
+export async function isApprovedInContext(
+  userId: string,
+  workspaceId?: string | null,
+): Promise<boolean> {
+  if (!userId) return false;
+  if (await isUserApproved(userId)) return true;
+  if (!workspaceId) return false;
+
+  // Check workspace owner's approval
+  const { data: ws } = await supabaseAdmin
+    .from("workspaces")
+    .select("owner_id")
+    .eq("id", workspaceId)
+    .maybeSingle();
+
+  if (!ws?.owner_id || ws.owner_id === userId) return false;
+  return isUserApproved(ws.owner_id);
+}
+
+/**
  * Ensure a user_profiles row exists for the user. Idempotent — used on
  * every call to /api/me/approval so the row is auto-created on first
  * sign-in (default is_approved=false).

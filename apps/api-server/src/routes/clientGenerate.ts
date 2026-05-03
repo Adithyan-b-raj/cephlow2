@@ -5,7 +5,7 @@ import { getAuthClientForUser } from "../lib/googleAuth.js";
 import { deleteFile } from "../lib/googleDrive.js";
 import { upsertStudentProfile, extractPhoneNumber } from "../lib/certUtils.js";
 import { generatePresignedPutUrl, getR2PublicUrl } from "../lib/cloudflareR2.js";
-import { isUserApproved } from "../lib/approval.js";
+import { isApprovedInContext } from "../lib/approval.js";
 import { isAdminOrOwner } from "../middlewares/requireWorkspace.js";
 import { rateLimit, ipKeyGenerator } from "express-rate-limit";
 
@@ -136,7 +136,7 @@ router.post("/batches/:batchId/client-generate", async (req, res) => {
         const detail = parts[1] || msg;
         return res.status(402).json({ error: `Insufficient funds: ${detail}` });
       }
-      throw rpcErr;
+throw rpcErr;
     }
 
     const baseUrl = (
@@ -162,7 +162,7 @@ router.post("/batches/:batchId/client-generate", async (req, res) => {
       }
     }
 
-    const approved = await isUserApproved(userId);
+    const approved = await isApprovedInContext(userId, req.workspace?.id);
 
     // Return everything the client needs to process locally
     return res.json({
@@ -218,7 +218,7 @@ router.post("/batches/:batchId/presigned-urls", presignedUrlLimiter, async (req,
   }
 
   try {
-    const approved = await isUserApproved(userId);
+    const approved = await isApprovedInContext(userId, req.workspace?.id);
     if (!approved) {
       return res.status(403).json({
         error: "R2 storage is restricted to approved organizations. Free tier uploads to Google Drive.",
@@ -321,7 +321,7 @@ router.post("/batches/:batchId/client-report", async (req, res) => {
     // Upsert student profile only for approved organizations.
     // Free tier doesn't get public verification pages.
     if (recipientEmail) {
-      const approved = await isUserApproved(userId);
+      const approved = await isApprovedInContext(userId, req.workspace?.id);
       if (approved) {
         await upsertStudentProfile({
           email: recipientEmail,
