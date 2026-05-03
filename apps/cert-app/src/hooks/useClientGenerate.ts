@@ -31,12 +31,15 @@ async function notifyBatchAborted(
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
     if (!token) return;
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    };
+    const wsId = localStorage.getItem("cephlow_active_workspace");
+    if (wsId) headers["x-workspace-id"] = wsId;
     await fetch(`${apiBaseUrl}/api/batches/${batchId}/client-complete`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      headers,
       body: JSON.stringify({ generated, failed, cancelled: true }),
       // keepalive so it survives even if the tab is navigating away
       keepalive: true,

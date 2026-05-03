@@ -411,9 +411,8 @@ async function getGoogleAccessToken(apiBaseUrl: string): Promise<{
   accessToken: string;
   expiresAt: number;
 }> {
-  const supabaseToken = await getSupabaseToken();
   const res = await fetch(`${apiBaseUrl}/api/auth/google/access-token`, {
-    headers: { Authorization: `Bearer ${supabaseToken}` },
+    headers: await apiHeaders(),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
@@ -432,6 +431,23 @@ async function getSupabaseToken(): Promise<string> {
   return token;
 }
 
+// Helper to get the active workspace ID from localStorage
+function getActiveWorkspaceId(): string | null {
+  return localStorage.getItem("cephlow_active_workspace");
+}
+
+// Build standard headers for API calls (auth + workspace)
+async function apiHeaders(extra: Record<string, string> = {}): Promise<Record<string, string>> {
+  const token = await getSupabaseToken();
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${token}`,
+    ...extra,
+  };
+  const wsId = getActiveWorkspaceId();
+  if (wsId) headers["x-workspace-id"] = wsId;
+  return headers;
+}
+
 // ── Report per-cert results to server ──────────────────────────────────────
 
 async function reportCertResult(
@@ -444,8 +460,6 @@ async function reportCertResult(
   drivePdfFileId?: string,
   drivePdfUrl?: string,
 ): Promise<{ success: boolean }> {
-  const supabaseToken = await getSupabaseToken();
-
   const payload = {
     certId,
     recipientName: cert.recipientName,
@@ -459,10 +473,7 @@ async function reportCertResult(
 
   const res = await fetch(`${apiBaseUrl}/api/batches/${batchId}/client-report`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${supabaseToken}`,
-    },
+    headers: await apiHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(payload),
   });
   if (!res.ok) {
@@ -478,13 +489,9 @@ async function reportBatchComplete(
   generated: number,
   failed: number
 ): Promise<void> {
-  const supabaseToken = await getSupabaseToken();
   await fetch(`${apiBaseUrl}/api/batches/${batchId}/client-complete`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${supabaseToken}`,
-    },
+    headers: await apiHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ generated, failed }),
   });
 }
@@ -496,20 +503,25 @@ async function cleanupTempFiles(
 ): Promise<void> {
   if (tempFileIds.length === 0) return;
   const supabaseToken = await getSupabaseToken();
+  const wsId = getActiveWorkspaceId();
   // Use sendBeacon for reliability on tab close, fall back to fetch
   const body = JSON.stringify({ tempFileIds });
   const url = `${apiBaseUrl}/api/batches/${batchId}/client-cleanup`;
   if (navigator.sendBeacon) {
     const blob = new Blob([body], { type: "application/json" });
-    // sendBeacon doesn't support custom headers, so we pass token in the URL
-    navigator.sendBeacon(`${url}?token=${supabaseToken}`, blob);
+    // sendBeacon doesn't support custom headers, so we pass token + workspace in the URL
+    const params = new URLSearchParams({ token: supabaseToken });
+    if (wsId) params.set("workspaceId", wsId);
+    navigator.sendBeacon(`${url}?${params}`, blob);
   } else {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${supabaseToken}`,
+    };
+    if (wsId) headers["x-workspace-id"] = wsId;
     fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${supabaseToken}`,
-      },
+      headers,
       body,
       keepalive: true,
     }).catch(() => {});
@@ -594,15 +606,11 @@ export async function clientGenerate(
     message: "Validating and preparing generation...",
   });
 
-  const supabaseToken = await getSupabaseToken();
   const initRes = await fetch(
     `${apiBaseUrl}/api/batches/${batchId}/client-generate`,
     {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${supabaseToken}`,
-      },
+      headers: await apiHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({ selectedCertIds }),
     }
   );
@@ -721,10 +729,7 @@ export async function clientGenerate(
             `${apiBaseUrl}/api/batches/${batchId}/presigned-urls`,
             {
               method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${await getSupabaseToken()}`,
-              },
+              headers: await apiHeaders({ "Content-Type": "application/json" }),
               body: JSON.stringify({
                 certificates: chunk.map((c) => ({
                   certId: c.id,
@@ -934,10 +939,7 @@ export async function clientGenerate(
           // 1. Get presigned URLs for this chunk
           const presignedRes = await fetch(`${apiBaseUrl}/api/batches/${batchId}/presigned-urls`, {
             method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${await getSupabaseToken()}`
-            },
+            headers: await apiHeaders({ "Content-Type": "application/json" }),
             body: JSON.stringify({ certificates: chunk.map(c => ({ certId: c.id, recipientName: c.recipientName, rowData: c.rowData })), batchName: batch.name })
           });
           const { presignedUrls } = await presignedRes.json();
