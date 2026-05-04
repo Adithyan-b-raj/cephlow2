@@ -3,7 +3,6 @@ import { uploadAssetToR2 } from "@workspace/api-client-react";
 import { ensureFontStylesInjected, BUNDLED_FONTS, ensureFontLoaded } from "./fonts";
 import { useEditorStore } from "./useEditorStore";
 import { Gamepad2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { EditorCanvas } from "./EditorCanvas";
 import { EditorToolbar } from "./EditorToolbar";
 import { PropertiesPanel } from "./PropertiesPanel";
@@ -165,15 +164,15 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
         <div className="flex-1 min-w-0 min-h-0 relative">
           <EditorCanvas store={store} zoom={zoom} setZoom={setZoom} />
           {isFullscreen && (
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
               onClick={() => setJoystickVisible((v) => !v)}
               title={joystickVisible ? "Hide joystick" : "Show joystick"}
-              className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm border border-border shadow-sm"
+              style={{ position: "absolute", top: 8, right: 8, zIndex: 50 }}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border shadow-md backdrop-blur-sm ${joystickVisible ? "bg-primary text-primary-foreground border-primary" : "bg-background/90 text-foreground border-border"}`}
             >
-              <Gamepad2 className="w-4 h-4" />
-            </Button>
+              <Gamepad2 className="w-3.5 h-3.5" />
+              {joystickVisible ? "Hide pad" : "Show pad"}
+            </button>
           )}
           {isFullscreen && joystickVisible && store.selectedIds.length > 0 && (
             <JoystickPad
