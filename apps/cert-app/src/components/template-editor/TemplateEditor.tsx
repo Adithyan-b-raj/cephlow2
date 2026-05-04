@@ -29,6 +29,7 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
   const [templateName, setTemplateName] = useState(initialName);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const prevZoomRef = useRef(zoom);
 
   useEffect(() => {
     const onChange = () => {
@@ -42,12 +43,17 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
+      prevZoomRef.current = zoom;
       containerRef.current?.requestFullscreen()
-        .then(() => (screen.orientation as any).lock?.("landscape")?.catch?.(() => {}))
+        .then(() => {
+          setZoom(0.45);
+          (screen.orientation as any).lock?.("landscape")?.catch?.(() => {});
+        })
         .catch(() => {});
     } else {
       (screen.orientation as any).unlock?.();
       document.exitFullscreen().catch(() => {});
+      setZoom(prevZoomRef.current);
     }
   };
 

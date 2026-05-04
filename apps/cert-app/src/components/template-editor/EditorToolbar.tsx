@@ -162,19 +162,22 @@ export function EditorToolbar({
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-2 sm:px-4 py-2 border-b bg-background/95 backdrop-blur sticky top-0 z-30">
-      <Button variant="ghost" size="sm" onClick={onBack} className="px-2 sm:px-3">
+    <div className={`flex items-center border-b bg-background/95 backdrop-blur sticky top-0 z-30 ${isFullscreen ? "flex-nowrap gap-1 px-2 py-1 overflow-x-auto" : "flex-wrap gap-2 sm:gap-3 px-2 sm:px-4 py-2"}`}>
+      <Button variant="ghost" size="sm" onClick={onBack} className="px-2 sm:px-3 shrink-0">
         <ArrowLeft className="w-4 h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Back</span>
       </Button>
 
-      <div className="h-6 w-px bg-border hidden sm:block" />
-
-      <Input
-        value={templateName}
-        onChange={(e) => setTemplateName(e.target.value)}
-        placeholder="Template name"
-        className="h-8 flex-1 min-w-[140px] sm:flex-none sm:w-56"
-      />
+      {!isFullscreen && (
+        <>
+          <div className="h-6 w-px bg-border hidden sm:block" />
+          <Input
+            value={templateName}
+            onChange={(e) => setTemplateName(e.target.value)}
+            placeholder="Template name"
+            className="h-8 flex-1 min-w-[140px] sm:flex-none sm:w-56"
+          />
+        </>
+      )}
 
       <div className="h-6 w-px bg-border hidden sm:block" />
 
@@ -253,11 +256,15 @@ export function EditorToolbar({
         <Button variant="ghost" size="sm" onClick={() => setZoom(1)} title="Reset zoom" className="hidden sm:inline-flex">
           <Maximize2 className="w-4 h-4" />
         </Button>
-        <div className="h-6 w-px bg-border mx-1" />
-        <Button onClick={onSave} disabled={saving || !templateName.trim()} size="sm">
-          {saving ? <Loader2 className="w-4 h-4 sm:mr-1.5 animate-spin" /> : <Save className="w-4 h-4 sm:mr-1.5" />}
-          <span className="hidden sm:inline">Save</span>
-        </Button>
+        {!isFullscreen && (
+          <>
+            <div className="h-6 w-px bg-border mx-1" />
+            <Button onClick={onSave} disabled={saving || !templateName.trim()} size="sm">
+              {saving ? <Loader2 className="w-4 h-4 sm:mr-1.5 animate-spin" /> : <Save className="w-4 h-4 sm:mr-1.5" />}
+              <span className="hidden sm:inline">Save</span>
+            </Button>
+          </>
+        )}
       </div>
     </div>
   );
