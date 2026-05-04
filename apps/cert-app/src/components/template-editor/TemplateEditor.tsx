@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { uploadAssetToR2 } from "@workspace/api-client-react";
 import { ensureFontStylesInjected, BUNDLED_FONTS, ensureFontLoaded } from "./fonts";
 import { useEditorStore } from "./useEditorStore";
@@ -27,6 +27,29 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
     return 1;
   });
   const [templateName, setTemplateName] = useState(initialName);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onChange = () => {
+      const inFS = !!document.fullscreenElement;
+      setIsFullscreen(inFS);
+      if (!inFS) (screen.orientation as any).unlock?.();
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      containerRef.current?.requestFullscreen()
+        .then(() => (screen.orientation as any).lock?.("landscape")?.catch?.(() => {}))
+        .catch(() => {});
+    } else {
+      (screen.orientation as any).unlock?.();
+      document.exitFullscreen().catch(() => {});
+    }
+  };
 
   useEffect(() => {
     ensureFontStylesInjected();
@@ -114,7 +137,7 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
   };
 
   return (
-    <div className="h-screen w-screen flex flex-col bg-background overflow-hidden">
+    <div ref={containerRef} className="h-screen w-screen flex flex-col bg-background overflow-hidden">
       <EditorToolbar
         store={store}
         zoom={zoom}
@@ -125,12 +148,14 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
         saving={saving}
         onBack={onBack}
         onAddImage={handleAddImage}
+        isFullscreen={isFullscreen}
+        toggleFullscreen={toggleFullscreen}
       />
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         <div className="flex-1 min-w-0 min-h-0">
           <EditorCanvas store={store} zoom={zoom} setZoom={setZoom} />
         </div>
-        <div className="w-full md:w-72 border-t md:border-t-0 md:border-l flex flex-col bg-background max-h-[45vh] md:max-h-none shrink-0">
+        <div className={`w-full md:w-72 border-t md:border-t-0 md:border-l flex flex-col bg-background max-h-[45vh] md:max-h-none shrink-0${isFullscreen ? " hidden md:flex" : ""}`}>
           <div className="flex-1 overflow-hidden">
             <PropertiesPanel store={store} />
           </div>

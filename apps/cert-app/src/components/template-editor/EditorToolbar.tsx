@@ -11,6 +11,8 @@ import {
   ZoomIn,
   ZoomOut,
   Maximize2,
+  Expand,
+  Shrink,
   Save,
   Loader2,
   ArrowLeft,
@@ -31,6 +33,8 @@ interface Props {
   saving: boolean;
   onBack: () => void;
   onAddImage: (file: File) => void;
+  isFullscreen: boolean;
+  toggleFullscreen: () => void;
 }
 
 export function EditorToolbar({
@@ -43,6 +47,8 @@ export function EditorToolbar({
   saving,
   onBack,
   onAddImage,
+  isFullscreen,
+  toggleFullscreen,
 }: Props) {
   const addText = () => {
     const id = newId("text");
@@ -228,6 +234,15 @@ export function EditorToolbar({
       </Select>
 
       <div className="ml-auto flex items-center gap-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={toggleFullscreen}
+          title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+          className="md:hidden"
+        >
+          {isFullscreen ? <Shrink className="w-4 h-4" /> : <Expand className="w-4 h-4" />}
+        </Button>
         <Button variant="ghost" size="sm" onClick={() => setZoom(Math.max(0.1, zoom - 0.1))} title="Zoom out">
           <ZoomOut className="w-4 h-4" />
         </Button>
