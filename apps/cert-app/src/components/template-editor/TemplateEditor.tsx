@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { uploadAssetToR2 } from "@workspace/api-client-react";
 import { ensureFontStylesInjected, BUNDLED_FONTS, ensureFontLoaded } from "./fonts";
 import { useEditorStore } from "./useEditorStore";
+import { Gamepad2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { EditorCanvas } from "./EditorCanvas";
 import { EditorToolbar } from "./EditorToolbar";
 import { PropertiesPanel } from "./PropertiesPanel";
@@ -29,6 +31,7 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
   });
   const [templateName, setTemplateName] = useState(initialName);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [joystickVisible, setJoystickVisible] = useState(true);
   const containerRef = useRef<HTMLDivElement>(null);
   const prevZoomRef = useRef(zoom);
 
@@ -161,7 +164,18 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         <div className="flex-1 min-w-0 min-h-0 relative">
           <EditorCanvas store={store} zoom={zoom} setZoom={setZoom} />
-          {isFullscreen && store.selectedIds.length > 0 && (
+          {isFullscreen && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setJoystickVisible((v) => !v)}
+              title={joystickVisible ? "Hide joystick" : "Show joystick"}
+              className="absolute top-2 right-2 bg-background/80 backdrop-blur-sm border border-border shadow-sm"
+            >
+              <Gamepad2 className="w-4 h-4" />
+            </Button>
+          )}
+          {isFullscreen && joystickVisible && store.selectedIds.length > 0 && (
             <JoystickPad
               onMove={(dx, dy) => {
                 store.beginTransient();
