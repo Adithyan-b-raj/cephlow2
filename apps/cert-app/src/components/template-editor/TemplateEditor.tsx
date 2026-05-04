@@ -6,6 +6,7 @@ import { EditorCanvas } from "./EditorCanvas";
 import { EditorToolbar } from "./EditorToolbar";
 import { PropertiesPanel } from "./PropertiesPanel";
 import { LayersPanel } from "./LayersPanel";
+import { JoystickPad } from "./JoystickPad";
 import type { CanvasDocument } from "./types";
 import { newId } from "./types";
 
@@ -46,7 +47,7 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
       prevZoomRef.current = zoom;
       containerRef.current?.requestFullscreen()
         .then(() => {
-          setZoom(0.45);
+          setZoom(0.40);
           (screen.orientation as any).lock?.("landscape")?.catch?.(() => {});
         })
         .catch(() => {});
@@ -158,8 +159,23 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
         toggleFullscreen={toggleFullscreen}
       />
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        <div className="flex-1 min-w-0 min-h-0">
+        <div className="flex-1 min-w-0 min-h-0 relative">
           <EditorCanvas store={store} zoom={zoom} setZoom={setZoom} />
+          {isFullscreen && store.selectedIds.length > 0 && (
+            <JoystickPad
+              onMove={(dx, dy) => {
+                store.beginTransient();
+                store.updateMany(
+                  store.selectedIds.map((id) => {
+                    const el = store.doc.elements.find((x) => x.id === id);
+                    if (!el) return { id, patch: {} };
+                    return { id, patch: { x: el.x + dx, y: el.y + dy } };
+                  }),
+                );
+              }}
+              onMoveEnd={() => store.endTransient()}
+            />
+          )}
         </div>
         <div className={`w-full md:w-72 border-t md:border-t-0 md:border-l flex flex-col bg-background max-h-[45vh] md:max-h-none shrink-0${isFullscreen ? " hidden md:flex" : ""}`}>
           <div className="flex-1 overflow-hidden">
