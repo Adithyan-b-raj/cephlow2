@@ -44,18 +44,37 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
     return () => document.removeEventListener("fullscreenchange", onChange);
   }, []);
 
+  // Android back button pops history instead of navigating away when in fullscreen
+  useEffect(() => {
+    const onPopState = () => {
+      if (document.fullscreenElement) {
+        (screen.orientation as any).unlock?.();
+        document.exitFullscreen().catch(() => {});
+        setZoom(prevZoomRef.current);
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       prevZoomRef.current = zoom;
+      // Push a history entry so Android back button exits fullscreen, not the page
+      history.pushState({ fsEditor: true }, "");
       containerRef.current?.requestFullscreen()
         .then(() => {
           setZoom(0.40);
           (screen.orientation as any).lock?.("landscape")?.catch?.(() => {});
         })
-        .catch(() => {});
+        .catch(() => {
+          history.back(); // remove the pushed state if fullscreen was denied
+        });
     } else {
       (screen.orientation as any).unlock?.();
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen()
+        .then(() => history.back()) // clean up the history entry we pushed
+        .catch(() => {});
       setZoom(prevZoomRef.current);
     }
   };
