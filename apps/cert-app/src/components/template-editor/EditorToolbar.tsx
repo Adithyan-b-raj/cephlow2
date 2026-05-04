@@ -163,7 +163,7 @@ export function EditorToolbar({
 
   return (
     <div className={`flex items-center border-b bg-background/95 backdrop-blur sticky top-0 z-30 ${isFullscreen ? "flex-nowrap gap-1 px-2 py-1 overflow-x-auto" : "flex-wrap gap-2 sm:gap-3 px-2 sm:px-4 py-2"}`}>
-      <Button variant="ghost" size="sm" onClick={onBack} className="px-2 sm:px-3 shrink-0">
+      <Button variant="ghost" size="sm" onClick={isFullscreen ? toggleFullscreen : onBack} className="px-2 sm:px-3 shrink-0">
         <ArrowLeft className="w-4 h-4 sm:mr-1.5" /> <span className="hidden sm:inline">Back</span>
       </Button>
 
