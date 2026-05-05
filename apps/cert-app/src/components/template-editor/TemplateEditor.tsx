@@ -210,7 +210,7 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
           )}
         </div>
         <div className={`w-full md:w-72 border-t md:border-t-0 md:border-l flex flex-col bg-background max-h-[45vh] md:max-h-none shrink-0${isFullscreen ? " hidden md:flex" : ""}`}>
-          <div className="flex-1 overflow-hidden">
+          <div className="flex-1 min-h-0">
             <PropertiesPanel store={store} />
           </div>
           <LayersPanel store={store} />

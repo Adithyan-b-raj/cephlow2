@@ -21,6 +21,14 @@ import {
 import type { EditorStore } from "./useEditorStore";
 import { FontPicker } from "./FontPicker";
 import type { CanvasElement, ImageElement, ShapeElement, TextElement } from "./types";
+import { DEFAULT_PRESETS, type PresetKey } from "./types";
+
+function presetForDoc(w: number, h: number): string {
+  for (const [k, v] of Object.entries(DEFAULT_PRESETS)) {
+    if (v.width === w && v.height === h) return k;
+  }
+  return "custom";
+}
 
 interface Props {
   store: EditorStore;
@@ -65,6 +73,28 @@ export function PropertiesPanel({ store }: Props) {
 function DocumentProps({ store }: Props) {
   return (
     <div className="themed-scroll p-4 space-y-4 overflow-y-auto h-full">
+      {/* Page size — shown on all screens; on phones this replaces the toolbar select */}
+      <div className="sm:hidden">
+        <Label>Page size</Label>
+        <Select
+          value={presetForDoc(store.doc.width, store.doc.height)}
+          onValueChange={(v) => {
+            const preset = DEFAULT_PRESETS[v as PresetKey];
+            if (preset) store.patchDoc({ width: preset.width, height: preset.height });
+          }}
+        >
+          <SelectTrigger className="h-9 mt-1.5 w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="a4_landscape">A4 Landscape</SelectItem>
+            <SelectItem value="a4_portrait">A4 Portrait</SelectItem>
+            <SelectItem value="letter_landscape">Letter Landscape</SelectItem>
+            <SelectItem value="letter_portrait">Letter Portrait</SelectItem>
+            <SelectItem value="custom">Custom</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
       <div>
         <Label>Document size</Label>
         <div className="grid grid-cols-2 gap-2 mt-1.5">

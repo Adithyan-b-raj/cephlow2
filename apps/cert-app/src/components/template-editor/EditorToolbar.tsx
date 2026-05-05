@@ -216,25 +216,27 @@ export function EditorToolbar({
 
       <div className="h-6 w-px bg-border hidden sm:block" />
 
-      {/* Page size preset */}
-      <Select
-        value={presetForDoc(store.doc.width, store.doc.height)}
-        onValueChange={(v) => {
-          const preset = DEFAULT_PRESETS[v as PresetKey];
-          if (preset) store.patchDoc({ width: preset.width, height: preset.height });
-        }}
-      >
-        <SelectTrigger className="h-8 w-32 sm:w-44">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="a4_landscape">A4 Landscape</SelectItem>
-          <SelectItem value="a4_portrait">A4 Portrait</SelectItem>
-          <SelectItem value="letter_landscape">Letter Landscape</SelectItem>
-          <SelectItem value="letter_portrait">Letter Portrait</SelectItem>
-          <SelectItem value="custom">Custom</SelectItem>
-        </SelectContent>
-      </Select>
+      {/* Page size preset — hidden on phones, shown from md up; on phones it's in the properties panel instead */}
+      <div className="hidden sm:block">
+        <Select
+          value={presetForDoc(store.doc.width, store.doc.height)}
+          onValueChange={(v) => {
+            const preset = DEFAULT_PRESETS[v as PresetKey];
+            if (preset) store.patchDoc({ width: preset.width, height: preset.height });
+          }}
+        >
+          <SelectTrigger className="h-8 w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="a4_landscape">A4 Landscape</SelectItem>
+            <SelectItem value="a4_portrait">A4 Portrait</SelectItem>
+            <SelectItem value="letter_landscape">Letter Landscape</SelectItem>
+            <SelectItem value="letter_portrait">Letter Portrait</SelectItem>
+            <SelectItem value="custom">Custom</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       <div className="ml-auto flex items-center gap-1">
         <Button
