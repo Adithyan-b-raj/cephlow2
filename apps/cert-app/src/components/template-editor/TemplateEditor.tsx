@@ -178,6 +178,7 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
         onAddImage={handleAddImage}
         isFullscreen={isFullscreen}
         toggleFullscreen={toggleFullscreen}
+        fullscreenContainer={isFullscreen ? (containerRef.current ?? null) : null}
       />
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         <div className="flex-1 min-w-0 min-h-0 relative">

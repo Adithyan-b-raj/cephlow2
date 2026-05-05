@@ -86,7 +86,7 @@ function DocumentProps({ store }: Props) {
           <SelectTrigger className="h-9 mt-1.5 w-full">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent container={(document.fullscreenElement as HTMLElement | null) ?? undefined}>
             <SelectItem value="a4_landscape">A4 Landscape</SelectItem>
             <SelectItem value="a4_portrait">A4 Portrait</SelectItem>
             <SelectItem value="letter_landscape">Letter Landscape</SelectItem>

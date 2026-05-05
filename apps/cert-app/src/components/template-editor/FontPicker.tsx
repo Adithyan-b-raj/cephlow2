@@ -157,7 +157,7 @@ export function FontPicker({ value, onChange }: Props) {
               ))}
             </div>
           </div>,
-          document.body,
+          (document.fullscreenElement as HTMLElement | null) ?? document.body,
         )}
     </>
   );

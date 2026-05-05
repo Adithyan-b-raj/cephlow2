@@ -35,6 +35,7 @@ interface Props {
   onAddImage: (file: File) => void;
   isFullscreen: boolean;
   toggleFullscreen: () => void;
+  fullscreenContainer: HTMLElement | null;
 }
 
 export function EditorToolbar({
@@ -49,6 +50,7 @@ export function EditorToolbar({
   onAddImage,
   isFullscreen,
   toggleFullscreen,
+  fullscreenContainer,
 }: Props) {
   const addText = () => {
     const id = newId("text");
@@ -228,7 +230,7 @@ export function EditorToolbar({
           <SelectTrigger className="h-8 w-44">
             <SelectValue />
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent container={fullscreenContainer}>
             <SelectItem value="a4_landscape">A4 Landscape</SelectItem>
             <SelectItem value="a4_portrait">A4 Portrait</SelectItem>
             <SelectItem value="letter_landscape">Letter Landscape</SelectItem>
