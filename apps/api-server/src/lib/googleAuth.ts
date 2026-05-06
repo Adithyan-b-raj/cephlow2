@@ -92,3 +92,24 @@ export async function getAuthClientForUser(uid: string) {
   client.setCredentials({ refresh_token: data.refresh_token });
   return client;
 }
+
+function isInvalidGrant(err: any): boolean {
+  return (
+    err?.message === "invalid_grant" ||
+    err?.response?.data?.error === "invalid_grant" ||
+    err?.code === "invalid_grant"
+  );
+}
+
+export async function handleGoogleError(uid: string, err: any): Promise<never> {
+  if (isInvalidGrant(err)) {
+    await supabaseAdmin.from("user_google_tokens").delete().eq("user_id", uid);
+    const newErr: any = new Error(
+      "Your Google account connection has expired. Please reconnect your Google account and try again."
+    );
+    newErr.code = "GOOGLE_TOKEN_EXPIRED";
+    newErr.status = 401;
+    throw newErr;
+  }
+  throw err;
+}

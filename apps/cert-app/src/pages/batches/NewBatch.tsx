@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { useAuth } from "@/hooks/use-auth";
 import { motion, AnimatePresence } from "framer-motion";
 import { useQueryClient, useQuery } from "@tanstack/react-query";
 import { useApproval } from "@/hooks/use-approval";
@@ -47,6 +48,7 @@ export default function NewBatchWizard() {
   const [sheetName, setSheetName] = useState("");
   const [tabName, setTabName] = useState("");
 
+  const { recheckGoogleAuth } = useAuth();
   const { isApproved } = useApproval();
   const slidesGuard = useLockedFeatureGuard("Google Slides templates");
 
@@ -133,6 +135,11 @@ export default function NewBatchWizard() {
         setLocation(`/batches/${data.id}`);
       },
       onError: (error: any) => {
+        const code = error?.data?.code ?? error?.code;
+        if (code === "GOOGLE_TOKEN_EXPIRED" || code === "GOOGLE_NOT_CONNECTED") {
+          recheckGoogleAuth();
+          return;
+        }
         toast({ title: "Failed to create batch", description: error.message, variant: "destructive" });
       }
     }

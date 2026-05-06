@@ -10,6 +10,7 @@ interface AuthContextType {
     signup: (email: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
     connectGoogle: () => Promise<void>;
+    recheckGoogleAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -120,7 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     return (
-        <AuthContext.Provider value={{ user, loading, hasGoogleAuth, login, signup, logout, connectGoogle }}>
+        <AuthContext.Provider value={{ user, loading, hasGoogleAuth, login, signup, logout, connectGoogle, recheckGoogleAuth: checkGoogleAuth }}>
             {children}
         </AuthContext.Provider>
     );

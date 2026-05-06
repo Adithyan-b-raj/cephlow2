@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { supabaseAdmin, toCamel, type Certificate } from "@workspace/supabase";
 import { getSheetsClient } from "../lib/googleSheets.js";
 import { createFolder, makeFilePublic, generateCertificate, uploadPdf } from "../lib/googleDrive.js";
+import { handleGoogleError } from "../lib/googleAuth.js";
 import { deleteR2Objects, isR2Configured } from "../lib/cloudflareR2.js";
 import { isWhatsAppConfigured, sendWhatsAppDocument } from "../lib/whatsapp.js";
 import { extractPhoneNumber } from "../lib/certUtils.js";
@@ -150,6 +151,12 @@ router.post("/batches", async (req, res) => {
 
     return res.status(201).json(toCamel(batchRow));
   } catch (err: any) {
+    const uid = req.user?.uid;
+    if (uid) {
+      try { await handleGoogleError(uid, err); } catch (mapped: any) {
+        return res.status(mapped.status ?? 500).json({ error: mapped.message, code: mapped.code });
+      }
+    }
     return res.status(500).json({ error: err.message });
   }
 });
