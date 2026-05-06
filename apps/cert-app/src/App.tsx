@@ -19,12 +19,10 @@ const BuiltinTemplateEditorPage = lazy(() => import("@/pages/templates/BuiltinTe
 const BuiltinTemplatesListPage = lazy(() => import("@/pages/templates/BuiltinTemplatesList"));
 const VerifyCertificate = lazy(() => import("@/pages/VerifyCertificate"));
 const StudentProfile = lazy(() => import("@/pages/StudentProfile"));
-const loginPreload = import("@/pages/Login");
-const Login = lazy(() => loginPreload);
+const Login = lazy(() => import("@/pages/Login"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 const Reports = lazy(() => import("@/pages/Reports"));
-const landingPreload = import("@/pages/Landing");
-const Landing = lazy(() => landingPreload);
+const Landing = lazy(() => import("@/pages/Landing"));
 const WorkspaceMembers = lazy(() => import("@/pages/workspace/Members"));
 const WorkspaceBrand = lazy(() => import("@/pages/workspace/Brand"));
 const Invitations = lazy(() => import("@/pages/workspace/Invitations"));
