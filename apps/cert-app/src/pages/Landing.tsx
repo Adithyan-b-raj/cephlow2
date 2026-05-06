@@ -764,6 +764,10 @@ export default function Landing() {
         <div className="flex gap-4 text-[10px] text-gray-500 tracking-wider">
           <a href="/verify" className="hover:text-black">VERIFY</a>
           <span>·</span>
+          <a href="/privacy" className="hover:text-black">PRIVACY</a>
+          <span>·</span>
+          <a href="/terms" className="hover:text-black">TERMS</a>
+          <span>·</span>
           <a href="/login" className="hover:text-black">SIGN IN</a>
         </div>
       </footer>
