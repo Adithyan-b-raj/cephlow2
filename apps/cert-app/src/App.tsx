@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Switch, Route, Router as WouterRouter, useRoute, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -8,28 +8,29 @@ import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { ApprovalProvider } from "@/hooks/use-approval";
 import { WorkspaceProvider } from "@/hooks/use-workspace";
 import { Layout } from "@/components/layout/Layout";
-import Dashboard from "@/pages/Dashboard";
-import NewBatch from "@/pages/batches/NewBatch";
-import BatchDetail from "@/pages/batches/BatchDetail";
-import History from "@/pages/History";
-import Wallet from "@/pages/Wallet";
-import NewTemplate from "@/pages/templates/NewTemplate";
-import BuiltinTemplateEditorPage from "@/pages/templates/BuiltinTemplateEditor";
-import BuiltinTemplatesListPage from "@/pages/templates/BuiltinTemplatesList";
-import VerifyCertificate from "@/pages/VerifyCertificate";
-import StudentProfile from "@/pages/StudentProfile";
-import Login from "@/pages/Login";
-import NotFound from "@/pages/not-found";
-import Reports from "@/pages/Reports";
-import Landing from "@/pages/Landing";
-import WorkspaceMembers from "@/pages/workspace/Members";
-import WorkspaceBrand from "@/pages/workspace/Brand";
-import Invitations from "@/pages/workspace/Invitations";
-import InviteAccept from "@/pages/InviteAccept";
-import PrivacyPolicy from "@/pages/PrivacyPolicy";
-import TermsAndConditions from "@/pages/TermsAndConditions";
-import ForgotPassword from "@/pages/ForgotPassword";
-import ResetPassword from "@/pages/ResetPassword";
+
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const NewBatch = lazy(() => import("@/pages/batches/NewBatch"));
+const BatchDetail = lazy(() => import("@/pages/batches/BatchDetail"));
+const History = lazy(() => import("@/pages/History"));
+const Wallet = lazy(() => import("@/pages/Wallet"));
+const NewTemplate = lazy(() => import("@/pages/templates/NewTemplate"));
+const BuiltinTemplateEditorPage = lazy(() => import("@/pages/templates/BuiltinTemplateEditor"));
+const BuiltinTemplatesListPage = lazy(() => import("@/pages/templates/BuiltinTemplatesList"));
+const VerifyCertificate = lazy(() => import("@/pages/VerifyCertificate"));
+const StudentProfile = lazy(() => import("@/pages/StudentProfile"));
+const Login = lazy(() => import("@/pages/Login"));
+const NotFound = lazy(() => import("@/pages/not-found"));
+const Reports = lazy(() => import("@/pages/Reports"));
+const Landing = lazy(() => import("@/pages/Landing"));
+const WorkspaceMembers = lazy(() => import("@/pages/workspace/Members"));
+const WorkspaceBrand = lazy(() => import("@/pages/workspace/Brand"));
+const Invitations = lazy(() => import("@/pages/workspace/Invitations"));
+const InviteAccept = lazy(() => import("@/pages/InviteAccept"));
+const PrivacyPolicy = lazy(() => import("@/pages/PrivacyPolicy"));
+const TermsAndConditions = lazy(() => import("@/pages/TermsAndConditions"));
+const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -471,6 +472,12 @@ function AppRouter() {
   );
 }
 
+const PageLoader = () => (
+  <div className="min-h-screen flex items-center justify-center">
+    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+  </div>
+);
+
 function App() {
   return (
     <AuthProvider>
@@ -479,7 +486,9 @@ function App() {
           <QueryClientProvider client={queryClient}>
             <TooltipProvider delayDuration={300}>
               <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-                <AppRouter />
+                <Suspense fallback={<PageLoader />}>
+                  <AppRouter />
+                </Suspense>
               </WouterRouter>
               <Toaster />
             </TooltipProvider>
