@@ -56,6 +56,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
 
         const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+            if (event === "PASSWORD_RECOVERY") {
+                // Don't sign the user in normally — send them to the reset form
+                if (window.location.pathname !== "/reset-password") {
+                    window.location.replace("/reset-password");
+                }
+                return;
+            }
             setUser(session?.user ?? null);
             setLoading(false);
             if (session?.user && (event === "SIGNED_IN" || event === "USER_UPDATED")) {

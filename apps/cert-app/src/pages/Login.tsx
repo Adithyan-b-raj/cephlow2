@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -6,6 +7,7 @@ import { Award } from "lucide-react";
 
 export default function Login() {
     const { login, signup } = useAuth();
+    const [, setLocation] = useLocation();
     const [mode, setMode] = useState<"signin" | "signup">("signin");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
@@ -88,9 +90,17 @@ export default function Login() {
                             {loading ? "Please wait..." : mode === "signin" ? "Sign In" : "Create Account"}
                         </Button>
                     </form>
+                    {mode === "signin" && (
+                        <button
+                            onClick={() => setLocation("/forgot-password")}
+                            className="text-xs text-muted-foreground underline mt-3 block mx-auto text-center w-full"
+                        >
+                            Forgot password?
+                        </button>
+                    )}
                     <button
                         onClick={() => { setMode(mode === "signin" ? "signup" : "signin"); setError(""); setConfirmPassword(""); }}
-                        className="text-xs text-muted-foreground underline mt-4 block mx-auto text-center w-full"
+                        className="text-xs text-muted-foreground underline mt-3 block mx-auto text-center w-full"
                     >
                         {mode === "signin" ? "No account? Sign up" : "Already have an account? Sign in"}
                     </button>

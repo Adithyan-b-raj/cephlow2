@@ -28,6 +28,8 @@ import Invitations from "@/pages/workspace/Invitations";
 import InviteAccept from "@/pages/InviteAccept";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import TermsAndConditions from "@/pages/TermsAndConditions";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -415,7 +417,7 @@ function ConnectGoogleScreen() {
 }
 
 // App paths that should never be treated as student profile slugs
-const KNOWN_APP_PATHS = ["/login", "/batches", "/history", "/wallet", "/templates", "/auth", "/verify", "/reports", "/workspace", "/invite", "/privacy", "/terms"];
+const KNOWN_APP_PATHS = ["/login", "/batches", "/history", "/wallet", "/templates", "/auth", "/verify", "/reports", "/workspace", "/invite", "/privacy", "/terms", "/forgot-password", "/reset-password"];
 
 function AppRouter() {
   const { user, loading, hasGoogleAuth } = useAuth();
@@ -426,6 +428,10 @@ function AppRouter() {
   // Public legal pages — no auth required
   if (location === "/privacy") return <PrivacyPolicy />;
   if (location === "/terms") return <TermsAndConditions />;
+
+  // Public auth flow pages — no auth required
+  if (location === "/forgot-password") return <ForgotPassword />;
+  if (location === "/reset-password") return <ResetPassword />;
 
   // Public certificate verification page — no auth required
   if (isVerifyRoute) return <VerifyCertificate />;
