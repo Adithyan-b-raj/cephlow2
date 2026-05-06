@@ -1,0 +1,7 @@
+# Hashed assets — cache forever (Vite adds content hash to filenames)
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# HTML — always revalidate so users get latest app
+/*
+  Cache-Control: no-cache
