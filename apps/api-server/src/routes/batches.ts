@@ -1,11 +1,11 @@
 import { Router, type IRouter } from "express";
 import { supabaseAdmin, toCamel, type Certificate } from "@workspace/supabase";
 import { getSheetsClient } from "../lib/googleSheets.js";
-import { createFolder, makeFilePublic, generateCertificate } from "../lib/googleDrive.js";
+import { createFolder, makeFilePublic, generateCertificate, uploadPdf } from "../lib/googleDrive.js";
 import { deleteR2Objects, isR2Configured } from "../lib/cloudflareR2.js";
 import { isWhatsAppConfigured, sendWhatsAppDocument } from "../lib/whatsapp.js";
 import { extractPhoneNumber } from "../lib/certUtils.js";
-import { isUserApproved } from "../lib/approval.js";
+import { isApprovedInContext } from "../lib/approval.js";
 import { requireApproval } from "../middlewares/requireApproval.js";
 import { isAdminOrOwner } from "../middlewares/requireWorkspace.js";
 import type { Request } from "express";
@@ -178,7 +178,10 @@ router.get("/batches/:batchId", async (req, res) => {
   }
 });
 
-// Share the PDF folder (make it public)
+// Share the PDF folder (make it public).
+// For paid/approved users whose PDFs live in R2 (no pdf_folder_id), this
+// creates a Drive folder on-demand, uploads all generated PDFs, saves the
+// folder ID, then makes it public — so subsequent shares skip the upload.
 router.post("/batches/:batchId/share-folder", async (req, res) => {
   const userId = req.user?.uid;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
@@ -187,15 +190,53 @@ router.post("/batches/:batchId/share-folder", async (req, res) => {
   try {
     const { data: batch, error } = await supabaseAdmin
       .from("batches")
-      .select("user_id, pdf_folder_id")
+      .select("user_id, workspace_id, pdf_folder_id, name")
       .eq("id", batchId)
       .single();
     if (error || !batch) return res.status(404).json({ error: "Batch not found" });
     if (!canAccessBatch(batch, req)) return res.status(403).json({ error: "Access denied" });
-    if (!batch.pdf_folder_id) return res.status(400).json({ error: "PDF folder does not exist for this batch" });
 
-    await makeFilePublic(userId, batch.pdf_folder_id);
-    return res.json({ success: true, shareLink: `https://drive.google.com/drive/folders/${batch.pdf_folder_id}` });
+    // Fast path: folder already exists — just re-share it.
+    if (batch.pdf_folder_id) {
+      await makeFilePublic(userId, batch.pdf_folder_id);
+      return res.json({ success: true, shareLink: `https://drive.google.com/drive/folders/${batch.pdf_folder_id}` });
+    }
+
+    // Slow path: R2-only batch — upload all generated PDFs to Drive first.
+    const { data: certs } = await supabaseAdmin
+      .from("certificates")
+      .select("id, recipient_name, r2_pdf_url")
+      .eq("batch_id", batchId)
+      .eq("status", "generated")
+      .not("r2_pdf_url", "is", null);
+
+    if (!certs || certs.length === 0) {
+      return res.status(400).json({ error: "No generated certificates to share" });
+    }
+
+    const folderId = await createFolder(userId, batch.name || batchId);
+    await makeFilePublic(userId, folderId);
+
+    // Upload each PDF from R2 to the Drive folder (in parallel, capped at 5)
+    const CONCURRENCY = 5;
+    for (let i = 0; i < certs.length; i += CONCURRENCY) {
+      await Promise.all(
+        certs.slice(i, i + CONCURRENCY).map(async (cert) => {
+          const r2Res = await fetch(cert.r2_pdf_url!);
+          if (!r2Res.ok) throw new Error(`Failed to fetch PDF for cert ${cert.id}`);
+          const buffer = Buffer.from(await r2Res.arrayBuffer());
+          await uploadPdf(userId, cert.recipient_name || cert.id, buffer, folderId);
+        })
+      );
+    }
+
+    // Persist the folder ID so subsequent shares are instant.
+    await supabaseAdmin
+      .from("batches")
+      .update({ pdf_folder_id: folderId })
+      .eq("id", batchId);
+
+    return res.json({ success: true, shareLink: `https://drive.google.com/drive/folders/${folderId}` });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }

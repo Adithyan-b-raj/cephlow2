@@ -3,13 +3,48 @@ import { Router, type IRouter } from "express";
 import { supabaseAdmin, toCamel, type Certificate } from "@workspace/supabase";
 import { getAuthClientForUser } from "../lib/googleAuth.js";
 import { deleteFile } from "../lib/googleDrive.js";
-import { upsertStudentProfile, extractPhoneNumber } from "../lib/certUtils.js";
+import { bulkUpsertStudentProfiles, extractPhoneNumber } from "../lib/certUtils.js";
 import { generatePresignedPutUrl, getR2PublicUrl } from "../lib/cloudflareR2.js";
 import { isApprovedInContext } from "../lib/approval.js";
 import { isAdminOrOwner } from "../middlewares/requireWorkspace.js";
 import { rateLimit, ipKeyGenerator } from "express-rate-limit";
 
 const router: IRouter = Router();
+
+// Session cache: avoids redundant DB auth + approval lookups during generation.
+// Keyed by batchId, populated on client-generate, cleared on client-complete.
+const sessionCache = new Map<string, {
+  userId: string;
+  workspaceId: string;
+  isApproved: boolean;
+  expiresAt: number;
+}>();
+
+const SESSION_TTL_MS = 2 * 60 * 60 * 1000; // 2 hours
+
+// User-level approval cache: avoids re-querying user_profiles on every generate click.
+// Keyed by userId. Approval status rarely changes, so 10-minute TTL is safe.
+const approvalCache = new Map<string, { isApproved: boolean; expiresAt: number }>();
+const APPROVAL_TTL_MS = 10 * 60 * 1000; // 10 minutes
+
+async function getCachedApproval(userId: string, workspaceId?: string | null): Promise<boolean> {
+  const cached = approvalCache.get(userId);
+  if (cached && cached.expiresAt > Date.now()) return cached.isApproved;
+  const isApproved = await isApprovedInContext(userId, workspaceId);
+  approvalCache.set(userId, { isApproved, expiresAt: Date.now() + APPROVAL_TTL_MS });
+  return isApproved;
+}
+
+// Purge expired entries every 30 minutes to prevent unbounded growth.
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of sessionCache) {
+    if (val.expiresAt <= now) sessionCache.delete(key);
+  }
+  for (const [key, val] of approvalCache) {
+    if (val.expiresAt <= now) approvalCache.delete(key);
+  }
+}, 30 * 60 * 1000).unref();
 
 // Rate limiter for presigned URL generation: 20 requests per minute per user
 const presignedUrlLimiter = rateLimit({
@@ -106,7 +141,12 @@ router.post("/batches/:batchId/client-generate", async (req, res) => {
 
     const RATE = Number(process.env.VITE_CERT_GENERATION_RATE || 1);
     const REGEN_RATE = Number(process.env.VITE_CERT_REGENERATION_RATE || 0.2);
-    const cost = unpaidCount * RATE + visualRegenCount * REGEN_RATE;
+
+    // Check approval before cost calculation — free (unapproved) users generate at no charge
+    const approved = await getCachedApproval(userId, req.workspace?.id);
+    const cost = approved ? unpaidCount * RATE + visualRegenCount * REGEN_RATE : 0;
+    const effectiveRate = approved ? RATE : 0;
+    const effectiveRegenRate = approved ? REGEN_RATE : 0;
 
     const ledgerId = randomUUID();
     const unpaidCertIds = unpaidCerts.map((c) => c.id);
@@ -121,8 +161,8 @@ router.post("/batches/:batchId/client-generate", async (req, res) => {
       p_batch_name: batch.name,
       p_unpaid_count: unpaidCount,
       p_regen_count: visualRegenCount,
-      p_rate: RATE,
-      p_regen_rate: REGEN_RATE,
+      p_rate: effectiveRate,
+      p_regen_rate: effectiveRegenRate,
     });
 
     if (rpcErr) {
@@ -162,7 +202,13 @@ throw rpcErr;
       }
     }
 
-    const approved = await isApprovedInContext(userId, req.workspace?.id);
+    // Cache session so client-report skips redundant DB auth + approval checks
+    sessionCache.set(batchId, {
+      userId,
+      workspaceId: req.workspace!.id,
+      isApproved: approved,
+      expiresAt: Date.now() + SESSION_TTL_MS,
+    });
 
     // Return everything the client needs to process locally
     return res.json({
@@ -218,7 +264,11 @@ router.post("/batches/:batchId/presigned-urls", presignedUrlLimiter, async (req,
   }
 
   try {
-    const approved = await isApprovedInContext(userId, req.workspace?.id);
+    // Use session cache on hit (zero DB); fall back to user-level approval cache
+    const sessionEntry = sessionCache.get(batchId as string);
+    const approved = (sessionEntry && sessionEntry.expiresAt > Date.now())
+      ? sessionEntry.isApproved
+      : await getCachedApproval(userId, req.workspace?.id);
     if (!approved) {
       return res.status(403).json({
         error: "R2 storage is restricted to approved organizations. Free tier uploads to Google Drive.",
@@ -261,92 +311,76 @@ router.post("/batches/:batchId/presigned-urls", presignedUrlLimiter, async (req,
 });
 
 // ── POST /batches/:batchId/client-report ───────────────────────────────────
-// Client reports per-cert completion. Server updates DB immediately.
+// Client reports a batch of cert completions. Server bulk-upserts in one shot.
 router.post("/batches/:batchId/client-report", async (req, res) => {
   const userId = req.user?.uid;
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   const { batchId } = req.params;
-  const {
-    certId,
-    recipientName,
-    recipientEmail,
-    r2PdfUrl,
-    drivePdfFileId,
-    drivePdfUrl,
-    driveSlideFileId,
-    driveSlideUrl,
-    rowData,
-    batchName,
-  } = req.body;
+  const { certs } = req.body;
 
-  if (!certId) return res.status(400).json({ error: "certId is required" });
+  if (!Array.isArray(certs) || certs.length === 0)
+    return res.status(400).json({ error: "certs array is required" });
 
   try {
-    // Verify batch ownership
-    const { data: batchRow } = await supabaseAdmin
-      .from("batches")
-      .select("user_id, workspace_id")
-      .eq("id", batchId)
-      .single();
-    const canAccess2 = batchRow && req.workspace &&
-      batchRow.workspace_id === req.workspace.id &&
-      (isAdminOrOwner(req.workspace.role) || batchRow.user_id === userId);
-    if (!canAccess2)
-      return res.status(403).json({ error: "Access denied" });
+    // Verify batch ownership via session cache; fall back to DB on cache miss.
+    const cached = sessionCache.get(batchId);
+    if (cached && cached.expiresAt > Date.now()) {
+      if (cached.userId !== userId || cached.workspaceId !== req.workspace?.id)
+        return res.status(403).json({ error: "Access denied" });
+    } else {
+      const { data: batchRow } = await supabaseAdmin
+        .from("batches")
+        .select("user_id, workspace_id")
+        .eq("id", batchId)
+        .single();
+      const canAccess = batchRow && req.workspace &&
+        batchRow.workspace_id === req.workspace.id &&
+        (isAdminOrOwner(req.workspace.role) || batchRow.user_id === userId);
+      if (!canAccess)
+        return res.status(403).json({ error: "Access denied" });
+    }
 
-    // Mark cert as generated immediately
-    const updateData: Record<string, any> = {
-      status: "generated",
-      error_message: null,
-      updated_at: new Date().toISOString(),
-      requires_visual_regen: false,
-    };
-    
-    if (r2PdfUrl) updateData.r2_pdf_url = r2PdfUrl;
-    if (drivePdfFileId) updateData.pdf_file_id = drivePdfFileId;
-    if (drivePdfUrl) updateData.pdf_url = drivePdfUrl;
-    if (driveSlideFileId) updateData.slide_file_id = driveSlideFileId;
-    if (driveSlideUrl) updateData.slide_url = driveSlideUrl;
+    const now = new Date().toISOString();
+    const certIds = certs.map((c: any) => c.certId);
 
-    await supabaseAdmin.from("certificates").update(updateData).eq("id", certId);
+    // 1 query: bulk status update for all certs in this report
+    const { error: bulkError } = await supabaseAdmin
+      .from("certificates")
+      .update({ status: "generated", error_message: null, updated_at: now, requires_visual_regen: false })
+      .in("id", certIds);
 
-    // Increment generated count
-    await supabaseAdmin.rpc("increment_batch_column", {
-      p_batch_id: batchId,
-      p_column: "generated_count",
-      p_amount: 1,
-    });
+    if (bulkError) {
+      console.error(`[CLIENT-REPORT] Bulk status update failed for batch ${batchId}:`, bulkError);
+      return res.status(500).json({ error: bulkError.message });
+    }
 
-    // Upsert student profile only for approved organizations.
-    // Free tier doesn't get public verification pages.
-    if (recipientEmail) {
-      const approved = await isApprovedInContext(userId, req.workspace?.id);
-      if (approved) {
-        await upsertStudentProfile({
-          email: recipientEmail,
-          name: recipientName || "Unknown",
-          certId,
-          batchId,
-          batchName: batchName || "",
-          r2PdfUrl: r2PdfUrl || null,
-          pdfUrl: drivePdfUrl || null,
-          slideUrl: driveSlideUrl || null,
-          status: "generated",
-        }).catch((e: any) =>
-          console.error("[CLIENT-REPORT] Profile upsert failed:", recipientEmail, e.message)
-        );
+    // N queries (parallel): only certs that have a URL to store
+    const certsWithUrls = certs.filter((c: any) =>
+      c.r2PdfUrl || c.drivePdfFileId || c.drivePdfUrl || c.driveSlideFileId || c.driveSlideUrl
+    );
+    if (certsWithUrls.length > 0) {
+      const urlResults = await Promise.all(
+        certsWithUrls.map((c: any) =>
+          supabaseAdmin.from("certificates").update({
+            r2_pdf_url: c.r2PdfUrl || null,
+            pdf_file_id: c.drivePdfFileId || null,
+            pdf_url: c.drivePdfUrl || null,
+            slide_file_id: c.driveSlideFileId || null,
+            slide_url: c.driveSlideUrl || null,
+          }).eq("id", c.certId)
+        )
+      );
+      const urlError = urlResults.find((r) => r.error)?.error;
+      if (urlError) {
+        console.error(`[CLIENT-REPORT] URL update failed for batch ${batchId}:`, urlError);
+        return res.status(500).json({ error: urlError.message });
       }
     }
 
-    console.log(`[CLIENT-REPORT] Successfully recorded cert generation: ${recipientName || certId}`);
+    console.log(`[CLIENT-REPORT] Recorded ${certs.length} cert(s) for batch ${batchId}`);
     return res.json({ success: true });
   } catch (err: any) {
-    // Mark cert as failed
-    await supabaseAdmin
-      .from("certificates")
-      .update({ status: "failed", error_message: err.message })
-      .eq("id", certId);
     return res.status(500).json({ error: err.message });
   }
 });
@@ -359,19 +393,27 @@ router.post("/batches/:batchId/client-complete", async (req, res) => {
   if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
   const { batchId } = req.params;
-  const { generated = 0, failed = 0, cancelled = false } = req.body;
+  const { generated = 0, failed = 0, cancelled = false, profiles = [] } = req.body;
 
   try {
-    const { data: batchRow } = await supabaseAdmin
-      .from("batches")
-      .select("user_id, workspace_id, total_count")
-      .eq("id", batchId)
-      .single();
-    const canAccess3 = batchRow && req.workspace &&
-      batchRow.workspace_id === req.workspace.id &&
-      (isAdminOrOwner(req.workspace.role) || batchRow.user_id === userId);
-    if (!canAccess3)
-      return res.status(403).json({ error: "Access denied" });
+    // Auth: use session cache on hit (zero DB); fall back to batch row on cache miss.
+    const cachedSession = sessionCache.get(batchId);
+    const sessionValid = !!(cachedSession && cachedSession.expiresAt > Date.now());
+    if (sessionValid) {
+      if (cachedSession!.userId !== userId || cachedSession!.workspaceId !== req.workspace?.id)
+        return res.status(403).json({ error: "Access denied" });
+    } else {
+      const { data: batchRow } = await supabaseAdmin
+        .from("batches")
+        .select("user_id, workspace_id")
+        .eq("id", batchId)
+        .single();
+      const canAccess3 = batchRow && req.workspace &&
+        batchRow.workspace_id === req.workspace.id &&
+        (isAdminOrOwner(req.workspace.role) || batchRow.user_id === userId);
+      if (!canAccess3)
+        return res.status(403).json({ error: "Access denied" });
+    }
 
     let newStatus: string;
     if (cancelled) {
@@ -382,7 +424,25 @@ router.post("/batches/:batchId/client-complete", async (req, res) => {
       newStatus = failed === 0 ? "generated" : generated > 0 ? "partial" : "draft";
     }
 
-    await supabaseAdmin.from("batches").update({ status: newStatus }).eq("id", batchId);
+    await supabaseAdmin.from("batches").update({
+      status: newStatus,
+      generated_count: generated,
+      failed_count: failed,
+    }).eq("id", batchId);
+
+    sessionCache.delete(batchId);
+
+    // Bulk upsert student profiles for approved orgs — replaces per-cert upserts in client-report
+    if (profiles.length > 0) {
+      const approved = sessionValid && cachedSession
+        ? cachedSession.isApproved
+        : await getCachedApproval(userId, req.workspace?.id);
+      if (approved) {
+        bulkUpsertStudentProfiles(batchId, profiles).catch((e: any) =>
+          console.error("[CLIENT-COMPLETE] Bulk profile upsert failed:", e.message)
+        );
+      }
+    }
 
     return res.json({ success: true, status: newStatus });
   } catch (err: any) {

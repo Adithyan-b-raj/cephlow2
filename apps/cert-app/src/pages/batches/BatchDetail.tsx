@@ -83,6 +83,7 @@ export default function BatchDetail() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { isApproved } = useApproval();
 
   const { data: batch, isLoading, refetch } = useGetBatch(batchId as any, {
     query: {
@@ -210,11 +211,24 @@ export default function BatchDetail() {
     }
   });
 
+  const uploadingToastDismiss = useRef<(() => void) | null>(null);
   const { mutate: shareFolder, isPending: isSharing } = useShareBatchFolder({
     mutation: {
+      onMutate: () => {
+        if (!batch?.pdfFolderId) {
+          const { dismiss } = toast({
+            title: "Uploading to Drive...",
+            description: "Uploading certificates to Google Drive. This may take a moment.",
+            duration: Infinity,
+          });
+          uploadingToastDismiss.current = dismiss;
+        }
+      },
       onSuccess: (data: any) => {
-        toast({ 
-          title: "Folder Shared!", 
+        uploadingToastDismiss.current?.();
+        uploadingToastDismiss.current = null;
+        toast({
+          title: "Folder Shared!",
           description: "Anyone with the link can now view the PDF certificates.",
           action: (
             <Button variant="outline" size="sm" asChild>
@@ -225,7 +239,11 @@ export default function BatchDetail() {
           )
         });
       },
-      onError: (err: any) => toast({ title: "Sharing failed", description: err.message, variant: "destructive" })
+      onError: (err: any) => {
+        uploadingToastDismiss.current?.();
+        uploadingToastDismiss.current = null;
+        toast({ title: "Sharing failed", description: err.message, variant: "destructive" });
+      }
     }
   });
 
@@ -409,9 +427,13 @@ export default function BatchDetail() {
         if (!token) return;
 
         const apiBaseUrl = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+        const wsId = localStorage.getItem("cephlow_active_workspace");
         const res = await fetch(`${apiBaseUrl}/api/batches/${batchId}/recover-stuck`, {
           method: "POST",
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            ...(wsId ? { "x-workspace-id": wsId } : {}),
+          },
         });
         if (!res.ok) return;
 
@@ -525,7 +547,7 @@ export default function BatchDetail() {
             variant="outline"
             size="sm"
             onClick={() => shareFolder({ batchId })}
-            disabled={isSharing || !(batch as any).pdfFolderId}
+            disabled={isSharing || batch.generatedCount === 0}
             className="hover-elevate bg-background"
           >
             {isSharing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Share2 className="w-4 h-4 mr-2" />}
@@ -609,6 +631,14 @@ export default function BatchDetail() {
         </Card>
       </div>
 
+      {/* In-app warning shown while generation is active */}
+      {isGenerating && (
+        <div className="flex items-center gap-3 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-600 dark:text-yellow-400">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          <span>Generation in progress — do not close or reload this page. Your progress will be lost.</span>
+        </div>
+      )}
+
       {/* Client-side generation progress bar */}
       {genProgress && genProgress.phase !== "done" && (
         <Card className="border-border/50 shadow-sm overflow-hidden animate-in slide-in-from-top-2 duration-300">
@@ -620,7 +650,7 @@ export default function BatchDetail() {
                   <span className="text-sm font-medium">
                     {genProgress.phase === "preparing" && "Preparing..."}
                     {genProgress.phase === "generating" && "Generating Certificates"}
-                    {genProgress.phase === "uploading" && "Uploading to Cloud"}
+                    {genProgress.phase === "uploading" && (isApproved ? "Uploading to Cloud" : "Saving to Google Drive")}
                     {genProgress.phase === "error" && "Error"}
                   </span>
                 </div>

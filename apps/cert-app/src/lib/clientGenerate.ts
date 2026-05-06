@@ -450,49 +450,44 @@ async function apiHeaders(extra: Record<string, string> = {}): Promise<Record<st
 
 // ── Report per-cert results to server ──────────────────────────────────────
 
-async function reportCertResult(
+type CertReport = {
+  certId: string;
+  recipientName: string;
+  r2PdfUrl: string | null;
+  drivePdfFileId?: string | null;
+  drivePdfUrl?: string | null;
+  driveSlideFileId?: string | null;
+  driveSlideUrl?: string | null;
+};
+
+async function reportCertResults(
   apiBaseUrl: string,
   batchId: string,
-  certId: string,
-  cert: CertData,
-  batchName: string,
-  r2PdfUrl: string | null = null,
-  drivePdfFileId?: string,
-  drivePdfUrl?: string,
-): Promise<{ success: boolean }> {
-  const payload = {
-    certId,
-    recipientName: cert.recipientName,
-    recipientEmail: cert.recipientEmail || "",
-    batchName,
-    rowData: cert.rowData,
-    r2PdfUrl,
-    drivePdfFileId: drivePdfFileId || null,
-    drivePdfUrl: drivePdfUrl || null,
-  };
-
+  certs: CertReport[],
+): Promise<void> {
+  if (certs.length === 0) return;
   const res = await fetch(`${apiBaseUrl}/api/batches/${batchId}/client-report`, {
     method: "POST",
     headers: await apiHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ certs }),
   });
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || "Failed to report cert result");
+    throw new Error(data.error || "Failed to report cert results");
   }
-  return res.json();
 }
 
 async function reportBatchComplete(
   apiBaseUrl: string,
   batchId: string,
   generated: number,
-  failed: number
+  failed: number,
+  profiles: Array<{ email: string; name: string; certId: string; batchName: string; r2PdfUrl: string | null; pdfUrl: string | null; slideUrl: string | null }>
 ): Promise<void> {
   await fetch(`${apiBaseUrl}/api/batches/${batchId}/client-complete`, {
     method: "POST",
     headers: await apiHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ generated, failed }),
+    body: JSON.stringify({ generated, failed, profiles }),
   });
 }
 
@@ -645,14 +640,47 @@ export async function clientGenerate(
   let generated = 0;
   let failed = 0;
   const tempFileIds: string[] = [];
+  const profiles: Array<{
+    email: string;
+    name: string;
+    certId: string;
+    batchName: string;
+    r2PdfUrl: string | null;
+    pdfUrl: string | null;
+    slideUrl: string | null;
+  }> = [];
 
-  // Set up cleanup on tab close
-  const cleanupHandler = () => {
+  // Cached synchronously for the pagehide beacon (set once auth is ready)
+  let beaconParams = "";
+
+  // Send beacon when page actually unloads (close, reload, navigate away)
+  const pageHideHandler = (event: PageTransitionEvent) => {
+    if (event.persisted) return; // going into bfcache, not truly unloading
     cleanupTempFiles(apiBaseUrl, batchId, tempFileIds);
+    if (beaconParams) {
+      navigator.sendBeacon(
+        `${apiBaseUrl}/api/batches/${batchId}/client-complete?${beaconParams}`,
+        new Blob(
+          [JSON.stringify({ generated, failed, cancelled: true, profiles: [] })],
+          { type: "application/json" }
+        )
+      );
+    }
   };
-  window.addEventListener("beforeunload", cleanupHandler);
+
+  window.addEventListener("pagehide", pageHideHandler);
 
   try {
+    // Cache auth params for the beforeunload beacon. getSession() hits the
+    // in-memory Supabase cache so this adds no network round-trip.
+    {
+      const _tok = await getSupabaseToken();
+      const _wsId = getActiveWorkspaceId();
+      const _p = new URLSearchParams({ token: _tok });
+      if (_wsId) _p.set("workspaceId", _wsId);
+      beaconParams = _p.toString();
+    }
+
     // Step 2: Get Google access token
     onProgress({
       phase: "preparing",
@@ -676,27 +704,26 @@ export async function clientGenerate(
     };
 
     // Step 3: Handle metadata-only certs (no re-render needed)
+    const metadataReports: CertReport[] = [];
     for (const cert of metadataOnly) {
       if (abortSignal?.aborted) throw new Error("Generation cancelled");
-      try {
-        await reportCertResult(
-          apiBaseUrl,
-          batchId,
-          cert.id,
-          cert,
-          batch.name,
-          cert.r2PdfUrl
-        );
-        generated++;
-      } catch {
-        failed++;
+      metadataReports.push({ certId: cert.id, recipientName: cert.recipientName, r2PdfUrl: cert.r2PdfUrl || null });
+      if (cert.recipientEmail) {
+        profiles.push({ email: cert.recipientEmail, name: cert.recipientName, certId: cert.id, batchName: batch.name, r2PdfUrl: cert.r2PdfUrl || null, pdfUrl: null, slideUrl: null });
       }
+      generated++;
       onProgress({
         phase: "generating",
         current: generated + failed,
         total: totalToProcess,
         currentCertName: cert.recipientName,
         message: `Metadata update: ${cert.recipientName}`,
+      });
+    }
+    if (metadataReports.length > 0) {
+      await reportCertResults(apiBaseUrl, batchId, metadataReports).catch(() => {
+        generated -= metadataReports.length;
+        failed += metadataReports.length;
       });
     }
 
@@ -750,6 +777,7 @@ export async function clientGenerate(
         // instead of render + network per cert.
         const CONCURRENCY = 6;
         let nextIdx = 0;
+        const chunkReports: CertReport[] = [];
 
         const processCert = async (cert: CertData) => {
           onProgress({
@@ -830,16 +858,10 @@ export async function clientGenerate(
               if (lastErr) throw lastErr;
             }
 
-            await reportCertResult(
-              apiBaseUrl,
-              batchId,
-              cert.id,
-              cert,
-              batch.name,
-              r2PdfUrl,
-              drivePdfFileId || undefined,
-              drivePdfUrl || undefined,
-            );
+            chunkReports.push({ certId: cert.id, recipientName: cert.recipientName, r2PdfUrl: r2PdfUrl || null, drivePdfFileId: drivePdfFileId || null, drivePdfUrl: drivePdfUrl || null });
+            if (cert.recipientEmail) {
+              profiles.push({ email: cert.recipientEmail, name: cert.recipientName, certId: cert.id, batchName: batch.name, r2PdfUrl: r2PdfUrl || null, pdfUrl: drivePdfUrl || null, slideUrl: null });
+            }
             generated++;
           } catch (err: any) {
             console.error(`[CLIENT-BUILTIN] cert ${cert.recipientName} failed:`, err);
@@ -867,11 +889,17 @@ export async function clientGenerate(
         await Promise.all(
           Array.from({ length: Math.min(CONCURRENCY, chunk.length) }, runWorker),
         );
+
+        // Batch-report all certs that succeeded in this chunk
+        await reportCertResults(apiBaseUrl, batchId, chunkReports).catch(() => {
+          generated -= chunkReports.length;
+          failed += chunkReports.length;
+        });
       }
 
       const status =
         failed === 0 ? "generated" : generated > 0 ? "partial" : "draft";
-      await reportBatchComplete(apiBaseUrl, batchId, generated, failed);
+      await reportBatchComplete(apiBaseUrl, batchId, generated, failed, profiles);
       onProgress({
         phase: "done",
         current: totalToProcess,
@@ -936,13 +964,17 @@ export async function clientGenerate(
           );
           tempFileIds.push(tempFileId);
 
-          // 1. Get presigned URLs for this chunk
-          const presignedRes = await fetch(`${apiBaseUrl}/api/batches/${batchId}/presigned-urls`, {
-            method: "POST",
-            headers: await apiHeaders({ "Content-Type": "application/json" }),
-            body: JSON.stringify({ certificates: chunk.map(c => ({ certId: c.id, recipientName: c.recipientName, rowData: c.rowData })), batchName: batch.name })
-          });
-          const { presignedUrls } = await presignedRes.json();
+          // 1. Get presigned URLs for this chunk (approved orgs only — free tier skips R2)
+          let presignedUrls: Array<{ certId: string; uploadUrl: string; r2PdfUrl: string | null }> = [];
+          if (isApproved) {
+            const presignedRes = await fetch(`${apiBaseUrl}/api/batches/${batchId}/presigned-urls`, {
+              method: "POST",
+              headers: await apiHeaders({ "Content-Type": "application/json" }),
+              body: JSON.stringify({ certificates: chunk.map(c => ({ certId: c.id, recipientName: c.recipientName, rowData: c.rowData })), batchName: batch.name })
+            });
+            const j = await presignedRes.json();
+            presignedUrls = j.presignedUrls || [];
+          }
 
           // 2. Upload results directly to R2 and report to server
           onProgress({
@@ -953,6 +985,7 @@ export async function clientGenerate(
             message: "Uploading PDFs to cloud storage...",
           });
 
+          const slideChunkReports: CertReport[] = [];
           for (const result of results) {
             if (abortSignal?.aborted) throw new Error("Generation cancelled");
             await ensureToken();
@@ -960,7 +993,7 @@ export async function clientGenerate(
             const cert = chunk.find((c) => c.id === result.certId)!;
             try {
               const urlInfo = presignedUrls?.find((u: any) => u.certId === cert.id);
-              
+
               if (urlInfo && urlInfo.uploadUrl) {
                 // Direct upload to Cloudflare R2 with retry (3 attempts)
                 let uploadSuccess = false;
@@ -969,7 +1002,7 @@ export async function clientGenerate(
                     const uploadRes = await fetch(urlInfo.uploadUrl, {
                       method: "PUT",
                       headers: { "Content-Type": "application/pdf" },
-                      body: result.pdfBuffer,
+                      body: result.pdfBuffer as unknown as BodyInit,
                     });
                     if (!uploadRes.ok) throw new Error(`R2 upload HTTP ${uploadRes.status}`);
                     uploadSuccess = true;
@@ -982,18 +1015,13 @@ export async function clientGenerate(
                 if (!uploadSuccess) throw new Error("Direct R2 upload failed after 3 attempts");
               }
 
-              // Report success to API server
-              await reportCertResult(
-                apiBaseUrl,
-                batchId,
-                result.certId,
-                cert,
-                batch.name,
-                urlInfo?.r2PdfUrl || null
-              );
+              slideChunkReports.push({ certId: result.certId, recipientName: cert.recipientName, r2PdfUrl: urlInfo?.r2PdfUrl || null });
+              if (cert.recipientEmail) {
+                profiles.push({ email: cert.recipientEmail, name: cert.recipientName, certId: result.certId, batchName: batch.name, r2PdfUrl: urlInfo?.r2PdfUrl || null, pdfUrl: null, slideUrl: null });
+              }
               generated++;
             } catch (err: any) {
-              console.error(`[CLIENT] Report failed for ${cert.recipientName}:`, err);
+              console.error(`[CLIENT] Upload failed for ${cert.recipientName}:`, err);
               failed++;
             }
             onProgress({
@@ -1004,6 +1032,12 @@ export async function clientGenerate(
               message: `Uploaded: ${cert.recipientName} (${generated + failed}/${totalToProcess})`,
             });
           }
+
+          // Batch-report all certs that uploaded successfully in this chunk
+          await reportCertResults(apiBaseUrl, batchId, slideChunkReports).catch(() => {
+            generated -= slideChunkReports.length;
+            failed += slideChunkReports.length;
+          });
 
           // Clean up temp batch presentation
           try {
@@ -1017,9 +1051,7 @@ export async function clientGenerate(
         } catch (err: any) {
           console.error("[CLIENT] Chunk generation failed:", err);
           // Mark all certs in chunk as failed
-          for (const cert of chunk) {
-            failed++;
-          }
+          failed += chunk.length;
         }
       }
     }
@@ -1027,7 +1059,7 @@ export async function clientGenerate(
     // Step 6: Report batch completion
     const status =
       failed === 0 ? "generated" : generated > 0 ? "partial" : "draft";
-    await reportBatchComplete(apiBaseUrl, batchId, generated, failed);
+    await reportBatchComplete(apiBaseUrl, batchId, generated, failed, profiles);
 
     onProgress({
       phase: "done",
@@ -1042,7 +1074,7 @@ export async function clientGenerate(
 
     return { generated, failed, status: status as any };
   } finally {
-    window.removeEventListener("beforeunload", cleanupHandler);
+    window.removeEventListener("pagehide", pageHideHandler);
     // Clean up any remaining temp files
     if (tempFileIds.length > 0) {
       cleanupTempFiles(apiBaseUrl, batchId, tempFileIds);

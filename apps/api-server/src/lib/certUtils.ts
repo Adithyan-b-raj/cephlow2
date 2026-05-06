@@ -35,6 +35,66 @@ export function emailToSlug(email: string): string {
     .replace(/^-|-$/g, "") || "user";
 }
 
+export async function bulkUpsertStudentProfiles(
+  batchId: string,
+  profiles: Array<{
+    email: string;
+    name: string;
+    certId: string;
+    batchName: string;
+    r2PdfUrl: string | null;
+    pdfUrl: string | null;
+    slideUrl: string | null;
+  }>
+): Promise<void> {
+  if (profiles.length === 0) return;
+
+  const now = new Date().toISOString();
+
+  // Deduplicate by email — one student_profiles row per unique email
+  const byEmail = new Map<string, { slug: string; name: string; email: string; emailKey: string }>();
+  for (const p of profiles) {
+    if (!byEmail.has(p.email)) {
+      byEmail.set(p.email, {
+        slug: emailToSlug(p.email),
+        name: p.name,
+        email: p.email,
+        emailKey: p.email.toLowerCase().replace(/[^a-z0-9]/g, "_"),
+      });
+    }
+  }
+
+  const unique = [...byEmail.values()];
+  const slugByEmail = new Map(unique.map((p) => [p.email, p.slug]));
+
+  await Promise.all([
+    supabaseAdmin.from("student_profiles").upsert(
+      unique.map((p) => ({ slug: p.slug, name: p.name, email: p.email, updated_at: now })),
+      { onConflict: "slug" }
+    ),
+    supabaseAdmin.from("student_profile_index").upsert(
+      unique.map((p) => ({ email_key: p.emailKey, slug: p.slug })),
+      { onConflict: "email_key" }
+    ),
+  ]);
+
+  await supabaseAdmin.from("student_profile_certs").upsert(
+    profiles.map((p) => ({
+      profile_slug: slugByEmail.get(p.email)!,
+      cert_id: p.certId,
+      batch_id: batchId,
+      batch_name: p.batchName,
+      recipient_name: p.name,
+      r2_pdf_url: p.r2PdfUrl,
+      pdf_url: p.pdfUrl,
+      slide_url: p.slideUrl,
+      issued_at: now,
+      status: "generated",
+    })),
+    { onConflict: "profile_slug,cert_id" }
+  );
+}
+
 export async function upsertStudentProfile(params: {
   email: string;
   name: string;
