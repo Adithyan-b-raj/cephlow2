@@ -50,7 +50,8 @@ export default function VerifyCertificate() {
 
   useEffect(() => {
     if (!batchId || !certId) return;
-    fetch(`/api/verify/${batchId}/${certId}`)
+    const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+    fetch(`${apiBase}/api/verify/${batchId}/${certId}`)
       .then(r => r.json())
       .then(data => { if (data.error) setError(data.error); else setCert(data); })
       .catch(() => setError("Failed to load certificate"))

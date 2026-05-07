@@ -37,8 +37,8 @@ function QrCodePopover({ batchId, certId }: { batchId: string; certId: string })
   const [copied, setCopied] = useState(false);
   const { isApproved } = useApproval();
   const verifyUrl = `${window.location.origin}/verify/${batchId}/${certId}`;
-  // Add a timestamp for cache busting if available
-  const qrSrc = `/api/verify/${batchId}/${certId}/qr`;
+  const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+  const qrSrc = `${apiBase}/api/verify/${batchId}/${certId}/qr`;
 
   // Free tier doesn't get public verification pages — hide the QR popover
   // entirely so users don't share a URL that won't resolve.

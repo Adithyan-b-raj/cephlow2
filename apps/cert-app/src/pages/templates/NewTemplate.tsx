@@ -478,7 +478,7 @@ export default function NewTemplate() {
                             >
                               {tpl.thumbnailUrl ? (
                                 <img
-                                  src={`${tpl.thumbnailUrl}${authToken ? `?token=${authToken}` : ""}`}
+                                  src={`${(import.meta.env.VITE_API_URL || "").replace(/\/$/, "")}${tpl.thumbnailUrl}${authToken ? `?token=${authToken}` : ""}`}
                                   alt={tpl.name}
                                   className="w-full aspect-[4/3] object-cover rounded-lg border border-border/50"
                                 />

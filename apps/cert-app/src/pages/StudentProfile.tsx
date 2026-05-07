@@ -43,7 +43,8 @@ export default function StudentProfile() {
 
   useEffect(() => {
     if (!username) return;
-    fetch(`/api/p/${username}`)
+    const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+    fetch(`${apiBase}/api/p/${username}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.error) setError(data.error);
@@ -64,7 +65,8 @@ export default function StudentProfile() {
     try {
       const { data: sessionData } = await supabase.auth.getSession();
       const idToken = sessionData.session?.access_token;
-      const res = await fetch(`/api/p/${username}`, {
+      const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+      const res = await fetch(`${apiBase}/api/p/${username}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
