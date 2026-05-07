@@ -51,21 +51,23 @@ function AuthenticatedRouter() {
 
   return (
     <Layout>
-      <Switch>
-        <Route path="/" component={Dashboard} />
-        <Route path="/batches/new" component={NewBatch} />
-        <Route path="/batches/:id" component={BatchDetail} />
-        <Route path="/history" component={History} />
-        <Route path="/wallet" component={Wallet} />
-        <Route path="/reports" component={Reports} />
-        <Route path="/templates" component={BuiltinTemplatesListPage} />
-        <Route path="/templates/new" component={NewTemplate} />
-        <Route path="/workspace/members" component={WorkspaceMembers} />
-        <Route path="/workspace/brand" component={WorkspaceBrand} />
-        <Route path="/workspace/invitations" component={Invitations} />
-        <Route path="/invite" component={InviteAccept} />
-        <Route component={NotFound} />
-      </Switch>
+      <Suspense fallback={<PageLoader />}>
+        <Switch>
+          <Route path="/" component={Dashboard} />
+          <Route path="/batches/new" component={NewBatch} />
+          <Route path="/batches/:id" component={BatchDetail} />
+          <Route path="/history" component={History} />
+          <Route path="/wallet" component={Wallet} />
+          <Route path="/reports" component={Reports} />
+          <Route path="/templates" component={BuiltinTemplatesListPage} />
+          <Route path="/templates/new" component={NewTemplate} />
+          <Route path="/workspace/members" component={WorkspaceMembers} />
+          <Route path="/workspace/brand" component={WorkspaceBrand} />
+          <Route path="/workspace/invitations" component={Invitations} />
+          <Route path="/invite" component={InviteAccept} />
+          <Route component={NotFound} />
+        </Switch>
+      </Suspense>
     </Layout>
   );
 }
