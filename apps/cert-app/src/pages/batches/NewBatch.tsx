@@ -375,7 +375,7 @@ export default function NewBatchWizard() {
                             className={`group p-4 rounded-xl border-2 cursor-pointer transition-all hover-elevate flex flex-col gap-4 ${templateId === tpl.id ? "border-primary bg-primary/5 ring-4 ring-primary/10" : "border-border/50 bg-card hover:border-primary/30"}`}
                           >
                             {tpl.thumbnailUrl ? (
-                              <img src={`${(import.meta.env.VITE_API_URL || "").replace(/\/$/, "")}${tpl.thumbnailUrl}${authToken ? `?token=${authToken}` : ""}`} alt={tpl.name} className="w-full aspect-[4/3] object-cover rounded-lg border border-border/50" />
+                              <img src={tpl.thumbnailUrl} alt={tpl.name} className="w-full aspect-[4/3] object-cover rounded-lg border border-border/50" />
                             ) : (
                               <div className="w-full aspect-[4/3] bg-secondary rounded-lg flex items-center justify-center">
                                 <Presentation className="w-10 h-10 text-muted-foreground/50" />

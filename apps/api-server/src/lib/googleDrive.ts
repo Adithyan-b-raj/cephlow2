@@ -26,7 +26,7 @@ export async function listSlideTemplates(uid: string) {
     id: f.id!,
     name: f.name!,
     modifiedTime: f.modifiedTime,
-    thumbnailUrl: `/api/slides/thumbnail/${f.id}`,
+    thumbnailUrl: f.thumbnailLink ?? undefined,
   }));
 }
 
