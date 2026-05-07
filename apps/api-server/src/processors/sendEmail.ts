@@ -2,6 +2,8 @@ import { supabaseAdmin, toCamel, type Certificate } from "@workspace/supabase";
 import type { SendEmailJobData } from "../types.js";
 import { downloadDriveFile, exportSlidesToPdf } from "../lib/googleDrive.js";
 import { sendEmail } from "../lib/gmail.js";
+import { bulkUpsertStudentProfiles } from "../lib/certUtils.js";
+import { isUserApproved } from "../lib/approval.js";
 
 /**
  * Downloads a PDF for sending. Resolution order:
@@ -86,6 +88,7 @@ export async function processSendEmail(payload: SendEmailJobData) {
 
   let sent = 0;
   let failed = 0;
+  const sentProfiles: Array<{ email: string; name: string; certId: string; batchName: string; r2PdfUrl: string | null; pdfUrl: string | null; slideUrl: string | null }> = [];
 
   const CONCURRENCY = parseInt(process.env.CONCURRENCY_LIMIT || "4", 10);
   for (let i = 0; i < toSend.length; i += CONCURRENCY) {
@@ -102,6 +105,15 @@ export async function processSendEmail(payload: SendEmailJobData) {
         await supabaseAdmin.from("certificates").update({
           status: "sent", sent_at: new Date().toISOString(), error_message: null,
         }).eq("id", cert.id);
+        sentProfiles.push({
+          email: cert.recipientEmail!,
+          name: cert.recipientName,
+          certId: cert.id,
+          batchName: batch.name,
+          r2PdfUrl: (cert as any).r2PdfUrl ?? null,
+          pdfUrl: (cert as any).pdfUrl ?? null,
+          slideUrl: cert.slideFileId ? null : null,
+        });
         sent++;
       } catch (err: any) {
         await supabaseAdmin.from("certificates").update({
@@ -123,6 +135,13 @@ export async function processSendEmail(payload: SendEmailJobData) {
     // Batch mode: update status too
     const newStatus = failed === 0 ? "sent" : totalSent > 0 ? "partial" : "generated";
     await supabaseAdmin.from("batches").update({ status: newStatus, sent_count: totalSent }).eq("id", batchId);
+  }
+
+  // Upsert student profiles for approved orgs after successful sends
+  if (sentProfiles.length > 0 && await isUserApproved(userId)) {
+    bulkUpsertStudentProfiles(batchId, sentProfiles).catch((e: any) =>
+      console.error("[SEND-EMAIL] Bulk profile upsert failed:", e.message)
+    );
   }
 
   return { sent, failed };

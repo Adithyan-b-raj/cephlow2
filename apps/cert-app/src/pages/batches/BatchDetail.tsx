@@ -455,6 +455,34 @@ export default function BatchDetail() {
 
     return () => clearTimeout(timer);
   }, [batch?.status, isGenerating, batchId, refetch, toast]);
+
+  // ── Auto-sync student profiles for approved orgs ──────────────────────────
+  // Fires once per batch view when the batch is sent/generated and user is
+  // approved. Idempotent on the server — safe to call every time.
+  useEffect(() => {
+    if (!isApproved) return;
+    if (!batchId) return;
+    const status = batch?.status;
+    if (status !== "sent" && status !== "generated" && status !== "partial") return;
+
+    (async () => {
+      try {
+        const { supabase } = await import("@/lib/supabase");
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        if (!token) return;
+        const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+        const wsId = localStorage.getItem("cephlow_active_workspace");
+        await fetch(`${apiBase}/api/batches/${batchId}/sync-profiles`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            ...(wsId ? { "x-workspace-id": wsId } : {}),
+          },
+        });
+      } catch { /* best-effort */ }
+    })();
+  }, [batchId, batch?.status, isApproved]);
   // ──────────────────────────────────────────────────────────────────────────
 
   if (isLoading) return <div className="p-8 text-center"><Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" /></div>;

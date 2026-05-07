@@ -5,8 +5,8 @@ import { createFolder, makeFilePublic, generateCertificate, uploadPdf } from "..
 import { handleGoogleError } from "../lib/googleAuth.js";
 import { deleteR2Objects, isR2Configured } from "../lib/cloudflareR2.js";
 import { isWhatsAppConfigured, sendWhatsAppDocument } from "../lib/whatsapp.js";
-import { extractPhoneNumber } from "../lib/certUtils.js";
-import { isApprovedInContext } from "../lib/approval.js";
+import { extractPhoneNumber, bulkUpsertStudentProfiles } from "../lib/certUtils.js";
+import { isApprovedInContext, isUserApproved } from "../lib/approval.js";
 import { requireApproval } from "../middlewares/requireApproval.js";
 import { isAdminOrOwner } from "../middlewares/requireWorkspace.js";
 import type { Request } from "express";
@@ -740,6 +740,49 @@ router.delete("/batches/:batchId", async (req, res) => {
     await supabaseAdmin.from("batches").delete().eq("id", batchId);
 
     return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Backfill student profiles for all sent certs in a batch (approved orgs only)
+router.post("/batches/:batchId/sync-profiles", async (req, res) => {
+  const userId = req.user?.uid;
+  if (!userId) return res.status(401).json({ error: "Unauthorized" });
+
+  const { batchId } = req.params;
+
+  try {
+    const { data: batch, error } = await supabaseAdmin.from("batches").select("user_id, workspace_id, name").eq("id", batchId).single();
+    if (error || !batch) return res.status(404).json({ error: "Batch not found" });
+    if (!canAccessBatch(batch, req)) return res.status(403).json({ error: "Access denied" });
+
+    if (!(await isUserApproved(batch.user_id))) {
+      return res.status(403).json({ error: "Profile pages are available for approved organizations only." });
+    }
+
+    const { data: certs } = await supabaseAdmin
+      .from("certificates")
+      .select("id, recipient_name, recipient_email, r2_pdf_url, pdf_url, status")
+      .eq("batch_id", batchId)
+      .in("status", ["sent", "generated"]);
+
+    const profiles = (certs || [])
+      .filter((c) => c.recipient_email)
+      .map((c) => ({
+        email: c.recipient_email!,
+        name: c.recipient_name,
+        certId: c.id,
+        batchName: batch.name,
+        r2PdfUrl: c.r2_pdf_url ?? null,
+        pdfUrl: c.pdf_url ?? null,
+        slideUrl: null,
+      }));
+
+    if (profiles.length === 0) return res.json({ synced: 0 });
+
+    await bulkUpsertStudentProfiles(batchId, profiles);
+    return res.json({ synced: profiles.length });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
