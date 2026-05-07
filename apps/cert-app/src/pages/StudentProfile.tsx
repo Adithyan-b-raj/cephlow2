@@ -1,9 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRoute } from "wouter";
 import { format } from "date-fns";
-import { Award, CalendarDays, Check, ExternalLink, Loader2, Pencil, User, X } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Award, CalendarDays, Check, ExternalLink, Loader2, Pencil, ShieldCheck, User, X } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/lib/supabase";
 
@@ -34,7 +32,6 @@ export default function StudentProfile() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Edit name state
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
   const [saving, setSaving] = useState(false);
@@ -101,22 +98,52 @@ export default function StudentProfile() {
 
   if (loading) {
     return (
-      <div className="fixed inset-0 flex items-center justify-center bg-slate-50">
-        <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
+      <div className="fixed inset-0 flex items-center justify-center bg-background px-4">
+        <div className="border-2 border-foreground p-10 flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin" />
+          <p className="text-xs font-bold uppercase tracking-widest">Loading...</p>
+        </div>
       </div>
     );
   }
 
   if (error || !profile) {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center gap-3 bg-slate-50 text-center px-4">
-        <div className="rounded-full bg-slate-100 p-4">
-          <User className="h-8 w-8 text-slate-400" />
+      <div className="fixed inset-0 overflow-y-auto bg-background">
+        <div className="flex min-h-full items-center justify-center px-4 py-10">
+          <div className="w-full max-w-md">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="bg-foreground text-background p-2.5 shrink-0">
+                <User className="h-5 w-5" />
+              </div>
+              <div>
+                <h1 className="text-lg font-black uppercase tracking-widest">Student Profile</h1>
+                <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Cephlow Certificate Authority</p>
+              </div>
+            </div>
+            <div className="border-2 border-foreground">
+              <div className="px-5 py-4 border-b-2 border-foreground flex items-start gap-3 bg-background text-foreground">
+                <div className="shrink-0 mt-0.5">
+                  <X className="h-5 w-5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-black uppercase tracking-widest text-sm">Profile Not Found</p>
+                  <p className="text-xs mt-0.5 normal-case tracking-normal font-normal text-muted-foreground">
+                    No profile exists for @{username}
+                  </p>
+                </div>
+              </div>
+              <div className="p-4">
+                <div className="border-2 border-foreground p-3 text-xs font-normal normal-case tracking-normal">
+                  This profile could not be found. The link may be incorrect or the profile may not exist yet.
+                </div>
+              </div>
+            </div>
+            <p className="mt-5 text-center text-[10px] uppercase tracking-widest text-muted-foreground">
+              Powered by Cephlow Certificate Authority
+            </p>
+          </div>
         </div>
-        <h1 className="text-xl font-semibold text-slate-800">Profile not found</h1>
-        <p className="text-sm text-slate-500">
-          No profile exists for <span className="font-mono font-medium">@{username}</span>
-        </p>
       </div>
     );
   }
@@ -129,141 +156,150 @@ export default function StudentProfile() {
     .slice(0, 2);
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-4xl px-4 py-10 sm:py-14">
-        {/* Profile header */}
-        <div className="mb-8 flex items-center gap-5">
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-slate-900 text-xl font-bold text-white shadow sm:h-20 sm:w-20 sm:text-2xl">
-            {initials}
+    <div className="min-h-screen bg-background font-mono">
+      <div className="px-4 sm:px-6 py-6">
+
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-4">
+          <div className="bg-foreground text-background p-2.5 shrink-0">
+            <User className="h-5 w-5" />
           </div>
-          <div className="min-w-0 flex-1">
-            {editing ? (
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center gap-2">
-                  <input
-                    ref={inputRef}
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleSaveName();
-                      if (e.key === "Escape") cancelEdit();
-                    }}
-                    className="rounded-md border border-slate-300 px-3 py-1.5 text-xl font-bold text-slate-900 outline-none ring-0 focus:border-slate-500 sm:text-2xl"
-                  />
-                  <button
-                    onClick={handleSaveName}
-                    disabled={saving || !editName.trim()}
-                    className="rounded-md bg-slate-900 p-1.5 text-white hover:bg-slate-700 disabled:opacity-50"
-                    title="Save"
-                  >
-                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-                  </button>
-                  <button
-                    onClick={cancelEdit}
-                    className="rounded-md border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50"
-                    title="Cancel"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-                {saveError && <p className="text-xs text-red-500">{saveError}</p>}
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">{profile.name}</h1>
-                {user && (
-                  <button
-                    onClick={startEdit}
-                    className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                    title="Edit name"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                )}
-              </div>
-            )}
-            <p className="mt-0.5 text-sm text-slate-500">@{profile.slug}</p>
-            <p className="mt-1 text-sm text-slate-600">
-              {profile.certificates.length}{" "}
-              {profile.certificates.length === 1 ? "certificate" : "certificates"} issued
-            </p>
+          <div>
+            <h1 className="text-lg font-black uppercase tracking-widest">Student Profile</h1>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Cephlow Certificate Authority</p>
           </div>
         </div>
 
-        {/* Certificates grid */}
+        {/* Profile identity block */}
+        <div className="border-2 border-foreground mb-4">
+          <div className="bg-foreground text-background px-5 py-4 flex items-center gap-4">
+            <div className="shrink-0 border-2 border-background w-12 h-12 flex items-center justify-center text-lg font-black">
+              {initials}
+            </div>
+            <div className="flex-1 min-w-0">
+              {editing ? (
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <input
+                      ref={inputRef}
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleSaveName();
+                        if (e.key === "Escape") cancelEdit();
+                      }}
+                      className="bg-background text-foreground border-2 border-background px-2 py-1 text-sm font-bold uppercase tracking-widest outline-none w-full"
+                    />
+                    <button
+                      onClick={handleSaveName}
+                      disabled={saving || !editName.trim()}
+                      className="shrink-0 border-2 border-background p-1.5 hover:bg-background hover:text-foreground transition-colors disabled:opacity-50"
+                      title="Save"
+                    >
+                      {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                    </button>
+                    <button
+                      onClick={cancelEdit}
+                      className="shrink-0 border-2 border-background p-1.5 hover:bg-background hover:text-foreground transition-colors"
+                      title="Cancel"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  {saveError && <p className="text-[10px] opacity-70">{saveError}</p>}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <p className="font-black uppercase tracking-widest text-sm truncate">{profile.name}</p>
+                  {user && (
+                    <button
+                      onClick={startEdit}
+                      className="shrink-0 p-1 hover:opacity-70 transition-opacity"
+                      title="Edit name"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+              )}
+              <p className="text-[10px] uppercase tracking-widest opacity-60 mt-0.5">@{profile.slug}</p>
+            </div>
+          </div>
+          <div className="px-5 py-3 flex items-center gap-2 border-t-2 border-foreground">
+            <Award className="h-3.5 w-3.5 shrink-0" />
+            <span className="text-[11px] font-bold uppercase tracking-widest">
+              {profile.certificates.length} {profile.certificates.length === 1 ? "Certificate" : "Certificates"} Issued
+            </span>
+          </div>
+        </div>
+
+        {/* Certificates */}
         {profile.certificates.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-slate-300 bg-white py-16 text-center">
-            <Award className="mx-auto h-8 w-8 text-slate-300" />
-            <p className="mt-3 text-sm text-slate-500">No certificates yet</p>
+          <div className="border-2 border-foreground p-10 text-center">
+            <Award className="mx-auto h-6 w-6 mb-3 opacity-30" />
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">No certificates yet</p>
           </div>
         ) : (
-          <>
-            <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
-              Certificates
-            </h2>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Certificates</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
               {profile.certificates.map((cert) => {
                 const viewUrl = cert.r2PdfUrl || cert.pdfUrl || cert.slideUrl;
                 return (
-                  <Card
-                    key={cert.certId}
-                    className="flex flex-col border-slate-200 bg-white shadow-sm transition-shadow hover:shadow-md"
-                  >
-                    <CardHeader className="pb-2">
+                  <div key={cert.certId} className="border-2 border-foreground bg-background flex flex-col">
+                    {/* Cert body */}
+                    <div className="px-3 py-3 flex flex-col gap-2 flex-1 border-b-2 border-foreground">
                       <div className="flex items-start justify-between gap-2">
-                        <div className="rounded-md bg-slate-100 p-2 text-slate-600">
-                          <Award className="h-4 w-4" />
+                        <div className="border border-foreground p-1.5 shrink-0">
+                          <Award className="h-3.5 w-3.5" />
                         </div>
-                        <Badge
-                          variant="outline"
-                          className="shrink-0 text-[10px] capitalize border-slate-200 text-slate-500"
-                        >
+                        <span className="border-2 border-foreground px-1.5 py-0.5 text-[9px] font-black uppercase tracking-widest">
                           {cert.status}
-                        </Badge>
+                        </span>
                       </div>
-                      <CardTitle className="mt-2 line-clamp-2 text-sm font-semibold leading-snug text-slate-900">
-                        {cert.batchName}
-                      </CardTitle>
-                    </CardHeader>
-
-                    <CardContent className="flex flex-1 flex-col justify-between gap-4 pt-0">
-                      <div className="flex items-center gap-1.5 text-xs text-slate-500">
-                        <CalendarDays className="h-3.5 w-3.5 shrink-0" />
-                        {cert.issuedAt
-                          ? format(new Date(cert.issuedAt), "MMM d, yyyy")
-                          : "—"}
+                      <div className="flex-1">
+                        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Issued For</p>
+                        <p className="text-xs font-bold mt-0.5 break-words leading-snug">{cert.batchName}</p>
                       </div>
+                      <div className="flex items-center gap-1.5 text-[10px]">
+                        <CalendarDays className="h-3 w-3 shrink-0" />
+                        <span className="font-bold uppercase tracking-widest">
+                          {cert.issuedAt ? format(new Date(cert.issuedAt), "MMM d, yyyy") : "—"}
+                        </span>
+                      </div>
+                    </div>
 
-                      <div className="flex items-center gap-2">
-                        {viewUrl && (
-                          <a
-                            href={viewUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1.5 rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-slate-700"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                            View
-                          </a>
-                        )}
+                    {/* Actions */}
+                    <div className="flex">
+                      {viewUrl && (
                         <a
-                          href={`/verify/${cert.batchId}/${cert.certId}`}
+                          href={viewUrl}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50"
+                          className="flex-1 flex items-center justify-center gap-1 bg-foreground text-background border-r-2 border-foreground px-2 py-2 text-[9px] font-black uppercase tracking-widest hover:opacity-75 transition-opacity"
                         >
-                          Verify
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                          View
                         </a>
-                      </div>
-                    </CardContent>
-                  </Card>
+                      )}
+                      <a
+                        href={`/verify/${cert.batchId}/${cert.certId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 flex items-center justify-center gap-1 bg-background px-2 py-2 text-[9px] font-black uppercase tracking-widest hover:bg-foreground hover:text-background transition-colors"
+                      >
+                        <ShieldCheck className="h-3 w-3 shrink-0" />
+                        Verify
+                      </a>
+                    </div>
+                  </div>
                 );
               })}
             </div>
-          </>
+          </div>
         )}
 
-        <p className="mt-10 text-center text-[11px] text-slate-400">
+        <p className="mt-6 text-center text-[10px] uppercase tracking-widest text-muted-foreground">
           Powered by Cephlow Certificate Authority
         </p>
       </div>
