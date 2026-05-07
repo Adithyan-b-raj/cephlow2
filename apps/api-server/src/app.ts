@@ -10,6 +10,7 @@ import profilesRouter from "./routes/profiles.js";
 import qrRouter from "./routes/qr.js";
 import internalRouter from "./routes/internal.js";
 import router from "./routes/index.js";
+import { getDriveClient } from "./lib/googleDrive.js";
 
 const app: Express = express();
 app.set("trust proxy", 1);
@@ -73,6 +74,24 @@ app.use("/api/batches/:batchId/client-generate", requireAuth, heavyLimiter);
 app.use("/api/batches/:batchId/send", requireAuth, heavyLimiter);
 app.use("/api/batches/:batchId/send-whatsapp", requireAuth, heavyLimiter);
 app.use("/api/batches/:batchId/sync", requireAuth, heavyLimiter);
+
+// Slide thumbnail proxy — requires auth only (no workspace header needed, used by <img> tags)
+app.get("/api/slides/thumbnail/:fileId", requireAuth, async (req, res) => {
+  try {
+    const drive = await getDriveClient(req.user!.uid);
+    const file = await drive.files.get({ fileId: req.params.fileId, fields: "thumbnailLink" });
+    const thumbnailLink = file.data.thumbnailLink;
+    if (!thumbnailLink) return res.status(404).send("No thumbnail available");
+    const response = await fetch(thumbnailLink);
+    if (!response.ok) throw new Error("Failed to fetch thumbnail from Google");
+    const buffer = await response.arrayBuffer();
+    res.setHeader("Content-Type", response.headers.get("content-type") || "image/png");
+    res.setHeader("Cache-Control", "public, max-age=3600");
+    return res.send(Buffer.from(buffer));
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
 
 // All other routes require Firebase Auth
 app.use("/api", requireAuth, router);

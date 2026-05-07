@@ -86,35 +86,5 @@ router.post("/slides/:templateId/qr-placeholder", async (req, res) => {
   }
 });
 
-router.get("/slides/thumbnail/:fileId", async (req, res) => {
-  try {
-    const { fileId } = req.params;
-    const drive = await getDriveClient(req.user!.uid);
-    const file = await drive.files.get({
-      fileId,
-      fields: "thumbnailLink",
-    });
-
-    const thumbnailLink = file.data.thumbnailLink;
-    if (!thumbnailLink) {
-      return res.status(404).send("No thumbnail available");
-    }
-
-    // Google Drive thumbnails can be fetched directly. 
-    // We proxy it to avoid browser-level auth issues and hotlinking blocks.
-    const response = await fetch(thumbnailLink);
-    if (!response.ok) throw new Error("Failed to fetch thumbnail from Google");
-
-    const buffer = await response.arrayBuffer();
-    const contentType = response.headers.get("content-type") || "image/png";
-
-    res.setHeader("Content-Type", contentType);
-    res.setHeader("Cache-Control", "public, max-age=3600"); // Cache for 1 hour
-    return res.send(Buffer.from(buffer));
-  } catch (err: any) {
-    console.error(`[THUMBNAIL] Error proxying ${req.params.fileId}:`, err.message);
-    return res.status(500).json({ error: err.message });
-  }
-});
 
 export default router;
