@@ -457,8 +457,6 @@ function AppRouter() {
     if (location === "/") return <Landing />;
     return <Login />;
   }
-  if (!hasGoogleAuth) return <ConnectGoogleScreen />;
-
   // Redirect authenticated users from /login to dashboard
   if (location === "/login") {
     setLocation("/", { replace: true });

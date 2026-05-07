@@ -87,7 +87,7 @@ function useDarkMode() {
 
 export function AppSidebar() {
   const [location] = useLocation();
-  const { user, logout } = useAuth();
+  const { user, logout, connectGoogle, hasGoogleAuth } = useAuth();
   const { role } = useWorkspace();
   const { isApproved } = useApproval();
   const [dark, setDark] = useDarkMode();
@@ -209,6 +209,14 @@ export function AppSidebar() {
         {/* User footer */}
         {user && (
           <SidebarFooter className="p-4 border-t-2 border-border">
+            {!hasGoogleAuth && (
+              <button
+                onClick={connectGoogle}
+                className="w-full mb-3 px-3 py-2 text-[10px] font-bold uppercase tracking-widest border-2 border-dashed border-border hover:border-foreground hover:bg-muted transition-colors text-center"
+              >
+                Connect Google Account
+              </button>
+            )}
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 shrink-0 bg-foreground text-background flex items-center justify-center text-xs font-black">
                 {initials}

@@ -48,7 +48,7 @@ export default function NewBatchWizard() {
   const [sheetName, setSheetName] = useState("");
   const [tabName, setTabName] = useState("");
 
-  const { recheckGoogleAuth } = useAuth();
+  const { recheckGoogleAuth, hasGoogleAuth, connectGoogle } = useAuth();
   const { isApproved } = useApproval();
   const slidesGuard = useLockedFeatureGuard("Google Slides templates");
 
@@ -256,7 +256,18 @@ export default function NewBatchWizard() {
                   <h2 className="text-2xl font-display font-semibold mb-2">Select Google Sheet</h2>
                   <p className="text-muted-foreground">Choose the spreadsheet containing your recipient data.</p>
                 </div>
-                {sheetsLoading ? (
+                {!hasGoogleAuth ? (
+                  <div className="flex flex-col items-center justify-center gap-4 py-12 border-2 border-dashed border-border rounded-xl text-center">
+                    <FileSpreadsheet className="w-10 h-10 text-muted-foreground" />
+                    <div>
+                      <p className="font-bold uppercase tracking-widest text-sm">Google Account Not Connected</p>
+                      <p className="text-muted-foreground text-sm mt-1">Connect your Google account to access your spreadsheets.</p>
+                    </div>
+                    <Button onClick={connectGoogle} className="mt-2">
+                      Connect Google Account
+                    </Button>
+                  </div>
+                ) : sheetsLoading ? (
                   <div className="flex items-center gap-3 text-muted-foreground p-8"><Loader2 className="animate-spin" /> Loading sheets...</div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto p-1">
