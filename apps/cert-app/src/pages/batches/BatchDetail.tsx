@@ -722,6 +722,9 @@ export default function BatchDetail() {
                 <TableHead>Recipient</TableHead>
                 <TableHead className="hidden sm:table-cell">Email</TableHead>
                 <TableHead>Status</TableHead>
+                {batch.categoryColumn && batch.categoryTemplateMap && (
+                  <TableHead className="hidden lg:table-cell">Template</TableHead>
+                )}
                 <TableHead className="hidden md:table-cell">Sent At</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
@@ -729,7 +732,7 @@ export default function BatchDetail() {
             <TableBody>
               {sortedCertificates.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No recipients found.</TableCell>
+                  <TableCell colSpan={batch.categoryColumn && batch.categoryTemplateMap ? 7 : 6} className="h-32 text-center text-muted-foreground">No recipients found.</TableCell>
                 </TableRow>
               ) : (
                 sortedCertificates.map((cert: any) => (
@@ -806,6 +809,19 @@ export default function BatchDetail() {
                         )}
                       </div>
                     </TableCell>
+                    {batch.categoryColumn && batch.categoryTemplateMap && (() => {
+                      const condVal = cert.rowData?.[batch.categoryColumn] ?? "";
+                      const mapped = condVal && batch.categoryTemplateMap[condVal];
+                      const tplName = mapped ? mapped.templateName : batch.templateName;
+                      const isRouted = !!(condVal && mapped);
+                      return (
+                        <TableCell className="hidden lg:table-cell">
+                          <span className={`text-xs font-mono px-1.5 py-0.5 border ${isRouted ? "border-amber-400/60 text-amber-700 dark:text-amber-300 bg-amber-50/50 dark:bg-amber-950/20" : "border-border text-muted-foreground"}`}>
+                            {tplName || "—"}
+                          </span>
+                        </TableCell>
+                      );
+                    })()}
                     <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
                       {cert.sentAt ? format(new Date(cert.sentAt), 'MMM d, h:mm a') : '-'}
                     </TableCell>

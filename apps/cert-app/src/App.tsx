@@ -22,6 +22,7 @@ const StudentProfile = lazy(() => import("@/pages/StudentProfile"));
 const Login = lazy(() => import("@/pages/Login"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 const Reports = lazy(() => import("@/pages/Reports"));
+const Advanced = lazy(() => import("@/pages/Advanced"));
 const Landing = lazy(() => import("@/pages/Landing"));
 const WorkspaceMembers = lazy(() => import("@/pages/workspace/Members"));
 const WorkspaceBrand = lazy(() => import("@/pages/workspace/Brand"));
@@ -59,6 +60,7 @@ function AuthenticatedRouter() {
           <Route path="/history" component={History} />
           <Route path="/wallet" component={Wallet} />
           <Route path="/reports" component={Reports} />
+          <Route path="/advanced" component={Advanced} />
           <Route path="/templates" component={BuiltinTemplatesListPage} />
           <Route path="/templates/new" component={NewTemplate} />
           <Route path="/workspace/members" component={WorkspaceMembers} />
@@ -420,7 +422,7 @@ function ConnectGoogleScreen() {
 }
 
 // App paths that should never be treated as student profile slugs
-const KNOWN_APP_PATHS = ["/login", "/batches", "/history", "/wallet", "/templates", "/auth", "/verify", "/reports", "/workspace", "/invite", "/privacy", "/terms", "/forgot-password", "/reset-password"];
+const KNOWN_APP_PATHS = ["/login", "/batches", "/history", "/wallet", "/templates", "/auth", "/verify", "/reports", "/workspace", "/invite", "/privacy", "/terms", "/forgot-password", "/reset-password", "/advanced"];
 
 function AppRouter() {
   const { user, loading, hasGoogleAuth } = useAuth();

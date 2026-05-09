@@ -183,23 +183,33 @@ throw rpcErr;
       process.env.PUBLIC_BASE_URL || `${req.protocol}://${req.get("host")}`
     ).replace(/\/$/, "");
 
-    // For builtin templates, surface the canvas JSON so the client can render PDFs locally
+    // For builtin templates, surface the canvas JSON so the client can render PDFs locally.
+    // Also fetch canvas for every template referenced in categoryTemplateMap so routed
+    // certs can use the correct template.
     let builtinTemplate: any = null;
+    const builtinTemplateDataById: Record<string, any> = {};
     if (batch.templateKind === "builtin") {
-      const { data: tplRow } = await supabaseAdmin
+      // Collect all template IDs we need (primary + any from categoryTemplateMap)
+      const neededIds = new Set<string>([batch.templateId]);
+      if (batch.categoryTemplateMap) {
+        for (const v of Object.values(batch.categoryTemplateMap as Record<string, { templateId: string }>)) {
+          if (v.templateId) neededIds.add(v.templateId);
+        }
+      }
+
+      const { data: tplRows } = await supabaseAdmin
         .from("builtin_templates")
         .select("id, name, canvas, placeholders")
-        .eq("id", batch.templateId)
-        .eq("workspace_id", req.workspace!.id)
-        .single();
-      if (tplRow) {
-        builtinTemplate = {
-          id: tplRow.id,
-          name: tplRow.name,
-          canvas: tplRow.canvas,
-          placeholders: tplRow.placeholders,
-        };
+        .in("id", [...neededIds])
+        .eq("workspace_id", req.workspace!.id);
+
+      for (const row of tplRows ?? []) {
+        const tplData = { id: row.id, name: row.name, canvas: row.canvas, placeholders: row.placeholders };
+        builtinTemplateDataById[row.id] = tplData;
+        if (row.id === batch.templateId) builtinTemplate = tplData;
       }
+
+      console.log(`[CLIENT-GENERATE] builtin templates needed: ${[...neededIds].join(", ")} | found: ${Object.keys(builtinTemplateDataById).join(", ")}`);
     }
 
     // Cache session so client-report skips redundant DB auth + approval checks
@@ -226,6 +236,7 @@ throw rpcErr;
         categoryTemplateMap: batch.categoryTemplateMap,
         categorySlideMap: batch.categorySlideMap,
         builtinTemplate,
+        builtinTemplateDataById: Object.keys(builtinTemplateDataById).length > 0 ? builtinTemplateDataById : null,
       },
       certificates: targetCerts.map((c) => ({
         id: c.id,

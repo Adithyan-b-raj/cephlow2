@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "@cashfreepayments/cashfree-js": "^1.0.7",
+    "@xyflow/react": "^12.6.4",
     "@fontsource/dancing-script": "^5.2.8",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/lora": "^5.2.8",

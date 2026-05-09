@@ -16,6 +16,7 @@ import {
   Lock,
   MessageCircle,
   MailOpen,
+  Network,
 } from "lucide-react";
 import {
   Sidebar,
@@ -57,6 +58,10 @@ const NAV_ITEMS = [
   { title: "History", url: "/history", icon: History, approvedOnly: false },
   { title: "Wallet", url: "/wallet", icon: Wallet, approvedOnly: true },
   { title: "Reports", url: "/reports", icon: MessageSquareWarning, approvedOnly: false },
+];
+
+const ADVANCED_NAV_ITEMS = [
+  { title: "Advanced", url: "/advanced", icon: Network, approvedOnly: false },
 ];
 
 // Visible to all users, never locked
@@ -167,6 +172,25 @@ export function AppSidebar() {
                 {NAV_ITEMS.map((item) => {
                   const isActive = location === item.url ||
                     (item.url !== "/" && location.startsWith(item.url));
+                  const locked = item.approvedOnly && !isApproved;
+                  return (
+                    <SidebarMenuItem key={item.title}>
+                      {renderNavItem(item.title, item.url, item.icon, locked, isActive)}
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground px-4 pt-4 pb-1">
+              Advanced
+            </SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu className="mt-1">
+                {ADVANCED_NAV_ITEMS.map((item) => {
+                  const isActive = location.startsWith(item.url);
                   const locked = item.approvedOnly && !isApproved;
                   return (
                     <SidebarMenuItem key={item.title}>

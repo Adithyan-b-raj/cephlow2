@@ -37,7 +37,7 @@ export interface BatchConfig {
   driveFolderId: string | null;
   pdfFolderId: string | null;
   categoryColumn: string | null;
-  categoryTemplateMap: Record<string, { templateId: string }> | null;
+  categoryTemplateMap: Record<string, { templateId: string; columnMap?: Record<string, string> }> | null;
   categorySlideMap: Record<string, number> | null;
   builtinTemplate?: {
     id: string;
@@ -45,6 +45,12 @@ export interface BatchConfig {
     canvas: CanvasDocument;
     placeholders: string[];
   } | null;
+  builtinTemplateDataById?: Record<string, {
+    id: string;
+    name: string;
+    canvas: CanvasDocument;
+    placeholders: string[];
+  }> | null;
 }
 
 export interface GenerationProgress {
@@ -732,12 +738,69 @@ export async function clientGenerate(
       if (!batch.builtinTemplate) {
         throw new Error("Builtin template data missing for this batch");
       }
-      const tpl = batch.builtinTemplate;
-      try {
-        await preloadCanvasResources(tpl.canvas);
-      } catch {
-        // best-effort
+
+      // Build a mutable map of all template canvases we have
+      const templateCanvasById: Record<string, typeof batch.builtinTemplate> = {
+        ...(batch.builtinTemplateDataById ?? {}),
+        [batch.templateId]: batch.builtinTemplate,  // always seed with primary
+      };
+
+      // Collect any routed template IDs that are missing canvas data and fetch them
+      if (batch.categoryColumn && batch.categoryTemplateMap) {
+        const missingIds = [...new Set(
+          Object.values(batch.categoryTemplateMap)
+            .map((v) => v.templateId)
+            .filter((id) => id && !templateCanvasById[id])
+        )];
+        if (missingIds.length > 0) {
+          console.warn("[CLIENT-BUILTIN] builtinTemplateDataById missing for:", missingIds, "— fetching individually");
+          await Promise.all(missingIds.map(async (tplId) => {
+            try {
+              const res = await fetch(`${apiBaseUrl}/api/builtin-templates/${tplId}`, {
+                headers: await apiHeaders(),
+              });
+              if (res.ok) {
+                const data = await res.json();
+                // Endpoint returns the template object directly (id, name, canvas, placeholders)
+                if (data?.canvas) templateCanvasById[tplId] = data;
+              }
+            } catch (e) {
+              console.error("[CLIENT-BUILTIN] Failed to fetch template canvas for", tplId, e);
+            }
+          }));
+        }
       }
+
+      // Resolve which builtin template canvas + column map each cert should use
+      function resolveBuiltinTemplate(cert: CertData): { canvas: CanvasDocument; columnMap: Record<string, string> } {
+        if (batch.categoryColumn && batch.categoryTemplateMap) {
+          const val = (cert.rowData || {})[batch.categoryColumn];
+          const entry = val ? batch.categoryTemplateMap[val] : null;
+          if (entry) {
+            const tplData = templateCanvasById[entry.templateId];
+            if (tplData) {
+              return {
+                canvas: tplData.canvas as CanvasDocument,
+                columnMap: (entry.columnMap as Record<string, string>) ?? batch.columnMap ?? {},
+              };
+            }
+          }
+        }
+        return { canvas: batch.builtinTemplate!.canvas, columnMap: batch.columnMap ?? {} };
+      }
+
+      // Preload resources for all unique canvases used in this batch
+      const seenCanvases = new Set<CanvasDocument>();
+      const preloadPromises: Promise<void>[] = [];
+      for (const cert of toGenerate) {
+        const { canvas } = resolveBuiltinTemplate(cert);
+        if (!seenCanvases.has(canvas)) {
+          seenCanvases.add(canvas);
+          preloadPromises.push(preloadCanvasResources(canvas).catch(() => {}));
+        }
+      }
+      await Promise.all(preloadPromises);
+
       // Shared across the whole batch so we fetch each image only once.
       const batchAssetCache = createBatchAssetCache();
 
@@ -789,14 +852,17 @@ export async function clientGenerate(
           });
 
           try {
+            // Resolve the correct template canvas + column map for this cert
+            const { canvas: certCanvas, columnMap: certColumnMap } = resolveBuiltinTemplate(cert);
+
             const replacements: Record<string, string> = {};
-            for (const [placeholder, column] of Object.entries(batch.columnMap || {})) {
+            for (const [placeholder, column] of Object.entries(certColumnMap)) {
               replacements[placeholder] = (cert.rowData || {})[column] || "";
             }
             const qrUrl = `${baseUrl}/verify/${batch.id}/${cert.id}`;
 
             const pdfBuffer = await renderCanvasToPdf({
-              doc: tpl.canvas,
+              doc: certCanvas,
               replacements,
               qrUrl,
               batchCache: batchAssetCache,
