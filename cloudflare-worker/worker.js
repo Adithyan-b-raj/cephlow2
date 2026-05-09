@@ -106,8 +106,8 @@ export default {
     if (t.includes('send all'))                      action = 'send_all';
     if (t.includes('search'))                        action = 'search_cert';
 
-    // R2 folder = phone number without leading "91"
-    const folder = phone.replace(/^91/, '') + '/';
+    // Search both the full E.164 number (with country code) and the bare number
+    const folderVariants = getFolderVariants(phone);
 
     // ── 3. Route to the right handler ───────────────────────────────
     try {
@@ -161,7 +161,7 @@ export default {
       if (stateVal === 'report_selecting') {
         if (action.startsWith('rpage:')) {
           const page = parseInt(action.split(':')[1], 10) || 1;
-          await handleReportCertList(phone, folder, page, env);
+          await handleReportCertList(phone, folderVariants, page, env);
         } else if (action.includes('/')) {
           // Cert picked — now ask for description
           const certKey = action;
@@ -173,7 +173,7 @@ export default {
           }, env);
         } else {
           // Unexpected input while selecting — re-show the list
-          await handleReportCertList(phone, folder, 1, env);
+          await handleReportCertList(phone, folderVariants, 1, env);
         }
         return new Response('OK');
       }
@@ -191,18 +191,18 @@ export default {
         ctx.waitUntil(logInteraction(env, { phone, action: 'talk_developer' }));
 
       } else if (action === 'report_issue') {
-        await handleReportIssue(phone, folder, env);
+        await handleReportIssue(phone, folderVariants, env);
         ctx.waitUntil(logInteraction(env, { phone, action: 'report_issue' }));
 
       } else if (action === 'send_all') {
-        await handleSendAll(phone, folder, env);
+        await handleSendAll(phone, folderVariants, env);
         ctx.waitUntil(logInteraction(env, { phone, action: 'send_all' }));
 
       } else if (action === 'search_cert' || action.startsWith('page:')) {
         const page = action.startsWith('page:')
           ? parseInt(action.split(':')[1], 10) || 1
           : 1;
-        await handlePagedList(phone, folder, page, env);
+        await handlePagedList(phone, folderVariants, page, env);
         ctx.waitUntil(logInteraction(env, {
           phone,
           action: action.startsWith('page:') ? 'page' : 'search_cert',
@@ -1236,13 +1236,27 @@ async function tgPost(env, method, payload) {
 // Utilities
 // ────────────────────────────────────────────────────────────────────
 
-/** List all object keys inside a folder prefix in R2 */
-async function listFiles(folder, env) {
-  const result = await env.CERTIFICATES.list({ prefix: folder });
-  return result.objects
-    .filter(o => o.key !== folder && !o.key.endsWith('/'))
+/** List all object keys inside one or more folder prefixes in R2 */
+async function listFiles(folders, env) {
+  const prefixes = Array.isArray(folders) ? folders : [folders];
+  const results  = await Promise.all(prefixes.map(p => env.CERTIFICATES.list({ prefix: p })));
+  const seen     = new Set();
+  return results
+    .flatMap(r => r.objects)
+    .filter(o => {
+      if (prefixes.includes(o.key) || o.key.endsWith('/') || seen.has(o.key)) return false;
+      seen.add(o.key);
+      return true;
+    })
     .sort((a, b) => new Date(b.uploaded).getTime() - new Date(a.uploaded).getTime())
     .map(o => o.key);
+}
+
+/** Return the R2 folder variants to try for a given wa_id phone string */
+function getFolderVariants(phone) {
+  const full     = phone + '/';
+  const stripped = phone.replace(/^91/, '') + '/';
+  return full === stripped ? [full] : [full, stripped];
 }
 
 /** Build the public R2 URL for a key */

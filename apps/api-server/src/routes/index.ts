@@ -8,6 +8,7 @@ import paymentsRouter from "./payments.js";
 import walletRouter from "./wallet.js";
 import clientGenerateRouter from "./clientGenerate.js";
 import builtinTemplatesRouter from "./builtinTemplates.js";
+import reportsRouter from "./reports.js";
 import approvalRouter from "./approval.js";
 import workspacesRouter from "./workspaces.js";
 import { requireApproval } from "../middlewares/requireApproval.js";
@@ -32,6 +33,7 @@ router.use(certificatesRouter);
 router.use(paymentsRouter);
 router.use(clientGenerateRouter);
 router.use(builtinTemplatesRouter);
+router.use(reportsRouter);
 
 // Approved-org-only routes:
 //   • slides — Google Slides template browsing/copying is locked for free tier
