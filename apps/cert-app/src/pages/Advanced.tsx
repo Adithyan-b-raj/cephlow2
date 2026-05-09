@@ -749,12 +749,15 @@ function AdvancedInner() {
     const id = `template-${Date.now()}`;
     setNodes((nds) => {
       const count = nds.filter((n) => n.type === "template").length;
+      const spreadsheet = nds.find((n) => n.type === "spreadsheet");
+      const baseX = spreadsheet ? spreadsheet.position.x + 420 : 500;
+      const baseY = spreadsheet ? spreadsheet.position.y : 120;
       return [
         ...nds,
         {
           id,
           type: "template",
-          position: { x: 640, y: 100 + count * 380 },
+          position: { x: baseX, y: baseY + count * 380 },
           data: {
             kind: null, templateId: "", templateName: "", placeholders: [],
           } satisfies TemplateData,
