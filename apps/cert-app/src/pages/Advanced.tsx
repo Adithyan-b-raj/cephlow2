@@ -12,10 +12,14 @@ import {
   Handle,
   Position,
   useReactFlow,
+  getBezierPath,
+  EdgeLabelRenderer,
+  BaseEdge,
   type Node,
   type Edge,
   type Connection,
   type NodeProps,
+  type EdgeProps,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import {
@@ -562,7 +566,53 @@ function TemplateNode({ id, data }: NodeProps) {
   );
 }
 
+// ── DeletableEdge ──────────────────────────────────────────────────────────
+
+function DeletableEdge({
+  id,
+  sourceX, sourceY,
+  targetX, targetY,
+  sourcePosition, targetPosition,
+  style,
+  markerEnd,
+  selected,
+}: EdgeProps) {
+  const { setEdges } = useReactFlow();
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX, sourceY, sourcePosition,
+    targetX, targetY, targetPosition,
+  });
+
+  return (
+    <>
+      <BaseEdge id={id} path={edgePath} style={style} markerEnd={markerEnd} />
+      {selected && (
+        <EdgeLabelRenderer>
+          <div
+            style={{
+              position: "absolute",
+              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+              pointerEvents: "all",
+            }}
+            className="nodrag nopan"
+          >
+            <button
+              onClick={() => setEdges((eds) => eds.filter((e) => e.id !== id))}
+              className="flex items-center justify-center w-4 h-4 rounded-sm border border-destructive bg-background text-destructive shadow-sm"
+              title="Delete connection"
+            >
+              <X className="w-2.5 h-2.5" />
+            </button>
+          </div>
+        </EdgeLabelRenderer>
+      )}
+    </>
+  );
+}
+
 // ── Node types (stable, module-level) ─────────────────────────────────────
+
+const edgeTypes = { deletable: DeletableEdge };
 
 const nodeTypes = {
   spreadsheet: SpreadsheetNode,
@@ -647,7 +697,7 @@ function AdvancedInner() {
         toast({ title: "Invalid connection", description: "Connect: spreadsheet column → placeholder, condition value → placeholder or Route In." });
         return;
       }
-      setEdges((eds) => addEdge({ ...params, animated: true }, eds));
+      setEdges((eds) => addEdge({ ...params, type: "deletable", animated: true }, eds));
     },
     [nodes, setEdges, toast],
   );
@@ -951,6 +1001,8 @@ function AdvancedInner() {
           onEdgesChange={onEdgesChange}
           onConnect={onConnect}
           nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          defaultEdgeOptions={{ type: "deletable" }}
           fitView
           deleteKeyCode={["Backspace", "Delete"]}
           proOptions={{ hideAttribution: true }}
