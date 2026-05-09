@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { Loader2, MessageSquareWarning } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/lib/supabase";
+import { useWorkspace } from "@/hooks/use-workspace";
 
 interface Report {
   id: number;
@@ -17,28 +18,21 @@ function maskPhone(phone: string) {
   return `****${phone.slice(-4)}`;
 }
 
-async function getMyR2Urls(): Promise<Set<string>> {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) return new Set();
-
-  // Get all batches the current user created
-  const { data: batches } = await supabase
-    .from("batches")
-    .select("id")
-    .eq("user_id", session.user.id);
-
-  if (!batches || batches.length === 0) return new Set();
-
-  const batchIds = batches.map((b: { id: string }) => b.id);
-
-  // Get all r2_pdf_urls for those batches' certificates
-  const { data: certs } = await supabase
-    .from("certificates")
-    .select("r2_pdf_url")
-    .in("batch_id", batchIds)
-    .not("r2_pdf_url", "is", null);
-
-  return new Set((certs || []).map((c: { r2_pdf_url: string }) => c.r2_pdf_url));
+async function fetchReports(workspaceId: string): Promise<Report[]> {
+  const { data } = await supabase.auth.getSession();
+  const token = data.session?.access_token;
+  const base = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+  const res = await fetch(`${base}/api/reports`, {
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      "x-workspace-id": workspaceId,
+    },
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `${res.status}`);
+  }
+  return res.json();
 }
 
 export default function Reports() {
@@ -46,79 +40,57 @@ export default function Reports() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
+  const { activeWorkspace } = useWorkspace();
   const seenReportIdsRef = useRef<Set<number>>(new Set());
   const initialLoadedRef = useRef<boolean>(false);
-  const myR2UrlsRef = useRef<Set<string> | null>(null);
-
-  const workerUrl = import.meta.env.VITE_WA_WORKER_URL;
-  const token = import.meta.env.VITE_WA_ANALYTICS_TOKEN;
 
   useEffect(() => {
-    if (!workerUrl || !token) {
-      setError("Reports not configured.");
-      setLoading(false);
-      return;
-    }
+    if (!activeWorkspace) return;
 
     let cancelled = false;
-    const url = `${workerUrl.replace(/\/$/, "")}/reports?token=${token}`;
 
-    const loadReports = async (isInitial = false) => {
-      try {
-        // Load the user's own R2 URLs once and cache them
-        if (!myR2UrlsRef.current) {
-          myR2UrlsRef.current = await getMyR2Urls();
-        }
-        const myUrls = myR2UrlsRef.current;
+    const loadReports = (isInitial = false) => {
+      fetchReports(activeWorkspace.id)
+        .then((data) => {
+          if (cancelled) return;
+          setReports(data);
+          setError(null);
 
-        const res = await fetch(url);
-        const allReports: Report[] = await res.json();
-        if (cancelled) return;
-
-        // Only show reports for certificates this user generated
-        const filtered = allReports.filter((r) => {
-          if (!r.cert_key) return false;
-          for (const u of myUrls) {
-            if (u.endsWith(r.cert_key)) return true;
+          const seen = seenReportIdsRef.current;
+          const newOnes: Report[] = [];
+          for (const r of data) {
+            if (!seen.has(r.id)) {
+              seen.add(r.id);
+              if (initialLoadedRef.current) newOnes.push(r);
+            }
           }
-          return false;
+
+          if (!initialLoadedRef.current) {
+            initialLoadedRef.current = true;
+          } else if (newOnes.length > 0) {
+            if (newOnes.length === 1) {
+              const r = newOnes[0];
+              const certName = r.cert_key ? (r.cert_key.split("/").pop() || r.cert_key) : undefined;
+              toast({
+                title: "New issue reported",
+                description: certName ? `${certName}: "${r.message}"` : r.message,
+              });
+            } else {
+              toast({
+                title: `${newOnes.length} new issue reports`,
+                description: "Recipients reported issues via WhatsApp.",
+              });
+            }
+          }
+        })
+        .catch(() => {
+          if (cancelled) return;
+          if (isInitial) setError("Failed to load reports.");
+        })
+        .finally(() => {
+          if (cancelled) return;
+          if (isInitial) setLoading(false);
         });
-
-        setReports(filtered);
-        setError(null);
-
-        const seen = seenReportIdsRef.current;
-        const newOnes: Report[] = [];
-        for (const r of filtered) {
-          if (!seen.has(r.id)) {
-            seen.add(r.id);
-            if (initialLoadedRef.current) newOnes.push(r);
-          }
-        }
-
-        if (!initialLoadedRef.current) {
-          initialLoadedRef.current = true;
-        } else if (newOnes.length > 0) {
-          if (newOnes.length === 1) {
-            const r = newOnes[0];
-            const certName = r.cert_key ? (r.cert_key.split("/").pop() || r.cert_key) : undefined;
-            toast({
-              title: "New issue reported",
-              description: certName ? `${certName}: "${r.message}"` : r.message,
-            });
-          } else {
-            toast({
-              title: `${newOnes.length} new issue reports`,
-              description: "Recipients reported issues via WhatsApp.",
-            });
-          }
-        }
-      } catch {
-        if (cancelled) return;
-        if (isInitial) setError("Failed to load reports.");
-      } finally {
-        if (!cancelled && isInitial) setLoading(false);
-      }
     };
 
     loadReports(true);
@@ -136,7 +108,7 @@ export default function Reports() {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibility);
     };
-  }, [workerUrl, token, toast]);
+  }, [activeWorkspace, toast]);
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
