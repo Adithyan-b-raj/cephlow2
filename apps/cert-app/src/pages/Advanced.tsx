@@ -88,7 +88,7 @@ interface TemplateData extends Record<string, unknown> {
 
 function SpreadsheetNode({ id, data }: NodeProps) {
   const d = data as SpreadsheetData;
-  const { updateNodeData, deleteElements, setNodes, getNode } = useReactFlow();
+  const { updateNodeData, deleteElements, setNodes, setEdges, getNode } = useReactFlow();
 
   const { data: sheetsRes, isLoading: sheetsLoading } = useListSheets();
   const sheets = sheetsRes?.sheets ?? [];
@@ -132,10 +132,22 @@ function SpreadsheetNode({ id, data }: NodeProps) {
             data: { sourceColumn: col } satisfies ConditionData,
           },
         ]);
+        setEdges((eds) => [
+          ...eds,
+          {
+            id: `e-routing-${id}-${col}`,
+            source: id,
+            sourceHandle: `col-${col}`,
+            target: condNodeId,
+            targetHandle: "data-in",
+            type: "default",
+            style: { stroke: "#d97706", strokeDasharray: "4 3" },
+          },
+        ]);
         updateNodeData(id, { routingColumns: [...routingColumns, col] });
       }
     },
-    [id, routingColumns, deleteElements, updateNodeData, setNodes, getNode],
+    [id, routingColumns, deleteElements, updateNodeData, setNodes, setEdges, getNode],
   );
 
   const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -270,19 +282,18 @@ function SpreadsheetNode({ id, data }: NodeProps) {
                   {col}
                 </span>
 
-                {/* Source handle (only shown for non-routing columns) */}
-                {!isRouting && (
-                  <Handle
-                    id={`col-${col}`}
-                    type="source"
-                    position={Position.Right}
-                    style={{
-                      width: 10, height: 10, borderRadius: 0,
-                      background: "currentColor", border: "2px solid",
-                      position: "absolute", right: -5, top: "50%", transform: "translateY(-50%)",
-                    }}
-                  />
-                )}
+                {/* Source handle — always present; amber-styled when routing */}
+                <Handle
+                  id={`col-${col}`}
+                  type="source"
+                  position={Position.Right}
+                  style={{
+                    width: 10, height: 10, borderRadius: 0,
+                    background: isRouting ? "#d97706" : "currentColor",
+                    border: isRouting ? "2px solid #92400e" : "2px solid",
+                    position: "absolute", right: -5, top: "50%", transform: "translateY(-50%)",
+                  }}
+                />
                 {isRouting && (
                   <span className="text-[8px] text-amber-600 dark:text-amber-400 pr-2 shrink-0 font-bold uppercase tracking-wider">
                     routing
@@ -333,8 +344,18 @@ function ConditionNode({ id, data }: NodeProps) {
   return (
     <div className="bg-background border-2 border-amber-500/60 font-mono shadow-xl" style={{ minWidth: 200, maxWidth: 260 }}>
       {/* Header */}
-      <div className="px-3 py-2 border-b-2 border-amber-500/60 bg-amber-50 dark:bg-amber-950/40 flex items-center gap-2">
-        <GitBranch className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0" />
+      <div className="relative px-3 py-2 border-b-2 border-amber-500/60 bg-amber-50 dark:bg-amber-950/40 flex items-center gap-2">
+        <Handle
+          id="data-in"
+          type="target"
+          position={Position.Left}
+          style={{
+            width: 10, height: 10, borderRadius: 0,
+            background: "#d97706", border: "2px solid #92400e",
+            position: "absolute", left: -5, top: "50%", transform: "translateY(-50%)",
+          }}
+        />
+        <GitBranch className="w-3 h-3 text-amber-600 dark:text-amber-400 shrink-0 ml-2" />
         <span className="text-[10px] font-bold uppercase tracking-widest flex-1 text-amber-700 dark:text-amber-300 truncate">
           {col} Routing
         </span>
