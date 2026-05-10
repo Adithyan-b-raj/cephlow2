@@ -11,6 +11,5 @@ export {
   setWorkspaceIdProvider,
   customFetch,
 } from "./custom-fetch";
-export * from "./whatsapp";
 export * from "./extras";
 export * from "./builtin-templates";
