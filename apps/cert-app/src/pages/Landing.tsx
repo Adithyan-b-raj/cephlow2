@@ -440,7 +440,7 @@ export default function Landing() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-white font-mono">
+    <div className="min-h-screen bg-white font-mono overflow-x-hidden">
 
       {/* ── Nav ── */}
       <nav className="border-b border-black px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between sticky top-0 bg-white z-50">
@@ -474,7 +474,7 @@ export default function Landing() {
 
       {/* ── Hero ── */}
       <section ref={heroRef} className="border-b border-black">
-        <div className="max-w-6xl mx-auto px-6 py-20 grid lg:grid-cols-2 gap-12 items-center">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-20 grid lg:grid-cols-2 gap-10 lg:gap-12 items-center">
           <div>
             <div className="flex flex-wrap gap-2 mb-6">
               <div className="text-[10px] tracking-widest text-gray-500 border border-gray-300 inline-block px-3 py-1">
@@ -522,8 +522,8 @@ export default function Landing() {
           </div>
 
           {/* Hero mockup */}
-          <div className="relative">
-            <div className="absolute -top-4 -left-4 w-full h-full border border-gray-200" />
+          <div className="relative overflow-hidden">
+            <div className="absolute -top-4 -left-4 w-full h-full border border-gray-200 hidden sm:block" />
             <DashboardMockup />
           </div>
         </div>
@@ -531,7 +531,7 @@ export default function Landing() {
 
       {/* ── How it works ── */}
       <section id="how-it-works" className="border-b border-black">
-        <div className="max-w-6xl mx-auto px-6 py-16">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
           <div
             ref={howRef}
             className="transition-all duration-500"
@@ -588,7 +588,7 @@ export default function Landing() {
 
       {/* ── WhatsApp Bot ── */}
       <section className="border-b border-black bg-white">
-        <div className="max-w-6xl mx-auto px-6 py-16 grid md:grid-cols-2 gap-16 items-center">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-16 grid md:grid-cols-2 gap-10 md:gap-16 items-center">
           <div>
             <div className="text-[10px] tracking-widest text-gray-500 mb-2">WHATSAPP BOT — TRY IT</div>
             <h2 className="text-2xl font-bold mb-4">
@@ -619,16 +619,16 @@ export default function Landing() {
 
       {/* ── Features ── */}
       <section className="border-b border-black bg-black text-white">
-        <div className="max-w-6xl mx-auto px-6 py-16">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
           <div
             ref={featuresRef}
-            className="transition-all duration-500 mb-10"
+            className="transition-all duration-500 mb-8 sm:mb-10"
             style={{ opacity: featuresInView ? 1 : 0, transform: featuresInView ? "translateY(0)" : "translateY(20px)" }}
           >
             <div className="text-[10px] tracking-widest text-gray-400 mb-2">CAPABILITIES</div>
-            <h2 className="text-2xl font-bold">Everything you need</h2>
+            <h2 className="text-xl sm:text-2xl font-bold">Everything you need</h2>
           </div>
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-px bg-gray-700">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-gray-700">
             {[
               ["📊", "Google Sheets integration", "Pull recipient data directly from any Google Sheet. Map any column to any placeholder."],
               ["🎨", "Google Slides templates", "Use your existing Slides design. Single template or multiple designs per category."],
@@ -652,7 +652,7 @@ export default function Landing() {
 
       {/* ── Advanced Workflow Builder ── */}
       <section className="border-b border-black bg-white">
-        <div className="max-w-6xl mx-auto px-6 py-16 grid md:grid-cols-2 gap-16 items-center">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-16 grid md:grid-cols-2 gap-10 md:gap-16 items-center">
           <div>
             <div className="text-[10px] tracking-widest text-gray-500 mb-2">ADVANCED — APPROVED ORGANISATIONS</div>
             <h2 className="text-2xl font-bold mb-4">
@@ -678,8 +678,8 @@ export default function Landing() {
               ))}
             </ul>
           </div>
-          <div className="relative">
-            <div className="absolute -top-3 -left-3 w-full h-full border border-gray-200" />
+          <div className="relative overflow-hidden">
+            <div className="absolute -top-3 -left-3 w-full h-full border border-gray-200 hidden sm:block" />
             <WorkflowBuilderMockup />
           </div>
         </div>
@@ -687,7 +687,7 @@ export default function Landing() {
 
       {/* ── Screenshots ── */}
       <section className="border-b border-black">
-        <div className="max-w-6xl mx-auto px-6 py-16">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
           <div
             ref={screenshotsRef}
             className="transition-all duration-500 mb-10"
@@ -735,7 +735,7 @@ export default function Landing() {
 
       {/* ── Pricing ── */}
       <section className="border-b border-black bg-gray-50">
-        <div className="max-w-4xl mx-auto px-6 py-16">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
           <div className="text-center mb-10">
             <div className="text-[10px] tracking-widest text-gray-500 mb-2">PRICING</div>
             <h2 className="text-2xl font-bold mb-3">Simple, transparent pricing</h2>
@@ -745,7 +745,7 @@ export default function Landing() {
           {/* Tier comparison */}
           <div className="grid sm:grid-cols-2 gap-0 border-2 border-black bg-white mb-8">
             {/* Free tier */}
-            <div className="p-8 border-r border-black flex flex-col">
+            <div className="p-5 sm:p-8 border-b sm:border-b-0 sm:border-r border-black flex flex-col">
               <div className="text-[10px] tracking-widest text-gray-500 mb-1">FREE TIER</div>
               <div className="text-3xl font-bold mb-1">₹0<span className="text-sm font-normal text-gray-500"> forever</span></div>
               <div className="text-xs text-gray-500 mb-6">Sign up and explore — no credit card required.</div>
@@ -780,7 +780,7 @@ export default function Landing() {
             </div>
 
             {/* Approved / Paid tier */}
-            <div className="p-8 bg-black text-white flex flex-col">
+            <div className="p-5 sm:p-8 bg-black text-white flex flex-col">
               <div className="text-[10px] tracking-widest text-gray-400 mb-1">APPROVED ORGANISATION</div>
               <div className="text-3xl font-bold mb-1">
                 ₹0.50<span className="text-sm font-normal text-gray-400">/certificate</span>
@@ -835,11 +835,11 @@ export default function Landing() {
       <section id="request-access" className="border-b border-black bg-black text-white">
         <div
           ref={ctaRef}
-          className="max-w-2xl mx-auto px-6 py-20 text-center transition-all duration-700"
+          className="max-w-2xl mx-auto px-4 sm:px-6 py-12 sm:py-20 text-center transition-all duration-700"
           style={{ opacity: ctaInView ? 1 : 0, transform: ctaInView ? "translateY(0)" : "translateY(30px)" }}
         >
           <div className="text-[10px] tracking-widest text-gray-400 mb-3">GET STARTED</div>
-          <h2 className="text-3xl font-bold mb-4">Ready to automate<br />your certificates?</h2>
+          <h2 className="text-2xl sm:text-3xl font-bold mb-4">Ready to automate<br />your certificates?</h2>
           <p className="text-sm text-gray-400 mb-8">
             Cephlow is currently invite-only for organisations. Request access and we'll get you set up within 24 hours.
           </p>
@@ -863,7 +863,7 @@ export default function Landing() {
       </section>
 
       {/* ── Footer ── */}
-      <footer className="px-6 py-8 border-t border-black flex flex-col sm:flex-row items-center justify-between gap-4">
+      <footer className="px-4 sm:px-6 py-8 border-t border-black flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <img src="/favicon-32x32.png" alt="Cephlow" className="w-5 h-5" />
           <span className="font-bold tracking-widest text-xs">CEPHLOW</span>
