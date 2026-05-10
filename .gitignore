@@ -54,3 +54,7 @@ firebase-service-account.json
 
 # Wrangler local cache
 .wrangler/
+
+#graphify
+graphify-out/manifest.json  
+graphify-out/cost.json        
