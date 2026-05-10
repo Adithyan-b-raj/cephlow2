@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "wouter";
 import {
   ReactFlow,
@@ -58,6 +58,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   GitBranch,
+  Expand,
+  Shrink,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -689,6 +691,46 @@ function AdvancedInner() {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
 
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onChange = () => {
+      const inFS = !!document.fullscreenElement;
+      setIsFullscreen(inFS);
+      if (!inFS) (screen.orientation as any).unlock?.();
+    };
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
+  useEffect(() => {
+    const onPopState = () => {
+      if (document.fullscreenElement) {
+        (screen.orientation as any).unlock?.();
+        document.exitFullscreen().catch(() => {});
+      }
+    };
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      history.pushState({ fsAdvanced: true }, "");
+      containerRef.current?.requestFullscreen()
+        .then(() => {
+          (screen.orientation as any).lock?.("landscape")?.catch?.(() => {});
+        })
+        .catch(() => { history.back(); });
+    } else {
+      (screen.orientation as any).unlock?.();
+      document.exitFullscreen()
+        .then(() => history.back())
+        .catch(() => {});
+    }
+  }, []);
+
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
@@ -987,7 +1029,7 @@ function AdvancedInner() {
   }, [isConditionalMode, routingEdges, nodes]);
 
   return (
-    <div className="flex flex-col" style={{ height: "calc(100vh - 56px)" }}>
+    <div ref={containerRef} className={`flex flex-col bg-background ${isFullscreen ? "h-screen w-screen" : ""}`} style={isFullscreen ? undefined : { height: "calc(100vh - 56px)" }}>
       {/* Toolbar */}
       <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 border-b border-border bg-background/95 backdrop-blur shrink-0">
         <span className="hidden sm:inline text-[10px] font-bold font-mono uppercase tracking-widest text-muted-foreground mr-1">
@@ -1007,13 +1049,18 @@ function AdvancedInner() {
           </span>
         )}
         {isConditionalMode && (
-          <GitBranch className="sm:hidden w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" title="Conditional routing active" />
+          <span className="sm:hidden" title="Conditional routing active">
+            <GitBranch className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+          </span>
         )}
         {!isConditionalMode && connectedTemplates.length > 0 && (
           <span className="hidden sm:inline text-[9px] font-mono text-muted-foreground">
             {connectedTemplates.length} template{connectedTemplates.length > 1 ? "s" : ""} ready
           </span>
         )}
+        <Button variant="outline" size="sm" onClick={toggleFullscreen} title={isFullscreen ? "Exit fullscreen" : "Fullscreen (landscape)"} className="h-7 px-2 shrink-0">
+          {isFullscreen ? <Shrink className="w-3 h-3" /> : <Expand className="w-3 h-3" />}
+        </Button>
         <Button size="sm" onClick={handleGenerate} className="text-[10px] font-mono uppercase tracking-wider h-7 gap-1.5 px-2 sm:px-3">
           <Play className="w-3 h-3" /> Generate
         </Button>
