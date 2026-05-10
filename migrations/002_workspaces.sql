@@ -210,9 +210,9 @@ begin
 
   update public.workspaces set current_balance = v_new_balance where id = v_workspace_id;
 
-  insert into public.ledgers (user_id, workspace_id, type, amount, balance_after, description, metadata)
+  insert into public.ledgers (id, user_id, workspace_id, type, amount, balance_after, description, metadata)
     values (
-      p_user_id, v_workspace_id, 'topup', p_amount, v_new_balance,
+      gen_random_uuid(), p_user_id, v_workspace_id, 'topup', p_amount, v_new_balance,
       'Top-up via Cashfree',
       jsonb_build_object(
         'order_id', p_order_id,

@@ -16,6 +16,7 @@ import {
   useGetWalletBalance,
   useGetWalletHistory,
   useCreateOrder,
+  customFetch,
 } from "@workspace/api-client-react";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -46,17 +47,40 @@ export default function Wallet() {
     if (isNaN(amount) || amount <= 0) return;
     try {
       setIsProcessingTopUp(true);
-      const { payment_session_id } = await createOrder({ data: { amount } } as any);
+      const { payment_session_id, order_id } = await createOrder({ data: { amount } } as any);
       const cashfree = await load({ mode: import.meta.env.VITE_CASHFREE_ENV === "PRODUCTION" ? "production" : "sandbox" });
       await cashfree.checkout({ paymentSessionId: payment_session_id, redirectTarget: "_modal" });
       setIsTopUpOpen(false);
-      setTimeout(() => { refetchBalance(); refetchHistory(); }, 3000);
+
+      // After the modal closes, verify payment server-side and credit wallet
+      try {
+        const result = await customFetch<{ status: string; credited: boolean; amount?: number }>(
+          `/api/payments/verify`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ order_id }),
+          },
+        );
+        if (result.credited) {
+          toast({ title: "Payment successful", description: `₹${result.amount} added to wallet.` });
+        } else if (result.status === "already_processed") {
+          toast({ title: "Payment already processed", description: "Your wallet has been credited." });
+        } else {
+          toast({ title: "Payment pending", description: "If you completed payment, your balance will update shortly.", variant: "destructive" });
+        }
+      } catch {
+        // Verification call failed — fall back to refetch after delay
+        toast({ title: "Verifying payment...", description: "Your balance will update shortly." });
+      }
+      setTimeout(() => { refetchBalance(); refetchHistory(); }, 1500);
     } catch (error: any) {
       toast({ title: "Top-up failed", description: error.data?.error || "Could not connect to payment gateway.", variant: "destructive" });
     } finally {
       setIsProcessingTopUp(false);
     }
   };
+
 
   return (
     <div className="space-y-8">

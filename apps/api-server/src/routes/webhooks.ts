@@ -76,7 +76,6 @@ router.post("/webhooks/whatsapp", async (req, res) => {
 
 // POST /api/webhooks/cashfree — Cashfree payment status webhook
 router.post("/webhooks/cashfree", async (req, res) => {
-  console.log("[Cashfree Webhook] Received request");
   try {
     const signature = req.headers["x-webhook-signature"] as string;
     const timestamp = req.headers["x-webhook-timestamp"] as string;
@@ -94,7 +93,6 @@ router.post("/webhooks/cashfree", async (req, res) => {
     }
 
     const payload = req.body;
-    console.log("[Cashfree Webhook] Payload type:", payload.type);
 
     if (payload.type === "PAYMENT_SUCCESS_WEBHOOK") {
       const { order, payment, customer_details } = payload.data || {};
@@ -107,8 +105,6 @@ router.post("/webhooks/cashfree", async (req, res) => {
       const orderId = order.order_id;
       const amount = payment.payment_amount;
       const customerId = customer_details.customer_id;
-
-      console.log(`[Cashfree Webhook] Processing: Order=${orderId}, Amount=${amount}, User=${customerId}`);
 
       const { data: rpcResult, error: rpcErr } = await supabaseAdmin.rpc("process_payment", {
         p_user_id: customerId,
@@ -132,7 +128,7 @@ router.post("/webhooks/cashfree", async (req, res) => {
 
     return res.status(200).send("OK");
   } catch (err: any) {
-    console.error("[Cashfree Webhook] Error processing:", err);
+    console.error("[Cashfree Webhook] Error:", err);
     return res.status(500).json({ error: "Webhook processing failed" });
   }
 });
