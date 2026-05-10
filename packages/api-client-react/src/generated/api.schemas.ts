@@ -66,6 +66,8 @@ export type BatchColumnMap = { [key: string]: string };
 
 export type BatchCategoryTemplateMap = { [key: string]: CategoryTemplateEntry };
 
+export type BatchCategorySlideMap = { [key: string]: number };
+
 export type BatchStatus = (typeof BatchStatus)[keyof typeof BatchStatus];
 
 export const BatchStatus = {
@@ -77,8 +79,16 @@ export const BatchStatus = {
   partial: "partial",
 } as const;
 
+export type BatchTemplateKind =
+  (typeof BatchTemplateKind)[keyof typeof BatchTemplateKind];
+
+export const BatchTemplateKind = {
+  builtin: "builtin",
+  slides: "slides",
+} as const;
+
 export interface Batch {
-  id: number;
+  id: string;
   name: string;
   sheetId: string;
   sheetName: string;
@@ -91,7 +101,12 @@ export interface Batch {
   emailBody?: string;
   categoryColumn?: string;
   categoryTemplateMap?: BatchCategoryTemplateMap;
+  categorySlideMap?: BatchCategorySlideMap;
+  categorySlideIndexes?: number[];
   status: BatchStatus;
+  templateKind?: BatchTemplateKind;
+  driveFolderId?: string;
+  pdfFolderId?: string;
   totalCount: number;
   generatedCount: number;
   sentCount: number;
@@ -111,8 +126,8 @@ export const CertificateStatus = {
 export type CertificateRowData = { [key: string]: string };
 
 export interface Certificate {
-  id: number;
-  batchId: number;
+  id: string;
+  batchId: string;
   recipientName: string;
   recipientEmail: string;
   status: CertificateStatus;
@@ -122,6 +137,11 @@ export interface Certificate {
   errorMessage?: string;
   rowData?: CertificateRowData;
   createdAt: string;
+  isPaid?: boolean;
+  requiresVisualRegen?: boolean;
+  r2PdfUrl?: string;
+  whatsappStatus?: string;
+  whatsappMessageId?: string;
 }
 
 export type BatchDetail = Batch & {
@@ -189,7 +209,7 @@ export type LedgerEntryType =
 
 export const LedgerEntryType = {
   topup: "topup",
-  batch_deduction: "batch_deduction",
+  deduction: "deduction",
   refund: "refund",
 } as const;
 
@@ -213,7 +233,29 @@ export type GetSheetDataParams = {
   tabName?: string;
 };
 
+export type ShareBatchFolder200 = {
+  success: boolean;
+  shareLink: string;
+};
+
+export type SendBatchWhatsappBody = {
+  var1Template?: string;
+  var2Template?: string;
+  var3Template?: string;
+};
+
+export type SendCertWhatsappBody = {
+  var1Template?: string;
+  var2Template?: string;
+  var3Template?: string;
+};
+
+export type OpenCertSlide200 = {
+  slideFileId: string;
+  slideUrl: string;
+};
+
 export type ListCertificatesParams = {
-  batchId?: number;
+  batchId?: string;
   status?: string;
 };

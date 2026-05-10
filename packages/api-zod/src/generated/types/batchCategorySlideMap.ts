@@ -6,7 +6,4 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ListCertificatesParams = {
-  batchId?: string;
-  status?: string;
-};
+export type BatchCategorySlideMap = { [key: string]: number };

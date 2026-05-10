@@ -7,12 +7,14 @@
  */
 
 export * from "./batch";
+export * from "./batchCategorySlideMap";
 export * from "./batchCategoryTemplateMap";
 export * from "./batchColumnMap";
 export * from "./batchDetail";
 export * from "./batchListResponse";
 export * from "./batchOperationResponse";
 export * from "./batchStatus";
+export * from "./batchTemplateKind";
 export * from "./categoryTemplateEntry";
 export * from "./certificate";
 export * from "./certificateListResponse";
@@ -32,8 +34,12 @@ export * from "./ledgerEntry";
 export * from "./ledgerEntryMetadata";
 export * from "./ledgerEntryType";
 export * from "./listCertificatesParams";
+export * from "./openCertSlide200";
 export * from "./placeholderResponse";
 export * from "./sendBatchRequest";
+export * from "./sendBatchWhatsappBody";
+export * from "./sendCertWhatsappBody";
+export * from "./shareBatchFolder200";
 export * from "./sheetDataResponse";
 export * from "./sheetDataResponseRowsItem";
 export * from "./sheetFile";

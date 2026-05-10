@@ -6,7 +6,8 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ListCertificatesParams = {
-  batchId?: string;
-  status?: string;
+export type SendBatchWhatsappBody = {
+  var1Template?: string;
+  var2Template?: string;
+  var3Template?: string;
 };

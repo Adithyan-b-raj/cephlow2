@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ListCertificatesParams = {
-  batchId?: string;
-  status?: string;
+export type ShareBatchFolder200 = {
+  success: boolean;
+  shareLink: string;
 };

@@ -11,6 +11,6 @@ export type LedgerEntryType =
 
 export const LedgerEntryType = {
   topup: "topup",
-  batch_deduction: "batch_deduction",
+  deduction: "deduction",
   refund: "refund",
 } as const;

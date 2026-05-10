@@ -15,5 +15,5 @@ export interface LedgerEntry {
   balanceAfter: number;
   description: string;
   metadata?: LedgerEntryMetadata;
-  createdAt: Date;
+  createdAt: string;
 }

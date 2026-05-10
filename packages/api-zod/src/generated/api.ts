@@ -90,7 +90,7 @@ export const GetSlidePlaceholdersResponse = zod.object({
 export const ListBatchesResponse = zod.object({
   batches: zod.array(
     zod.object({
-      id: zod.number(),
+      id: zod.string(),
       name: zod.string(),
       sheetId: zod.string(),
       sheetName: zod.string(),
@@ -111,6 +111,8 @@ export const ListBatchesResponse = zod.object({
           }),
         )
         .optional(),
+      categorySlideMap: zod.record(zod.string(), zod.number()).optional(),
+      categorySlideIndexes: zod.array(zod.number()).optional(),
       status: zod.enum([
         "draft",
         "generating",
@@ -119,6 +121,9 @@ export const ListBatchesResponse = zod.object({
         "sent",
         "partial",
       ]),
+      templateKind: zod.enum(["builtin", "slides"]).optional(),
+      driveFolderId: zod.string().optional(),
+      pdfFolderId: zod.string().optional(),
       totalCount: zod.number(),
       generatedCount: zod.number(),
       sentCount: zod.number(),
@@ -158,12 +163,12 @@ export const CreateBatchBody = zod.object({
  * @summary Get a batch with its certificates
  */
 export const GetBatchParams = zod.object({
-  batchId: zod.coerce.number(),
+  batchId: zod.coerce.string(),
 });
 
 export const GetBatchResponse = zod
   .object({
-    id: zod.number(),
+    id: zod.string(),
     name: zod.string(),
     sheetId: zod.string(),
     sheetName: zod.string(),
@@ -184,6 +189,8 @@ export const GetBatchResponse = zod
         }),
       )
       .optional(),
+    categorySlideMap: zod.record(zod.string(), zod.number()).optional(),
+    categorySlideIndexes: zod.array(zod.number()).optional(),
     status: zod.enum([
       "draft",
       "generating",
@@ -192,6 +199,9 @@ export const GetBatchResponse = zod
       "sent",
       "partial",
     ]),
+    templateKind: zod.enum(["builtin", "slides"]).optional(),
+    driveFolderId: zod.string().optional(),
+    pdfFolderId: zod.string().optional(),
     totalCount: zod.number(),
     generatedCount: zod.number(),
     sentCount: zod.number(),
@@ -201,8 +211,8 @@ export const GetBatchResponse = zod
     zod.object({
       certificates: zod.array(
         zod.object({
-          id: zod.number(),
-          batchId: zod.number(),
+          id: zod.string(),
+          batchId: zod.string(),
           recipientName: zod.string(),
           recipientEmail: zod.string(),
           status: zod.enum(["pending", "generated", "sent", "failed"]),
@@ -212,6 +222,11 @@ export const GetBatchResponse = zod
           errorMessage: zod.string().optional(),
           rowData: zod.record(zod.string(), zod.string()).optional(),
           createdAt: zod.string(),
+          isPaid: zod.boolean().optional(),
+          requiresVisualRegen: zod.boolean().optional(),
+          r2PdfUrl: zod.string().optional(),
+          whatsappStatus: zod.string().optional(),
+          whatsappMessageId: zod.string().optional(),
         }),
       ),
     }),
@@ -221,7 +236,7 @@ export const GetBatchResponse = zod
  * @summary Generate certificates for a batch
  */
 export const GenerateBatchParams = zod.object({
-  batchId: zod.coerce.number(),
+  batchId: zod.coerce.string(),
 });
 
 export const GenerateBatchResponse = zod.object({
@@ -235,7 +250,7 @@ export const GenerateBatchResponse = zod.object({
  * @summary Send generated certificates via email
  */
 export const SendBatchParams = zod.object({
-  batchId: zod.coerce.number(),
+  batchId: zod.coerce.string(),
 });
 
 export const SendBatchBody = zod.object({
@@ -251,18 +266,118 @@ export const SendBatchResponse = zod.object({
 });
 
 /**
+ * @summary Sync batch data from Google Sheet
+ */
+export const SyncBatchParams = zod.object({
+  batchId: zod.coerce.string(),
+});
+
+export const SyncBatchResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string(),
+  processed: zod.number().optional(),
+  failed: zod.number().optional(),
+});
+
+/**
+ * @summary Share the PDF folder for a batch
+ */
+export const ShareBatchFolderParams = zod.object({
+  batchId: zod.coerce.string(),
+});
+
+export const ShareBatchFolderResponse = zod.object({
+  success: zod.boolean(),
+  shareLink: zod.string(),
+});
+
+/**
+ * @summary Send generated certificates via WhatsApp
+ */
+export const SendBatchWhatsappParams = zod.object({
+  batchId: zod.coerce.string(),
+});
+
+export const SendBatchWhatsappBody = zod.object({
+  var1Template: zod.string().optional(),
+  var2Template: zod.string().optional(),
+  var3Template: zod.string().optional(),
+});
+
+export const SendBatchWhatsappResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string(),
+  processed: zod.number().optional(),
+  failed: zod.number().optional(),
+});
+
+/**
+ * @summary Send a single certificate via email
+ */
+export const SendCertEmailParams = zod.object({
+  batchId: zod.coerce.string(),
+  certId: zod.coerce.string(),
+});
+
+export const SendCertEmailBody = zod.object({
+  emailSubject: zod.string(),
+  emailBody: zod.string(),
+});
+
+export const SendCertEmailResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string(),
+  processed: zod.number().optional(),
+  failed: zod.number().optional(),
+});
+
+/**
+ * @summary Send a single certificate via WhatsApp
+ */
+export const SendCertWhatsappParams = zod.object({
+  batchId: zod.coerce.string(),
+  certId: zod.coerce.string(),
+});
+
+export const SendCertWhatsappBody = zod.object({
+  var1Template: zod.string().optional(),
+  var2Template: zod.string().optional(),
+  var3Template: zod.string().optional(),
+});
+
+export const SendCertWhatsappResponse = zod.object({
+  success: zod.boolean(),
+  message: zod.string(),
+  processed: zod.number().optional(),
+  failed: zod.number().optional(),
+});
+
+/**
+ * @summary Open or create an editable Google Slide for a certificate
+ */
+export const OpenCertSlideParams = zod.object({
+  batchId: zod.coerce.string(),
+  certId: zod.coerce.string(),
+});
+
+export const OpenCertSlideResponse = zod.object({
+  slideFileId: zod.string(),
+  slideUrl: zod.string(),
+});
+
+/**
  * @summary List certificates with optional batch filter
  */
 export const ListCertificatesQueryParams = zod.object({
-  batchId: zod.coerce.number().optional(),
+  batchId: zod.coerce.string().optional(),
   status: zod.coerce.string().optional(),
 });
 
 export const ListCertificatesResponse = zod.object({
   certificates: zod.array(
     zod.object({
-      id: zod.number(),
-      batchId: zod.number(),
+      id: zod.string(),
+      batchId: zod.string(),
       recipientName: zod.string(),
       recipientEmail: zod.string(),
       status: zod.enum(["pending", "generated", "sent", "failed"]),
@@ -272,6 +387,11 @@ export const ListCertificatesResponse = zod.object({
       errorMessage: zod.string().optional(),
       rowData: zod.record(zod.string(), zod.string()).optional(),
       createdAt: zod.string(),
+      isPaid: zod.boolean().optional(),
+      requiresVisualRegen: zod.boolean().optional(),
+      r2PdfUrl: zod.string().optional(),
+      whatsappStatus: zod.string().optional(),
+      whatsappMessageId: zod.string().optional(),
     }),
   ),
   total: zod.number(),
@@ -290,25 +410,25 @@ export const CreateOrderResponse = zod.object({
 });
 
 /**
- * @summary Get the current wallet balance for the user
+ * @summary Get current wallet balance for the workspace
  */
 export const GetWalletBalanceResponse = zod.object({
   currentBalance: zod.number(),
 });
 
 /**
- * @summary Get the ledger history for the user's wallet
+ * @summary Get ledger history for the workspace
  */
 export const GetWalletHistoryResponse = zod.object({
   ledgers: zod.array(
     zod.object({
       id: zod.string(),
-      type: zod.enum(["topup", "batch_deduction", "refund"]),
+      type: zod.enum(["topup", "deduction", "refund"]),
       amount: zod.number(),
       balanceAfter: zod.number(),
       description: zod.string(),
       metadata: zod.record(zod.string(), zod.unknown()).optional(),
-      createdAt: zod.date(),
+      createdAt: zod.string(),
     }),
   ),
 });

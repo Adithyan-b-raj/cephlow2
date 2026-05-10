@@ -9,8 +9,8 @@ import type { CertificateRowData } from "./certificateRowData";
 import type { CertificateStatus } from "./certificateStatus";
 
 export interface Certificate {
-  id: number;
-  batchId: number;
+  id: string;
+  batchId: string;
   recipientName: string;
   recipientEmail: string;
   status: CertificateStatus;
@@ -20,4 +20,9 @@ export interface Certificate {
   errorMessage?: string;
   rowData?: CertificateRowData;
   createdAt: string;
+  isPaid?: boolean;
+  requiresVisualRegen?: boolean;
+  r2PdfUrl?: string;
+  whatsappStatus?: string;
+  whatsappMessageId?: string;
 }

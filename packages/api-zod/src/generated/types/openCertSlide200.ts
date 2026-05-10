@@ -6,7 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export type ListCertificatesParams = {
-  batchId?: string;
-  status?: string;
+export type OpenCertSlide200 = {
+  slideFileId: string;
+  slideUrl: string;
 };

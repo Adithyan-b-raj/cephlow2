@@ -177,7 +177,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
       responses:
         "200":
           description: Batch detail
@@ -196,7 +196,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
       responses:
         "200":
           description: Generation started
@@ -215,7 +215,7 @@ paths:
           in: path
           required: true
           schema:
-            type: integer
+            type: string
       requestBody:
         required: true
         content:
@@ -230,6 +230,177 @@ paths:
               schema:
                 $ref: "#/components/schemas/BatchOperationResponse"
 
+  /batches/{batchId}/sync:
+    post:
+      operationId: syncBatch
+      tags: [batches]
+      summary: Sync batch data from Google Sheet
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Sync result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchOperationResponse"
+
+  /batches/{batchId}/share-folder:
+    post:
+      operationId: shareBatchFolder
+      tags: [batches]
+      summary: Share the PDF folder for a batch
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Share result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  shareLink:
+                    type: string
+                required: [success, shareLink]
+
+  /batches/{batchId}/send-whatsapp:
+    post:
+      operationId: sendBatchWhatsapp
+      tags: [batches]
+      summary: Send generated certificates via WhatsApp
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                var1Template:
+                  type: string
+                var2Template:
+                  type: string
+                var3Template:
+                  type: string
+      responses:
+        "200":
+          description: Send operation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchOperationResponse"
+
+  /batches/{batchId}/certificates/{certId}/send:
+    post:
+      operationId: sendCertEmail
+      tags: [certificates]
+      summary: Send a single certificate via email
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: certId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendBatchRequest"
+      responses:
+        "200":
+          description: Send result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchOperationResponse"
+
+  /batches/{batchId}/certificates/{certId}/send-whatsapp:
+    post:
+      operationId: sendCertWhatsapp
+      tags: [certificates]
+      summary: Send a single certificate via WhatsApp
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: certId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                var1Template:
+                  type: string
+                var2Template:
+                  type: string
+                var3Template:
+                  type: string
+      responses:
+        "200":
+          description: Send result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchOperationResponse"
+
+  /batches/{batchId}/certificates/{certId}/open-slide:
+    post:
+      operationId: openCertSlide
+      tags: [certificates]
+      summary: Open or create an editable Google Slide for a certificate
+      parameters:
+        - name: batchId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: certId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Slide info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  slideFileId:
+                    type: string
+                  slideUrl:
+                    type: string
+                required: [slideFileId, slideUrl]
+
   /certificates:
     get:
       operationId: listCertificates
@@ -240,7 +411,7 @@ paths:
           in: query
           required: false
           schema:
-            type: integer
+            type: string
         - name: status
           in: query
           required: false
@@ -272,6 +443,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CreateOrderResponse"
+
+  /wallet:
+    get:
+      operationId: getWalletBalance
+      tags: [payments]
+      summary: Get current wallet balance for the workspace
+      responses:
+        "200":
+          description: Wallet balance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletBalanceResponse"
+
+  /wallet/history:
+    get:
+      operationId: getWalletHistory
+      tags: [payments]
+      summary: Get ledger history for the workspace
+      responses:
+        "200":
+          description: Wallet history
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WalletHistoryResponse"
 
 components:
   schemas:
@@ -392,7 +589,7 @@ components:
       type: object
       properties:
         id:
-          type: integer
+          type: string
         name:
           type: string
         sheetId:
@@ -421,9 +618,24 @@ components:
           type: object
           additionalProperties:
             $ref: "#/components/schemas/CategoryTemplateEntry"
+        categorySlideMap:
+          type: object
+          additionalProperties:
+            type: integer
+        categorySlideIndexes:
+          type: array
+          items:
+            type: integer
         status:
           type: string
           enum: [draft, generating, generated, sending, sent, partial]
+        templateKind:
+          type: string
+          enum: [builtin, slides]
+        driveFolderId:
+          type: string
+        pdfFolderId:
+          type: string
         totalCount:
           type: integer
         generatedCount:
@@ -537,9 +749,9 @@ components:
       type: object
       properties:
         id:
-          type: integer
+          type: string
         batchId:
-          type: integer
+          type: string
         recipientName:
           type: string
         recipientEmail:
@@ -560,6 +772,16 @@ components:
           additionalProperties:
             type: string
         createdAt:
+          type: string
+        isPaid:
+          type: boolean
+        requiresVisualRegen:
+          type: boolean
+        r2PdfUrl:
+          type: string
+        whatsappStatus:
+          type: string
+        whatsappMessageId:
           type: string
       required:
         - id
@@ -595,3 +817,43 @@ components:
         order_id:
           type: string
       required: [payment_session_id, order_id]
+
+    WalletBalanceResponse:
+      type: object
+      properties:
+        currentBalance:
+          type: number
+      required: [currentBalance]
+
+    LedgerEntryType:
+      type: string
+      enum: [topup, deduction, refund]
+
+    LedgerEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          $ref: "#/components/schemas/LedgerEntryType"
+        amount:
+          type: number
+        balanceAfter:
+          type: number
+        description:
+          type: string
+        metadata:
+          type: object
+          additionalProperties: true
+        createdAt:
+          type: string
+      required: [id, type, amount, balanceAfter, description, createdAt]
+
+    WalletHistoryResponse:
+      type: object
+      properties:
+        ledgers:
+          type: array
+          items:
+            $ref: "#/components/schemas/LedgerEntry"
+      required: [ledgers]

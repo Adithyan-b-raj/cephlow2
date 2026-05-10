@@ -5,12 +5,14 @@
  * Certificate Automation API
  * OpenAPI spec version: 0.1.0
  */
+import type { BatchCategorySlideMap } from "./batchCategorySlideMap";
 import type { BatchCategoryTemplateMap } from "./batchCategoryTemplateMap";
 import type { BatchColumnMap } from "./batchColumnMap";
 import type { BatchStatus } from "./batchStatus";
+import type { BatchTemplateKind } from "./batchTemplateKind";
 
 export interface Batch {
-  id: number;
+  id: string;
   name: string;
   sheetId: string;
   sheetName: string;
@@ -23,7 +25,12 @@ export interface Batch {
   emailBody?: string;
   categoryColumn?: string;
   categoryTemplateMap?: BatchCategoryTemplateMap;
+  categorySlideMap?: BatchCategorySlideMap;
+  categorySlideIndexes?: number[];
   status: BatchStatus;
+  templateKind?: BatchTemplateKind;
+  driveFolderId?: string;
+  pdfFolderId?: string;
   totalCount: number;
   generatedCount: number;
   sentCount: number;

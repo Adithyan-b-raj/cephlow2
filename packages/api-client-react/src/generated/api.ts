@@ -31,8 +31,12 @@ import type {
   GetSheetDataParams,
   HealthStatus,
   ListCertificatesParams,
+  OpenCertSlide200,
   PlaceholderResponse,
   SendBatchRequest,
+  SendBatchWhatsappBody,
+  SendCertWhatsappBody,
+  ShareBatchFolder200,
   SheetDataResponse,
   SheetListResponse,
   SlideTemplateListResponse,
@@ -812,12 +816,12 @@ export const useCreateBatch = <
 /**
  * @summary Get a batch with its certificates
  */
-export const getGetBatchUrl = (batchId: number) => {
+export const getGetBatchUrl = (batchId: string) => {
   return `/api/batches/${batchId}`;
 };
 
 export const getBatch = async (
-  batchId: number,
+  batchId: string,
   options?: RequestInit,
 ): Promise<BatchDetail> => {
   return customFetch<BatchDetail>(getGetBatchUrl(batchId), {
@@ -826,7 +830,7 @@ export const getBatch = async (
   });
 };
 
-export const getGetBatchQueryKey = (batchId: number) => {
+export const getGetBatchQueryKey = (batchId: string) => {
   return [`/api/batches/${batchId}`] as const;
 };
 
@@ -834,7 +838,7 @@ export const getGetBatchQueryOptions = <
   TData = Awaited<ReturnType<typeof getBatch>>,
   TError = ErrorType<unknown>,
 >(
-  batchId: number,
+  batchId: string,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getBatch>>,
@@ -875,7 +879,7 @@ export function useGetBatch<
   TData = Awaited<ReturnType<typeof getBatch>>,
   TError = ErrorType<unknown>,
 >(
-  batchId: number,
+  batchId: string,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof getBatch>>,
@@ -897,12 +901,12 @@ export function useGetBatch<
 /**
  * @summary Generate certificates for a batch
  */
-export const getGenerateBatchUrl = (batchId: number) => {
+export const getGenerateBatchUrl = (batchId: string) => {
   return `/api/batches/${batchId}/generate`;
 };
 
 export const generateBatch = async (
-  batchId: number,
+  batchId: string,
   options?: RequestInit,
 ): Promise<BatchOperationResponse> => {
   return customFetch<BatchOperationResponse>(getGenerateBatchUrl(batchId), {
@@ -918,14 +922,14 @@ export const getGenerateBatchMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof generateBatch>>,
     TError,
-    { batchId: number },
+    { batchId: string },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof generateBatch>>,
   TError,
-  { batchId: number },
+  { batchId: string },
   TContext
 > => {
   const mutationKey = ["generateBatch"];
@@ -939,7 +943,7 @@ export const getGenerateBatchMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof generateBatch>>,
-    { batchId: number }
+    { batchId: string }
   > = (props) => {
     const { batchId } = props ?? {};
 
@@ -965,14 +969,14 @@ export const useGenerateBatch = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof generateBatch>>,
     TError,
-    { batchId: number },
+    { batchId: string },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof generateBatch>>,
   TError,
-  { batchId: number },
+  { batchId: string },
   TContext
 > => {
   return useMutation(getGenerateBatchMutationOptions(options));
@@ -981,12 +985,12 @@ export const useGenerateBatch = <
 /**
  * @summary Send generated certificates via email
  */
-export const getSendBatchUrl = (batchId: number) => {
+export const getSendBatchUrl = (batchId: string) => {
   return `/api/batches/${batchId}/send`;
 };
 
 export const sendBatch = async (
-  batchId: number,
+  batchId: string,
   sendBatchRequest: SendBatchRequest,
   options?: RequestInit,
 ): Promise<BatchOperationResponse> => {
@@ -1005,14 +1009,14 @@ export const getSendBatchMutationOptions = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof sendBatch>>,
     TError,
-    { batchId: number; data: BodyType<SendBatchRequest> },
+    { batchId: string; data: BodyType<SendBatchRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationOptions<
   Awaited<ReturnType<typeof sendBatch>>,
   TError,
-  { batchId: number; data: BodyType<SendBatchRequest> },
+  { batchId: string; data: BodyType<SendBatchRequest> },
   TContext
 > => {
   const mutationKey = ["sendBatch"];
@@ -1026,7 +1030,7 @@ export const getSendBatchMutationOptions = <
 
   const mutationFn: MutationFunction<
     Awaited<ReturnType<typeof sendBatch>>,
-    { batchId: number; data: BodyType<SendBatchRequest> }
+    { batchId: string; data: BodyType<SendBatchRequest> }
   > = (props) => {
     const { batchId, data } = props ?? {};
 
@@ -1052,17 +1056,539 @@ export const useSendBatch = <
   mutation?: UseMutationOptions<
     Awaited<ReturnType<typeof sendBatch>>,
     TError,
-    { batchId: number; data: BodyType<SendBatchRequest> },
+    { batchId: string; data: BodyType<SendBatchRequest> },
     TContext
   >;
   request?: SecondParameter<typeof customFetch>;
 }): UseMutationResult<
   Awaited<ReturnType<typeof sendBatch>>,
   TError,
-  { batchId: number; data: BodyType<SendBatchRequest> },
+  { batchId: string; data: BodyType<SendBatchRequest> },
   TContext
 > => {
   return useMutation(getSendBatchMutationOptions(options));
+};
+
+/**
+ * @summary Sync batch data from Google Sheet
+ */
+export const getSyncBatchUrl = (batchId: string) => {
+  return `/api/batches/${batchId}/sync`;
+};
+
+export const syncBatch = async (
+  batchId: string,
+  options?: RequestInit,
+): Promise<BatchOperationResponse> => {
+  return customFetch<BatchOperationResponse>(getSyncBatchUrl(batchId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getSyncBatchMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof syncBatch>>,
+    TError,
+    { batchId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof syncBatch>>,
+  TError,
+  { batchId: string },
+  TContext
+> => {
+  const mutationKey = ["syncBatch"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof syncBatch>>,
+    { batchId: string }
+  > = (props) => {
+    const { batchId } = props ?? {};
+
+    return syncBatch(batchId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SyncBatchMutationResult = NonNullable<
+  Awaited<ReturnType<typeof syncBatch>>
+>;
+
+export type SyncBatchMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Sync batch data from Google Sheet
+ */
+export const useSyncBatch = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof syncBatch>>,
+    TError,
+    { batchId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof syncBatch>>,
+  TError,
+  { batchId: string },
+  TContext
+> => {
+  return useMutation(getSyncBatchMutationOptions(options));
+};
+
+/**
+ * @summary Share the PDF folder for a batch
+ */
+export const getShareBatchFolderUrl = (batchId: string) => {
+  return `/api/batches/${batchId}/share-folder`;
+};
+
+export const shareBatchFolder = async (
+  batchId: string,
+  options?: RequestInit,
+): Promise<ShareBatchFolder200> => {
+  return customFetch<ShareBatchFolder200>(getShareBatchFolderUrl(batchId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getShareBatchFolderMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof shareBatchFolder>>,
+    TError,
+    { batchId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof shareBatchFolder>>,
+  TError,
+  { batchId: string },
+  TContext
+> => {
+  const mutationKey = ["shareBatchFolder"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof shareBatchFolder>>,
+    { batchId: string }
+  > = (props) => {
+    const { batchId } = props ?? {};
+
+    return shareBatchFolder(batchId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ShareBatchFolderMutationResult = NonNullable<
+  Awaited<ReturnType<typeof shareBatchFolder>>
+>;
+
+export type ShareBatchFolderMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Share the PDF folder for a batch
+ */
+export const useShareBatchFolder = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof shareBatchFolder>>,
+    TError,
+    { batchId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof shareBatchFolder>>,
+  TError,
+  { batchId: string },
+  TContext
+> => {
+  return useMutation(getShareBatchFolderMutationOptions(options));
+};
+
+/**
+ * @summary Send generated certificates via WhatsApp
+ */
+export const getSendBatchWhatsappUrl = (batchId: string) => {
+  return `/api/batches/${batchId}/send-whatsapp`;
+};
+
+export const sendBatchWhatsapp = async (
+  batchId: string,
+  sendBatchWhatsappBody: SendBatchWhatsappBody,
+  options?: RequestInit,
+): Promise<BatchOperationResponse> => {
+  return customFetch<BatchOperationResponse>(getSendBatchWhatsappUrl(batchId), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(sendBatchWhatsappBody),
+  });
+};
+
+export const getSendBatchWhatsappMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendBatchWhatsapp>>,
+    TError,
+    { batchId: string; data: BodyType<SendBatchWhatsappBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendBatchWhatsapp>>,
+  TError,
+  { batchId: string; data: BodyType<SendBatchWhatsappBody> },
+  TContext
+> => {
+  const mutationKey = ["sendBatchWhatsapp"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendBatchWhatsapp>>,
+    { batchId: string; data: BodyType<SendBatchWhatsappBody> }
+  > = (props) => {
+    const { batchId, data } = props ?? {};
+
+    return sendBatchWhatsapp(batchId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendBatchWhatsappMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendBatchWhatsapp>>
+>;
+export type SendBatchWhatsappMutationBody = BodyType<SendBatchWhatsappBody>;
+export type SendBatchWhatsappMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send generated certificates via WhatsApp
+ */
+export const useSendBatchWhatsapp = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendBatchWhatsapp>>,
+    TError,
+    { batchId: string; data: BodyType<SendBatchWhatsappBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendBatchWhatsapp>>,
+  TError,
+  { batchId: string; data: BodyType<SendBatchWhatsappBody> },
+  TContext
+> => {
+  return useMutation(getSendBatchWhatsappMutationOptions(options));
+};
+
+/**
+ * @summary Send a single certificate via email
+ */
+export const getSendCertEmailUrl = (batchId: string, certId: string) => {
+  return `/api/batches/${batchId}/certificates/${certId}/send`;
+};
+
+export const sendCertEmail = async (
+  batchId: string,
+  certId: string,
+  sendBatchRequest: SendBatchRequest,
+  options?: RequestInit,
+): Promise<BatchOperationResponse> => {
+  return customFetch<BatchOperationResponse>(
+    getSendCertEmailUrl(batchId, certId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(sendBatchRequest),
+    },
+  );
+};
+
+export const getSendCertEmailMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendCertEmail>>,
+    TError,
+    { batchId: string; certId: string; data: BodyType<SendBatchRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendCertEmail>>,
+  TError,
+  { batchId: string; certId: string; data: BodyType<SendBatchRequest> },
+  TContext
+> => {
+  const mutationKey = ["sendCertEmail"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendCertEmail>>,
+    { batchId: string; certId: string; data: BodyType<SendBatchRequest> }
+  > = (props) => {
+    const { batchId, certId, data } = props ?? {};
+
+    return sendCertEmail(batchId, certId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendCertEmailMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendCertEmail>>
+>;
+export type SendCertEmailMutationBody = BodyType<SendBatchRequest>;
+export type SendCertEmailMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send a single certificate via email
+ */
+export const useSendCertEmail = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendCertEmail>>,
+    TError,
+    { batchId: string; certId: string; data: BodyType<SendBatchRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendCertEmail>>,
+  TError,
+  { batchId: string; certId: string; data: BodyType<SendBatchRequest> },
+  TContext
+> => {
+  return useMutation(getSendCertEmailMutationOptions(options));
+};
+
+/**
+ * @summary Send a single certificate via WhatsApp
+ */
+export const getSendCertWhatsappUrl = (batchId: string, certId: string) => {
+  return `/api/batches/${batchId}/certificates/${certId}/send-whatsapp`;
+};
+
+export const sendCertWhatsapp = async (
+  batchId: string,
+  certId: string,
+  sendCertWhatsappBody: SendCertWhatsappBody,
+  options?: RequestInit,
+): Promise<BatchOperationResponse> => {
+  return customFetch<BatchOperationResponse>(
+    getSendCertWhatsappUrl(batchId, certId),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(sendCertWhatsappBody),
+    },
+  );
+};
+
+export const getSendCertWhatsappMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendCertWhatsapp>>,
+    TError,
+    { batchId: string; certId: string; data: BodyType<SendCertWhatsappBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof sendCertWhatsapp>>,
+  TError,
+  { batchId: string; certId: string; data: BodyType<SendCertWhatsappBody> },
+  TContext
+> => {
+  const mutationKey = ["sendCertWhatsapp"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof sendCertWhatsapp>>,
+    { batchId: string; certId: string; data: BodyType<SendCertWhatsappBody> }
+  > = (props) => {
+    const { batchId, certId, data } = props ?? {};
+
+    return sendCertWhatsapp(batchId, certId, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type SendCertWhatsappMutationResult = NonNullable<
+  Awaited<ReturnType<typeof sendCertWhatsapp>>
+>;
+export type SendCertWhatsappMutationBody = BodyType<SendCertWhatsappBody>;
+export type SendCertWhatsappMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send a single certificate via WhatsApp
+ */
+export const useSendCertWhatsapp = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof sendCertWhatsapp>>,
+    TError,
+    { batchId: string; certId: string; data: BodyType<SendCertWhatsappBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof sendCertWhatsapp>>,
+  TError,
+  { batchId: string; certId: string; data: BodyType<SendCertWhatsappBody> },
+  TContext
+> => {
+  return useMutation(getSendCertWhatsappMutationOptions(options));
+};
+
+/**
+ * @summary Open or create an editable Google Slide for a certificate
+ */
+export const getOpenCertSlideUrl = (batchId: string, certId: string) => {
+  return `/api/batches/${batchId}/certificates/${certId}/open-slide`;
+};
+
+export const openCertSlide = async (
+  batchId: string,
+  certId: string,
+  options?: RequestInit,
+): Promise<OpenCertSlide200> => {
+  return customFetch<OpenCertSlide200>(getOpenCertSlideUrl(batchId, certId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getOpenCertSlideMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openCertSlide>>,
+    TError,
+    { batchId: string; certId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof openCertSlide>>,
+  TError,
+  { batchId: string; certId: string },
+  TContext
+> => {
+  const mutationKey = ["openCertSlide"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof openCertSlide>>,
+    { batchId: string; certId: string }
+  > = (props) => {
+    const { batchId, certId } = props ?? {};
+
+    return openCertSlide(batchId, certId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type OpenCertSlideMutationResult = NonNullable<
+  Awaited<ReturnType<typeof openCertSlide>>
+>;
+
+export type OpenCertSlideMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Open or create an editable Google Slide for a certificate
+ */
+export const useOpenCertSlide = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof openCertSlide>>,
+    TError,
+    { batchId: string; certId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof openCertSlide>>,
+  TError,
+  { batchId: string; certId: string },
+  TContext
+> => {
+  return useMutation(getOpenCertSlideMutationOptions(options));
 };
 
 /**
@@ -1249,7 +1775,7 @@ export const useCreateOrder = <
 };
 
 /**
- * @summary Get the current wallet balance for the user
+ * @summary Get current wallet balance for the workspace
  */
 export const getGetWalletBalanceUrl = () => {
   return `/api/wallet`;
@@ -1300,7 +1826,7 @@ export type GetWalletBalanceQueryResult = NonNullable<
 export type GetWalletBalanceQueryError = ErrorType<unknown>;
 
 /**
- * @summary Get the current wallet balance for the user
+ * @summary Get current wallet balance for the workspace
  */
 
 export function useGetWalletBalance<
@@ -1324,7 +1850,7 @@ export function useGetWalletBalance<
 }
 
 /**
- * @summary Get the ledger history for the user's wallet
+ * @summary Get ledger history for the workspace
  */
 export const getGetWalletHistoryUrl = () => {
   return `/api/wallet/history`;
@@ -1375,7 +1901,7 @@ export type GetWalletHistoryQueryResult = NonNullable<
 export type GetWalletHistoryQueryError = ErrorType<unknown>;
 
 /**
- * @summary Get the ledger history for the user's wallet
+ * @summary Get ledger history for the workspace
  */
 
 export function useGetWalletHistory<

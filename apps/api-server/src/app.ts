@@ -79,8 +79,8 @@ app.use("/api/batches/:batchId/sync", requireAuth, heavyLimiter);
 app.get("/api/slides/thumbnail/:fileId", requireAuth, async (req, res) => {
   try {
     const drive = await getDriveClient(req.user!.uid);
-    const file = await drive.files.get({ fileId: req.params.fileId, fields: "thumbnailLink" });
-    const thumbnailLink = file.data.thumbnailLink;
+    const file = await drive.files.get({ fileId: req.params.fileId as string, fields: "thumbnailLink" });
+    const thumbnailLink = (file.data as any).thumbnailLink;
     if (!thumbnailLink) return res.status(404).send("No thumbnail available");
     const response = await fetch(thumbnailLink);
     if (!response.ok) throw new Error("Failed to fetch thumbnail from Google");
