@@ -37,22 +37,6 @@ export const useDeleteBatch = (options?: {
 };
 
 // Sync Batch
-export const syncBatch = async (batchId: string | number) => {
-  return customFetch<{ success: boolean; newCount: number }>(`/api/batches/${batchId}/sync`, {
-    method: "POST",
-  });
-};
-
-export const useSyncBatch = (options?: {
-  mutation?: UseMutationOptions<any, ErrorType<unknown>, { batchId: string | number }, unknown>;
-}) => {
-  const { mutation: mutationOptions } = options ?? {};
-  const mutationFn: MutationFunction<any, { batchId: string | number }> = (props) => {
-    return syncBatch(props.batchId);
-  };
-  return useMutation({ mutationFn, ...mutationOptions });
-};
-
 // Smart Generate Batch (with partial selection)
 export const generateSmartBatch = async (batchId: string | number, selectedCertIds?: string[]) => {
   return customFetch<any>(`/api/batches/${batchId}/generate`, {
