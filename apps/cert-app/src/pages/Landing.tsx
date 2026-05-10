@@ -368,25 +368,32 @@ function ProfileMockup() {
   );
 }
 
-// ── Feature card ─────────────────────────────────────────────────────────────
-function FeatureCard({ icon, title, desc, delay }: { icon: string; title: string; desc: string; delay: number }) {
-  const { ref, inView } = useInView();
+// ── Animated mockup: Workflow Builder ───────────────────────────────────────
+function WorkflowBuilderMockup() {
   return (
-    <div
-      ref={ref}
-      className="border border-black p-5 transition-all duration-500"
-      style={{
-        opacity: inView ? 1 : 0,
-        transform: inView ? "translateY(0)" : "translateY(20px)",
-        transitionDelay: `${delay}ms`,
-      }}
-    >
-      <div className="text-2xl mb-3">{icon}</div>
-      <div className="font-bold text-sm tracking-wider mb-1 font-mono">{title}</div>
-      <div className="text-xs text-gray-600 leading-relaxed font-mono">{desc}</div>
+    <div className="border border-gray-300 bg-white font-mono text-xs overflow-hidden shadow-lg">
+      {/* Toolbar */}
+      <div className="border-b border-gray-200 px-3 py-2 flex items-center gap-2 bg-white overflow-hidden">
+        <span className="text-[9px] tracking-widest font-bold shrink-0">WORKFLOW BUILDER</span>
+        <span className="w-px h-3 bg-gray-200 shrink-0" />
+        <span className="border border-gray-300 px-2 py-0.5 text-[8px] tracking-wider shrink-0 text-gray-600">+ SPREADSHEET</span>
+        <span className="border border-gray-300 px-2 py-0.5 text-[8px] tracking-wider shrink-0 text-gray-600">+ TEMPLATE</span>
+        <span className="ml-auto text-[8px] tracking-wider shrink-0 text-orange-600">⇄ CONDITIONAL ROUTING ACTIVE</span>
+        <span className="bg-black text-white px-3 py-1 text-[8px] tracking-wider shrink-0 ml-2">▶ GENERATE</span>
+      </div>
+
+      {/* Canvas — screenshot */}
+      <div className="bg-[#f5f5f5]">
+        <img
+          src="/images/workflow.png"
+          alt="Workflow builder showing conditional routing from spreadsheet columns to multiple certificate templates"
+          className="w-full h-auto block"
+        />
+      </div>
     </div>
   );
 }
+
 
 // ── Step card ────────────────────────────────────────────────────────────────
 function StepCard({ num, title, desc, delay }: { num: string; title: string; desc: string; delay: number }) {
@@ -438,13 +445,11 @@ export default function Landing() {
       {/* ── Nav ── */}
       <nav className="border-b border-black px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between sticky top-0 bg-white z-50">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 bg-black flex items-center justify-center shrink-0">
-            <span className="text-white text-[10px] font-bold">C</span>
-          </div>
+          <img src="/favicon-32x32.png" alt="Cephlow" className="w-6 h-6 shrink-0" />
           <span className="font-bold tracking-widest text-sm">CEPHLOW</span>
           <span className="hidden sm:inline text-[9px] text-gray-400 tracking-widest">AUTOMATION</span>
         </div>
-        <div className="flex items-center gap-2 sm:gap-4">
+        <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => navigate("/login")}
             className="text-[10px] sm:text-xs tracking-wider border border-black px-3 sm:px-4 py-1.5 sm:py-2 hover:bg-black hover:text-white transition-colors"
@@ -452,11 +457,17 @@ export default function Landing() {
             SIGN IN
           </button>
           <button
+            onClick={() => navigate("/login?mode=signup")}
+            className="text-[10px] sm:text-xs tracking-wider border border-black px-3 sm:px-4 py-1.5 sm:py-2 hover:bg-black hover:text-white transition-colors"
+          >
+            SIGN UP
+          </button>
+          <button
             onClick={() => document.getElementById("request-access")?.scrollIntoView({ behavior: "smooth" })}
             className="text-[10px] sm:text-xs tracking-wider bg-black text-white px-3 sm:px-4 py-1.5 sm:py-2 hover:bg-gray-800 transition-colors"
           >
-            <span className="sm:hidden">ACCESS</span>
-            <span className="hidden sm:inline">REQUEST ACCESS</span>
+            <span className="sm:hidden">ORG</span>
+            <span className="hidden sm:inline">REQUEST ORG ACCESS</span>
           </button>
         </div>
       </nav>
@@ -487,10 +498,10 @@ export default function Landing() {
             </p>
             <div className="flex flex-wrap gap-3">
               <button
-                onClick={() => document.getElementById("request-access")?.scrollIntoView({ behavior: "smooth" })}
+                onClick={() => navigate("/login?mode=signup")}
                 className="bg-black text-white text-xs tracking-wider px-6 py-3 hover:bg-gray-800 transition-colors"
               >
-                REQUEST ACCESS →
+                SIGN UP →
               </button>
               <button
                 onClick={() => document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" })}
@@ -628,13 +639,48 @@ export default function Landing() {
               ["💳", "Prepaid wallet", "Top up credits, pay per generation. Transparent pricing, no surprises."],
               ["📁", "PPTX upload", "Already have a PowerPoint template? Upload it — converted to Google Slides automatically."],
               ["📈", "Batch analytics", "Track generated, sent, failed counts per batch. WhatsApp delivery status in real-time."],
-            ].map(([icon, title, desc], i) => (
+            ].map(([icon, title, desc]) => (
               <div key={title as string} className="bg-black p-5 border border-gray-800 hover:border-white transition-colors group">
                 <div className="text-xl mb-3">{icon}</div>
                 <div className="font-bold text-sm tracking-wider mb-1 group-hover:text-white">{title as string}</div>
                 <div className="text-xs text-gray-400 leading-relaxed">{desc as string}</div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ── Advanced Workflow Builder ── */}
+      <section className="border-b border-black bg-white">
+        <div className="max-w-6xl mx-auto px-6 py-16 grid md:grid-cols-2 gap-16 items-center">
+          <div>
+            <div className="text-[10px] tracking-widest text-gray-500 mb-2">ADVANCED — APPROVED ORGANISATIONS</div>
+            <h2 className="text-2xl font-bold mb-4">
+              One batch,<br />multiple templates.
+            </h2>
+            <p className="text-sm text-gray-600 leading-relaxed mb-8">
+              Use the visual workflow builder to route each recipient to a different certificate design — all in a single generation run. No scripting, no manual splits.
+            </p>
+            <ul className="space-y-4">
+              {[
+                ["⇄", "Conditional routing", "Pick any column (e.g. Prize, Role, Track) as the routing key. Each unique value maps to its own template."],
+                ["🎨", "Per-route templates", "Assign a Google Slides or built-in template to each routing value. First place gets one design, second gets another."],
+                ["📊", "One spreadsheet", "No need to split your data. Every row is automatically dispatched to the right template at generation time."],
+                ["▶", "Single generate run", "Hit Generate once. Cephlow handles the branching, generates all variants, and delivers each recipient their correct certificate."],
+              ].map(([icon, title, desc]) => (
+                <li key={title as string} className="flex gap-3 text-xs items-start">
+                  <span className="text-base shrink-0 mt-0.5">{icon as string}</span>
+                  <div>
+                    <div className="font-bold tracking-wider mb-0.5">{title as string}</div>
+                    <div className="text-gray-500 leading-relaxed">{desc as string}</div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div className="relative">
+            <div className="absolute -top-3 -left-3 w-full h-full border border-gray-200" />
+            <WorkflowBuilderMockup />
           </div>
         </div>
       </section>
@@ -689,33 +735,99 @@ export default function Landing() {
 
       {/* ── Pricing ── */}
       <section className="border-b border-black bg-gray-50">
-        <div className="max-w-3xl mx-auto px-6 py-16 text-center">
-          <div className="text-[10px] tracking-widest text-gray-500 mb-2">PRICING</div>
-          <h2 className="text-2xl font-bold mb-3">Simple, transparent pricing</h2>
-          <p className="text-sm text-gray-600 mb-10">Pay only for what you generate. No monthly fees, no surprises.</p>
-          <div className="grid sm:grid-cols-2 gap-6 text-left">
-            <div className="border-2 border-black p-6 bg-white">
-              <div className="text-[10px] tracking-widest text-gray-500 mb-1">GENERATION</div>
-              <div className="text-3xl font-bold mb-1">₹1<span className="text-sm font-normal text-gray-500">/cert</span></div>
-              <div className="text-xs text-gray-500 mb-4">Includes PDF generation, R2 storage, verification link</div>
-              <ul className="space-y-2 text-xs">
-                {["Google Slides → PDF", "Cloudflare R2 storage", "Unique verification URL", "Student profile update", "QR code on certificate"].map(f => (
-                  <li key={f} className="flex items-center gap-2"><span>✓</span>{f}</li>
+        <div className="max-w-4xl mx-auto px-6 py-16">
+          <div className="text-center mb-10">
+            <div className="text-[10px] tracking-widest text-gray-500 mb-2">PRICING</div>
+            <h2 className="text-2xl font-bold mb-3">Simple, transparent pricing</h2>
+            <p className="text-sm text-gray-600">No subscriptions. Pay only for what you use — or start free.</p>
+          </div>
+
+          {/* Tier comparison */}
+          <div className="grid sm:grid-cols-2 gap-0 border-2 border-black bg-white mb-8">
+            {/* Free tier */}
+            <div className="p-8 border-r border-black flex flex-col">
+              <div className="text-[10px] tracking-widest text-gray-500 mb-1">FREE TIER</div>
+              <div className="text-3xl font-bold mb-1">₹0<span className="text-sm font-normal text-gray-500"> forever</span></div>
+              <div className="text-xs text-gray-500 mb-6">Sign up and explore — no credit card required.</div>
+              <ul className="space-y-3 text-xs flex-1">
+                {[
+                  ["✓", "Create workspaces & batches"],
+                  ["✓", "Built-in template editor"],
+                  ["✓", "Export certificates to Google Drive"],
+                  ["✓", "Manage recipients from Google Sheets"],
+                  ["✓", "Unlimited certificate generation"],
+                  ["✗", "Wallet & prepaid credits"],
+                  ["✗", "WhatsApp delivery"],
+                  ["✗", "QR code verification"],
+                  ["✗", "Google Slides templates"],
+                  ["✗", "Cloudflare R2 storage"],
+                  ["✗", "Student public profile pages"],
+                  ["✗", "Workspace member management"],
+                  ["✗", "Brand kit"],
+                ].map(([icon, label]) => (
+                  <li key={label} className={`flex items-center gap-2 ${icon === "✗" ? "text-gray-400" : "text-black"}`}>
+                    <span className={icon === "✗" ? "text-gray-300" : "text-black"}>{icon}</span>
+                    {label}
+                  </li>
                 ))}
               </ul>
+              <a
+                href="/login"
+                className="block text-center border border-black text-xs tracking-wider px-4 py-3 hover:bg-black hover:text-white transition-colors font-bold mt-8"
+              >
+                GET STARTED FREE →
+              </a>
             </div>
-            <div className="border border-black p-6 bg-white">
-              <div className="text-[10px] tracking-widest text-gray-500 mb-1">DELIVERY</div>
-              <div className="text-3xl font-bold mb-1">₹0.50<span className="text-sm font-normal text-gray-500">/send</span></div>
-              <div className="text-xs text-gray-500 mb-4">WhatsApp or Email delivery per recipient</div>
-              <ul className="space-y-2 text-xs">
-                {["WhatsApp Business delivery", "Gmail email delivery", "Personalised message", "Delivery status tracking", "Retry on failure"].map(f => (
-                  <li key={f} className="flex items-center gap-2"><span>✓</span>{f}</li>
+
+            {/* Approved / Paid tier */}
+            <div className="p-8 bg-black text-white flex flex-col">
+              <div className="text-[10px] tracking-widest text-gray-400 mb-1">APPROVED ORGANISATION</div>
+              <div className="text-3xl font-bold mb-1">
+                ₹0.50<span className="text-sm font-normal text-gray-400">/certificate</span>
+              </div>
+              <div className="text-xs text-gray-400 mb-6">Prepaid wallet. Credits never expire.</div>
+              <ul className="space-y-3 text-xs flex-1">
+                {[
+                  { label: "Built-in template editor" },
+                  { label: "Google Slides → PDF generation" },
+                  { label: "Store in Google Drive" },
+                  { label: "Cloudflare R2 storage (fast CDN delivery)" },
+                  { label: "Unique verification URL per certificate" },
+                  { label: "QR code embedded on certificate" },
+                  { label: "Student public profile pages" },
+                  { label: "WhatsApp Business delivery" },
+                  { label: "Gmail email delivery" },
+                  { label: "Personalised delivery messages" },
+                  { label: "Delivery status tracking" },
+                  { label: "Workspace member management" },
+                  { label: "Brand kit (logo, colours)", beta: true },
+                  { label: "Unlimited regeneration" },
+                  { label: "Top up via UPI, cards, net banking" },
+                ].map(({ label, beta }) => (
+                  <li key={label} className="flex items-center gap-2">
+                    <span className="text-white">✓</span>
+                    {label}
+                    {beta && <span className="text-[8px] border border-gray-500 text-gray-400 px-1 py-0.5 tracking-wider ml-1">BETA</span>}
+                  </li>
                 ))}
               </ul>
+              <a
+                href="https://wa.me/919188501611?text=Hi%2C%20I%27d%20like%20to%20request%20access%20to%20Cephlow%20for%20my%20organisation."
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block text-center bg-white text-black text-xs tracking-wider px-4 py-3 hover:bg-gray-100 transition-colors font-bold mt-8"
+              >
+                REQUEST ACCESS →
+              </a>
             </div>
           </div>
-          <p className="text-xs text-gray-400 mt-6">Credits never expire. Top up anytime via UPI, cards, or net banking.</p>
+
+          {/* Pricing breakdown note */}
+          <div className="border border-black bg-white p-6 text-xs">
+            <div className="text-[10px] tracking-widest text-gray-500 mb-2">WHAT'S INCLUDED — ₹0.50/certificate</div>
+            <p className="text-gray-600 leading-relaxed">Each certificate charge covers PDF generation, Cloudflare R2 storage, a unique public verification URL, QR code, student profile update, and delivery via WhatsApp Business or Gmail — everything in one flat rate.</p>
+          </div>
+          <p className="text-[10px] text-gray-400 mt-4 text-center tracking-wider">APPROVALS REVIEWED WITHIN 1 BUSINESS DAY · CREDITS NEVER EXPIRE</p>
         </div>
       </section>
 
@@ -753,9 +865,7 @@ export default function Landing() {
       {/* ── Footer ── */}
       <footer className="px-6 py-8 border-t border-black flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2">
-          <div className="w-5 h-5 bg-black flex items-center justify-center">
-            <span className="text-white text-[9px] font-bold">C</span>
-          </div>
+          <img src="/favicon-32x32.png" alt="Cephlow" className="w-5 h-5" />
           <span className="font-bold tracking-widest text-xs">CEPHLOW</span>
         </div>
         <div className="text-[10px] text-gray-400 tracking-wider">

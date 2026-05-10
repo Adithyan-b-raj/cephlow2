@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 
 const SECTIONS = [
@@ -64,7 +64,7 @@ export default function PrivacyPolicy() {
       <section className="bg-black text-white px-6 lg:px-10 py-20 lg:py-28">
         <div className="max-w-7xl mx-auto">
           <div className="text-[10px] tracking-widest text-gray-500 mb-4">LEGAL DOCUMENT</div>
-          <h1 className="text-4xl lg:text-6xl font-bold mb-6 leading-tight">Privacy Policy</h1>
+          <h1 className="text-4xl lg:text-6xl font-bold mb-6 leading-tight text-white">Privacy Policy</h1>
           <div className="flex flex-wrap gap-6 text-sm text-gray-400">
             <span>Last updated: <span className="text-white font-bold">06 May 2026</span></span>
             <span>·</span>

@@ -8,7 +8,9 @@ import { Award } from "lucide-react";
 export default function Login() {
     const { login, signup } = useAuth();
     const [, setLocation] = useLocation();
-    const [mode, setMode] = useState<"signin" | "signup">("signin");
+    const [mode, setMode] = useState<"signin" | "signup">(() =>
+        new URLSearchParams(window.location.search).get("mode") === "signup" ? "signup" : "signin"
+    );
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -45,7 +47,7 @@ export default function Login() {
                     <div className="w-12 h-12 border-2 border-background/30 flex items-center justify-center mx-auto mb-4">
                         <Award className="w-6 h-6" />
                     </div>
-                    <h1 className="text-lg font-black uppercase tracking-widest">Cephlow</h1>
+                    <h1 className="text-lg font-black uppercase tracking-widest text-background">Cephlow</h1>
                     <p className="text-[10px] uppercase tracking-widest text-background/50 mt-1">Certificate Automation</p>
                 </div>
 
