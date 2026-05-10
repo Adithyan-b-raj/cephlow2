@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+import workflowImg from "../../public/images/workflow.png";
 
 function useInView(threshold = 0.15) {
   const ref = useRef<HTMLDivElement>(null);
@@ -385,7 +386,7 @@ function WorkflowBuilderMockup() {
       {/* Canvas — screenshot */}
       <div className="bg-[#f5f5f5]">
         <img
-          src="/images/workflow.png"
+          src={workflowImg}
           alt="Workflow builder showing conditional routing from spreadsheet columns to multiple certificate templates"
           className="w-full h-auto block"
         />
