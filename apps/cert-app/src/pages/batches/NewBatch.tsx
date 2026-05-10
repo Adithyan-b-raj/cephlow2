@@ -192,7 +192,7 @@ export default function NewBatchWizard() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-8">
+    <div className="max-w-4xl mx-auto py-4 sm:py-8 px-4 sm:px-6">
       {/* Stepper Header */}
       <div className="mb-10">
         <h1 className="text-3xl font-display font-bold mb-6">Create New Batch</h1>
@@ -523,8 +523,22 @@ export default function NewBatchWizard() {
 
                 {(sheetDataLoading || placeholdersLoading) ? (
                   <div className="flex items-center gap-3 text-muted-foreground p-8"><Loader2 className="animate-spin" /> Loading mapping data...</div>
+                ) : (sheetData?.headers.length ?? 0) > 25 ? (
+                  <div className="flex flex-col items-center gap-4 py-10 text-center border-2 border-dashed border-border rounded-2xl px-6">
+                    <FileSpreadsheet className="w-10 h-10 text-muted-foreground/50" />
+                    <div>
+                      <p className="font-semibold text-base mb-1">Too many columns to map here</p>
+                      <p className="text-sm text-muted-foreground">
+                        This sheet has <strong>{sheetData?.headers.length}</strong> columns — more than the wizard can handle.
+                        Use the <strong>Advanced Workflow Builder</strong> to connect columns visually.
+                      </p>
+                    </div>
+                    <Button onClick={() => setLocation("/advanced")} className="mt-2">
+                      Open Advanced Workflow Builder
+                    </Button>
+                  </div>
                 ) : (
-                  <div className="grid md:grid-cols-2 gap-8">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                     <div className="space-y-6">
                       <div className="bg-secondary/50 p-5 rounded-2xl border border-border/50 space-y-4">
                         <h3 className="font-semibold text-lg flex items-center gap-2">
@@ -560,11 +574,11 @@ export default function NewBatchWizard() {
                           <div className="text-muted-foreground text-sm p-4 bg-secondary/50 rounded-lg">No placeholders found in template (like `&lt;&lt;Name&gt;&gt;`)</div>
                         ) : (
                           placeholdersRes?.placeholders?.map(ph => (
-                            <div key={ph} className="flex items-center gap-4 bg-background p-3 rounded-xl border border-border shadow-sm">
-                              <div className="w-1/3 text-sm font-mono bg-secondary px-2 py-1 rounded text-center truncate">{ph}</div>
+                            <div key={ph} className="flex flex-wrap items-center gap-2 sm:gap-4 bg-background p-3 rounded-xl border border-border shadow-sm">
+                              <div className="min-w-0 max-w-[40%] text-sm font-mono bg-secondary px-2 py-1 rounded text-center truncate">{ph}</div>
                               <Link2 className="w-4 h-4 text-muted-foreground shrink-0" />
                               <Select value={columnMap[ph] || ""} onValueChange={(val) => setColumnMap(prev => ({ ...prev, [ph]: val }))}>
-                                <SelectTrigger className="flex-1 border-0 shadow-none bg-secondary/30"><SelectValue placeholder="Map to column..." /></SelectTrigger>
+                                <SelectTrigger className="flex-1 min-w-[120px] border-0 shadow-none bg-secondary/30"><SelectValue placeholder="Map to column..." /></SelectTrigger>
                                 <SelectContent>
                                   {sheetData?.headers.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
                                 </SelectContent>
