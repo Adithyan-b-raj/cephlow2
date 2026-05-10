@@ -192,10 +192,10 @@ export default function NewBatchWizard() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto py-4 sm:py-8 px-4 sm:px-6">
+    <div className="max-w-4xl mx-auto px-3 sm:px-6 py-2 sm:py-8 pb-3 sm:pb-8 flex flex-col h-[calc(100dvh-4rem)] sm:h-auto">
       {/* Stepper Header */}
-      <div className="mb-10">
-        <h1 className="text-3xl font-display font-bold mb-6">Create New Batch</h1>
+      <div className="mb-3 sm:mb-10 shrink-0">
+        <h1 className="text-2xl sm:text-3xl font-display font-bold mb-2 sm:mb-6">Create New Batch</h1>
         <div className="flex items-center justify-between relative">
           <div className="absolute left-0 top-1/2 -translate-y-1/2 w-full h-1 bg-secondary rounded-full -z-10" />
           <div
@@ -203,12 +203,12 @@ export default function NewBatchWizard() {
             style={{ width: `${(step / (STEPS.length - 1)) * 100}%` }}
           />
           {STEPS.map((label, idx) => (
-            <div key={idx} className="flex flex-col items-center gap-2">
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold transition-colors duration-300 ${step > idx ? "bg-primary text-primary-foreground" :
+            <div key={idx} className="flex flex-col items-center gap-1 sm:gap-2">
+              <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs sm:text-sm font-semibold transition-colors duration-300 ${step > idx ? "bg-primary text-primary-foreground" :
                   step === idx ? "bg-primary ring-4 ring-primary/20 text-primary-foreground" :
                     "bg-secondary text-muted-foreground"
                 }`}>
-                {step > idx ? <CheckCircle2 className="w-5 h-5" /> : idx + 1}
+                {step > idx ? <CheckCircle2 className="w-4 h-4 sm:w-5 sm:h-5" /> : idx + 1}
               </div>
               <span className={`text-xs font-medium hidden md:block ${step >= idx ? "text-foreground" : "text-muted-foreground"}`}>
                 {label}
@@ -219,7 +219,8 @@ export default function NewBatchWizard() {
       </div>
 
       {/* Main Content Area */}
-      <Card className="border-border/50 shadow-lg shadow-black/5 overflow-hidden relative min-h-[400px]">
+      <Card className="border-border/50 shadow-lg shadow-black/5 overflow-hidden relative flex flex-col flex-1 min-h-0">
+        <div className="flex-1 overflow-y-auto min-h-0">
         <AnimatePresence mode="wait">
           <motion.div
             key={step}
@@ -227,14 +228,14 @@ export default function NewBatchWizard() {
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }}
             transition={{ duration: 0.2 }}
-            className="p-6 md:p-8"
+            className="p-4 sm:p-6 md:p-8"
           >
             {/* STEP 0: Name */}
             {step === 0 && (
-              <div className="space-y-6 max-w-xl">
+              <div className="space-y-4 sm:space-y-6 max-w-xl">
                 <div>
-                  <h2 className="text-2xl font-display font-semibold mb-2">Name this batch</h2>
-                  <p className="text-muted-foreground">Give your automation a recognizable name to find it later.</p>
+                  <h2 className="text-xl sm:text-2xl font-display font-semibold mb-1 sm:mb-2">Name this batch</h2>
+                  <p className="text-sm sm:text-base text-muted-foreground">Give your automation a recognizable name to find it later.</p>
                 </div>
                 <div className="space-y-3">
                   <Label htmlFor="name">Batch Name</Label>
@@ -251,10 +252,10 @@ export default function NewBatchWizard() {
 
             {/* STEP 1: Sheets */}
             {step === 1 && (
-              <div className="space-y-6">
+              <div className="space-y-3 sm:space-y-6">
                 <div>
-                  <h2 className="text-2xl font-display font-semibold mb-2">Select Google Sheet</h2>
-                  <p className="text-muted-foreground">Choose the spreadsheet containing your recipient data.</p>
+                  <h2 className="text-xl sm:text-2xl font-display font-semibold mb-1 sm:mb-2">Select Google Sheet</h2>
+                  <p className="text-sm sm:text-base text-muted-foreground">Choose the spreadsheet containing your recipient data.</p>
                 </div>
                 {!hasGoogleAuth ? (
                   <div className="flex flex-col items-center justify-center gap-4 py-12 border-2 border-dashed border-border rounded-xl text-center">
@@ -270,12 +271,12 @@ export default function NewBatchWizard() {
                 ) : sheetsLoading ? (
                   <div className="flex items-center gap-3 text-muted-foreground p-8"><Loader2 className="animate-spin" /> Loading sheets...</div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-h-[400px] overflow-y-auto p-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 p-1">
                     {sheetsRes?.sheets.map(sheet => (
                       <div
                         key={sheet.id}
                         onClick={() => { setSheetId(sheet.id); setSheetName(sheet.name); }}
-                        className={`p-4 rounded-xl border-2 cursor-pointer transition-all hover-elevate ${sheetId === sheet.id ? "border-primary bg-primary/5 ring-4 ring-primary/10" : "border-border/50 bg-card hover:border-primary/30"
+                        className={`p-3 sm:p-4 rounded-xl border-2 cursor-pointer transition-all hover-elevate ${sheetId === sheet.id ? "border-primary bg-primary/5 ring-4 ring-primary/10" : "border-border/50 bg-card hover:border-primary/30"
                           }`}
                       >
                         <div className="flex items-center gap-3">
@@ -296,10 +297,10 @@ export default function NewBatchWizard() {
 
             {/* STEP 2: Templates */}
             {step === 2 && (
-              <div className="space-y-6">
+              <div className="space-y-3 sm:space-y-6">
                 <div>
-                  <h2 className="text-2xl font-display font-semibold mb-2">Template Setup</h2>
-                  <p className="text-muted-foreground">Choose one template for all recipients, or use multiple slides from a single presentation.</p>
+                  <h2 className="text-xl sm:text-2xl font-display font-semibold mb-1 sm:mb-2">Template Setup</h2>
+                  <p className="text-sm sm:text-base text-muted-foreground">Choose one template for all recipients, or use multiple slides from a single presentation.</p>
                 </div>
 
                 {/* Source kind toggle */}
@@ -351,7 +352,7 @@ export default function NewBatchWizard() {
                   ) : (
                     <div>
                       <Label className="text-sm mb-2 block">Select a builtin template</Label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[300px] overflow-y-auto p-1">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 p-1">
                         {builtinTemplatesRes?.templates.map((tpl) => (
                           <div
                             key={tpl.id}
@@ -359,7 +360,7 @@ export default function NewBatchWizard() {
                             className={`group p-4 rounded-xl border-2 cursor-pointer transition-all hover-elevate flex flex-col gap-4 ${templateId === tpl.id ? "border-primary bg-primary/5 ring-4 ring-primary/10" : "border-border/50 bg-card hover:border-primary/30"}`}
                           >
                             {tpl.thumbnailUrl ? (
-                              <img src={tpl.thumbnailUrl} alt={tpl.name} className="w-full aspect-[4/3] object-contain bg-secondary rounded-lg border border-border/50" />
+                              <img src={tpl.thumbnailUrl} alt={tpl.name} className="w-full aspect-[3/2] sm:aspect-[4/3] object-contain bg-secondary rounded-lg border border-border/50" />
                             ) : (
                               <div className="w-full aspect-[4/3] bg-secondary rounded-lg flex items-center justify-center">
                                 <PenTool className="w-10 h-10 text-muted-foreground/50" />
@@ -378,7 +379,7 @@ export default function NewBatchWizard() {
                     {/* Template picker — shared for both modes */}
                     <div>
                       <Label className="text-sm mb-2 block">{multiTemplateMode ? "Select the presentation containing all slide designs" : "Select a template"}</Label>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[300px] overflow-y-auto p-1">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 p-1">
                         {templatesRes?.templates.map(tpl => (
                           <div
                             key={tpl.id}
@@ -569,7 +570,7 @@ export default function NewBatchWizard() {
 
                     <div className="space-y-4">
                       <h3 className="font-semibold text-lg">Template Placeholders</h3>
-                      <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                      <div className="space-y-3 pr-2">
                         {placeholdersRes?.placeholders?.length === 0 ? (
                           <div className="text-muted-foreground text-sm p-4 bg-secondary/50 rounded-lg">No placeholders found in template (like `&lt;&lt;Name&gt;&gt;`)</div>
                         ) : (
@@ -695,7 +696,7 @@ export default function NewBatchWizard() {
                         Drag and drop these into your email body or subject line to personalize your message.
                       </p>
 
-                      <div className="flex flex-wrap gap-2 overflow-y-auto max-h-[350px] pr-1">
+                      <div className="flex flex-wrap gap-2 pr-1">
                         <div
                           draggable
                           onDragStart={(e) => {
@@ -787,8 +788,9 @@ export default function NewBatchWizard() {
             )}
           </motion.div>
         </AnimatePresence>
+        </div>
 
-        <div className="px-6 md:px-8 py-4 bg-secondary/20 border-t flex justify-between items-center mt-auto">
+        <div className="px-6 md:px-8 py-4 bg-secondary/20 border-t flex justify-between items-center">
           <Button variant="outline" onClick={handlePrev} disabled={step === 0 || creating} className="hover-elevate">
             Back
           </Button>
