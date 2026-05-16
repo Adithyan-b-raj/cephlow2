@@ -39,6 +39,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/hooks/use-auth";
 import { useWorkspace } from "@/hooks/use-workspace";
@@ -99,6 +109,7 @@ export function AppSidebar() {
   const { isApproved } = useApproval();
   const [dark, setDark] = useDarkMode();
   const [lockedModal, setLockedModal] = useState<string | null>(null);
+  const [logoutOpen, setLogoutOpen] = useState(false);
 
   const displayName = (user?.user_metadata?.full_name as string | undefined) ?? user?.email ?? "";
   const initials = displayName
@@ -255,12 +266,26 @@ export function AppSidebar() {
                 {dark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
               </button>
               <button
-                onClick={logout}
+                onClick={() => setLogoutOpen(true)}
                 className="p-1.5 text-muted-foreground hover:text-foreground border border-border hover:border-foreground transition-colors"
                 title="Sign out"
               >
                 <LogOut className="w-3.5 h-3.5" />
               </button>
+              <AlertDialog open={logoutOpen} onOpenChange={setLogoutOpen}>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Sign out?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      You'll need to sign back in to access your workspace.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={logout}>Sign out</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             </div>
           </SidebarFooter>
         )}

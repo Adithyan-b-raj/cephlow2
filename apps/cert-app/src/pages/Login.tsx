@@ -16,6 +16,7 @@ export default function Login() {
     const [confirmPassword, setConfirmPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
+    const [termsAccepted, setTermsAccepted] = useState(false);
 
     const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -23,15 +24,16 @@ export default function Login() {
         setLoading(true);
         setError("");
         try {
+            const normalizedEmail = email.trim().toLowerCase();
             if (mode === "signin") {
-                await login(email.trim(), password);
+                await login(normalizedEmail, password);
             } else {
                 if (password !== confirmPassword) {
                     setError("Passwords do not match.");
                     setLoading(false);
                     return;
                 }
-                await signup(email.trim(), password);
+                await signup(normalizedEmail, password);
             }
         } catch (err: any) {
             setError(err.message ?? "Something went wrong. Try again.");
@@ -82,10 +84,26 @@ export default function Login() {
                                 className="border-2 border-foreground rounded-none h-11"
                             />
                         )}
+                        {mode === "signup" && (
+                            <label className="flex items-start gap-2 cursor-pointer group">
+                                <input
+                                    type="checkbox"
+                                    checked={termsAccepted}
+                                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                                    className="mt-0.5 w-4 h-4 shrink-0 appearance-none border-2 border-foreground bg-background checked:bg-foreground cursor-pointer"
+                                />
+                                <span className="text-[11px] text-muted-foreground leading-tight">
+                                    I agree to the{" "}
+                                    <a href="/terms" target="_blank" className="underline text-foreground">Terms of Service</a>
+                                    {" "}and{" "}
+                                    <a href="/privacy" target="_blank" className="underline text-foreground">Privacy Policy</a>
+                                </span>
+                            </label>
+                        )}
                         {error && <p className="text-xs text-destructive">{error}</p>}
                         <Button
                             type="submit"
-                            disabled={loading}
+                            disabled={loading || (mode === "signup" && !termsAccepted)}
                             size="lg"
                             className="w-full h-11 font-bold uppercase tracking-widest text-xs border-2"
                         >
