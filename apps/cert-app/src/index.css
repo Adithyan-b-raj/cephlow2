@@ -319,7 +319,7 @@
 }
 @media (max-width: 639px) {
   .react-flow__controls {
-    bottom: 48px !important;
+    bottom: calc(72px + env(safe-area-inset-bottom, 0px)) !important;
   }
 }
 .dark .react-flow__controls-button svg {
