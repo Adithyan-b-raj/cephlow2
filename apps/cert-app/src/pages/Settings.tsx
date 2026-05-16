@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Settings as SettingsIcon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -13,9 +13,23 @@ import {
 } from "@/hooks/use-mechanical-click";
 
 export default function Settings() {
-  const { hasGoogleAuth, connectGoogle, disconnectGoogle } = useAuth();
+  const { hasGoogleAuth, connectGoogle, disconnectGoogle, recheckGoogleAuth } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("google_auth");
+    if (!status) return;
+    window.history.replaceState({}, "", "/settings");
+    if (status === "success") {
+      recheckGoogleAuth();
+      toast({ title: "Google account connected successfully." });
+    } else {
+      const reason = params.get("reason") ?? "Unknown error";
+      toast({ title: "Failed to connect Google account", description: reason, variant: "destructive" });
+    }
+  }, []);
   const [soundEnabled, setSoundEnabled] = useState(getClickSoundEnabled);
   const [activeSound, setActiveSound] = useState<ClickSound>(getClickSound);
   const [volume, setVolume] = useState(getClickVolume);

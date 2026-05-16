@@ -101,6 +101,24 @@ function isInvalidGrant(err: any): boolean {
 }
 
 export async function disconnectGoogleToken(uid: string): Promise<void> {
+  const { data } = await supabaseAdmin
+    .from("user_google_tokens")
+    .select("refresh_token")
+    .eq("user_id", uid)
+    .maybeSingle();
+
+  if (data?.refresh_token) {
+    try {
+      const client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+      );
+      await client.revokeToken(data.refresh_token);
+    } catch {
+      // best-effort — still delete from DB even if revocation fails
+    }
+  }
+
   await supabaseAdmin.from("user_google_tokens").delete().eq("user_id", uid);
 }
 

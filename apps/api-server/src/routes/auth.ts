@@ -30,18 +30,18 @@ router.get("/auth/google/callback", async (req, res) => {
   const frontendUrl = (process.env.FRONTEND_URL || process.env.PUBLIC_BASE_URL || "http://localhost:5173").replace(/\/$/, "");
 
   if (error) {
-    return res.redirect(`${frontendUrl}?google_auth=error&reason=${encodeURIComponent(String(error))}`);
+    return res.redirect(`${frontendUrl}/settings?google_auth=error&reason=${encodeURIComponent(String(error))}`);
   }
 
   if (!code || !state) {
-    return res.redirect(`${frontendUrl}?google_auth=error&reason=missing_params`);
+    return res.redirect(`${frontendUrl}/settings?google_auth=error&reason=missing_params`);
   }
 
   try {
     await handleCallback(String(code), String(state));
-    res.redirect(`${frontendUrl}?google_auth=success`);
+    res.redirect(`${frontendUrl}/settings?google_auth=success`);
   } catch (err: any) {
-    res.redirect(`${frontendUrl}?google_auth=error&reason=${encodeURIComponent(err.message)}`);
+    res.redirect(`${frontendUrl}/settings?google_auth=error&reason=${encodeURIComponent(err.message)}`);
   }
 });
 
