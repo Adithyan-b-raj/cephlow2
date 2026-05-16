@@ -1031,7 +1031,7 @@ function AdvancedInner() {
   return (
     <div ref={containerRef} className={`flex flex-col bg-background ${isFullscreen ? "h-screen w-screen" : ""}`} style={isFullscreen ? undefined : { height: "calc(100vh - 56px)" }}>
       {/* Toolbar */}
-      <div className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 border-b border-border bg-background/95 backdrop-blur shrink-0">
+      <div className="flex items-center gap-1 sm:gap-2 px-2 sm:px-4 py-2 border-b border-border bg-background/95 backdrop-blur shrink-0 overflow-hidden">
         <span className="hidden sm:inline text-[10px] font-bold font-mono uppercase tracking-widest text-muted-foreground mr-1">
           Workflow Builder
         </span>
@@ -1061,8 +1061,8 @@ function AdvancedInner() {
         <Button variant="outline" size="sm" onClick={toggleFullscreen} title={isFullscreen ? "Exit fullscreen" : "Fullscreen (landscape)"} className="h-7 px-2 shrink-0">
           {isFullscreen ? <Shrink className="w-3 h-3" /> : <Expand className="w-3 h-3" />}
         </Button>
-        <Button size="sm" onClick={handleGenerate} className="text-[10px] font-mono uppercase tracking-wider h-7 gap-1.5 px-2 sm:px-3">
-          <Play className="w-3 h-3" /> Generate
+        <Button size="sm" onClick={handleGenerate} className="text-[10px] font-mono uppercase tracking-wider h-7 gap-1.5 px-2 sm:px-3 shrink-0">
+          <Play className="w-3 h-3" /><span className="hidden sm:inline">Generate</span>
         </Button>
       </div>
 

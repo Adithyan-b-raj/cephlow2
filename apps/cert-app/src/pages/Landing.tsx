@@ -374,13 +374,13 @@ function WorkflowBuilderMockup() {
   return (
     <div className="border border-gray-300 bg-white font-mono text-xs overflow-hidden shadow-lg">
       {/* Toolbar */}
-      <div className="border-b border-gray-200 px-3 py-2 flex items-center gap-2 bg-white overflow-hidden">
-        <span className="text-[9px] tracking-widest font-bold shrink-0">WORKFLOW BUILDER</span>
+      <div className="border-b border-gray-200 px-2 py-2 flex items-center gap-1.5 bg-white overflow-hidden">
+        <span className="text-[7px] sm:text-[9px] tracking-tight sm:tracking-widest font-bold shrink-0">WF BUILDER</span>
         <span className="w-px h-3 bg-gray-200 shrink-0" />
-        <span className="border border-gray-300 px-2 py-0.5 text-[8px] tracking-wider shrink-0 text-gray-600">+ SPREADSHEET</span>
-        <span className="border border-gray-300 px-2 py-0.5 text-[8px] tracking-wider shrink-0 text-gray-600">+ TEMPLATE</span>
-        <span className="ml-auto text-[8px] tracking-wider shrink-0 text-orange-600">⇄ CONDITIONAL ROUTING ACTIVE</span>
-        <span className="bg-black text-white px-3 py-1 text-[8px] tracking-wider shrink-0 ml-2">▶ GENERATE</span>
+        <span className="border border-gray-300 px-1.5 py-0.5 text-[8px] tracking-wider shrink-0 text-gray-600">+ SPREADSHEET</span>
+        <span className="border border-gray-300 px-1.5 py-0.5 text-[8px] tracking-wider shrink-0 text-gray-600">+ TEMPLATE</span>
+        <span className="text-[8px] tracking-wider shrink-0 text-orange-600 hidden sm:inline ml-auto">⇄ CONDITIONAL ROUTING ACTIVE</span>
+        <span className="ml-auto sm:ml-2 bg-black text-white px-2 py-1 text-[8px] tracking-wider shrink-0">▶ GENERATE</span>
       </div>
 
       {/* Canvas — screenshot */}
