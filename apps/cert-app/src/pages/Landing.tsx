@@ -634,7 +634,7 @@ export default function Landing() {
               ["📊", "Google Sheets integration", "Pull recipient data directly from any Google Sheet. Map any column to any placeholder."],
               ["🎨", "Google Slides templates", "Use your existing Slides design. Single template or multiple designs per category."],
               ["📱", "WhatsApp delivery", "Send personalised PDF certificates via WhatsApp Business API to each recipient."],
-              ["✉️", "Email delivery", "Send via Gmail with custom subject and body. HTML email with PDF attached."],
+              ["✉️", "Email delivery", "Send via email with custom subject and body. HTML email with PDF attached."],
               ["🔒", "Tamper-proof verification", "Every certificate has a unique verification URL and QR code. Public, no login needed."],
               ["👤", "Student profiles", "Each recipient gets a public profile page showing all their certificates across all events."],
               ["💳", "Prepaid wallet", "Top up credits, pay per generation. Transparent pricing, no surprises."],
@@ -797,7 +797,7 @@ export default function Landing() {
                   { label: "QR code embedded on certificate" },
                   { label: "Student public profile pages" },
                   { label: "WhatsApp Business delivery" },
-                  { label: "Gmail email delivery" },
+                  { label: "Email delivery" },
                   { label: "Personalised delivery messages" },
                   { label: "Delivery status tracking" },
                   { label: "Workspace member management" },
@@ -826,7 +826,7 @@ export default function Landing() {
           {/* Pricing breakdown note */}
           <div className="border border-black bg-white p-6 text-xs">
             <div className="text-[10px] tracking-widest text-gray-500 mb-2">WHAT'S INCLUDED — ₹0.50/certificate</div>
-            <p className="text-gray-600 leading-relaxed">Each certificate charge covers PDF generation, Cloudflare R2 storage, a unique public verification URL, QR code, student profile update, and delivery via WhatsApp Business or Gmail — everything in one flat rate.</p>
+            <p className="text-gray-600 leading-relaxed">Each certificate charge covers PDF generation, Cloudflare R2 storage, a unique public verification URL, QR code, student profile update, and delivery via WhatsApp Business or email — everything in one flat rate.</p>
           </div>
           <p className="text-[10px] text-gray-400 mt-4 text-center tracking-wider">APPROVALS REVIEWED WITHIN 1 BUSINESS DAY · CREDITS NEVER EXPIRE</p>
         </div>

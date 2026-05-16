@@ -88,7 +88,7 @@ export default function Settings() {
             </p>
             <p className="text-[11px] text-muted-foreground leading-relaxed">
               {hasGoogleAuth
-                ? "Your Google account is linked. Cephlow can access Sheets, Slides, Drive, and Gmail on your behalf."
+                ? "Your Google account is linked. Cephlow can access Sheets, Slides, and Drive on your behalf."
                 : "Connect your Google account to enable certificate generation and delivery."}
             </p>
           </div>

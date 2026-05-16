@@ -126,7 +126,7 @@ export default function PrivacyPolicy() {
                   ["Google Sheets", "Read recipient data (names, emails, event details) from spreadsheets you select."],
                   ["Google Slides", "Read certificate templates from presentations you select; create personalised copies."],
                   ["Google Drive", "Store generated certificate PDFs in your Drive in batch-specific folders."],
-                  ["Gmail", "Send personalised emails with certificate PDFs attached, on your behalf."],
+                  ["Amazon SES (email)", "Send personalised emails with certificate PDFs attached via our own sending infrastructure."],
                 ].map(([svc, desc]) => (
                   <div key={svc} className="flex gap-4 items-start">
                     <span className="border border-black px-2 py-0.5 text-[9px] tracking-widest font-bold shrink-0 mt-0.5">{svc}</span>
@@ -162,7 +162,7 @@ export default function PrivacyPolicy() {
             <BulletList items={[
               "Authenticate you and manage your workspace.",
               "Generate personalised certificate PDFs from your templates and recipient lists.",
-              "Deliver certificates via Gmail and WhatsApp Business API.",
+              "Deliver certificates via email (Amazon SES) and WhatsApp Business API.",
               "Store PDFs on Cloudflare R2 (edge CDN) so WhatsApp and verification links work reliably.",
               "Inject unique QR codes linking to public verification pages.",
               "Maintain public student profile pages showing certificates issued to each recipient.",
@@ -186,7 +186,8 @@ export default function PrivacyPolicy() {
                 <span>PURPOSE</span>
               </div>
               {[
-                ["Google LLC", "OAuth authentication, Sheets / Slides / Drive / Gmail access"],
+                ["Google LLC", "OAuth authentication, Sheets / Slides / Drive access"],
+                ["Amazon Web Services (SES)", "Transactional email delivery"],
                 ["Cloudflare Inc. (R2)", "PDF storage and public CDN delivery"],
                 ["Meta Platforms (WhatsApp Business API)", "Certificate delivery via WhatsApp"],
                 ["Cashfree Payments India", "Wallet top-up and payment processing"],
