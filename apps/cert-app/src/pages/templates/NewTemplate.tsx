@@ -32,6 +32,7 @@ import {
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { supabase } from "@/lib/supabase";
 
 const STEPS = [
@@ -83,6 +84,16 @@ export default function NewTemplate() {
         window.open(data.url, "_blank");
       },
       onError: (err: any) => {
+        const isGoogleError = err.message?.toLowerCase().includes("google account not connected") || err?.data?.code === "GOOGLE_NOT_CONNECTED";
+        if (isGoogleError) {
+          toast({
+            title: "Google account not connected",
+            description: "Connect your Google account in Settings to continue.",
+            variant: "destructive",
+            action: <ToastAction altText="Go to Settings" onClick={() => setLocation("/settings")}>Go to Settings</ToastAction>,
+          });
+          return;
+        }
         toast({ title: "Failed to create presentation", description: err.message, variant: "destructive" });
       },
     },

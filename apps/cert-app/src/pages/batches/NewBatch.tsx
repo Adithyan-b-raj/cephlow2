@@ -24,6 +24,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileSpreadsheet, Presentation, ChevronRight, CheckCircle2, Loader2, Link2, Send, Layers, PenTool } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { supabase } from "@/lib/supabase";
 
 const STEPS = [
@@ -138,6 +139,12 @@ export default function NewBatchWizard() {
         const code = error?.data?.code ?? error?.code;
         if (code === "GOOGLE_TOKEN_EXPIRED" || code === "GOOGLE_NOT_CONNECTED") {
           recheckGoogleAuth();
+          toast({
+            title: "Google account not connected",
+            description: "Connect your Google account in Settings to continue.",
+            variant: "destructive",
+            action: <ToastAction altText="Go to Settings" onClick={() => setLocation("/settings")}>Go to Settings</ToastAction>,
+          });
           return;
         }
         toast({ title: "Failed to create batch", description: error.message, variant: "destructive" });
