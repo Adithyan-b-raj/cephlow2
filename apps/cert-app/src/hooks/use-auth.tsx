@@ -10,6 +10,7 @@ interface AuthContextType {
     signup: (email: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
     connectGoogle: () => Promise<void>;
+    disconnectGoogle: () => Promise<void>;
     recheckGoogleAuth: () => Promise<void>;
 }
 
@@ -120,8 +121,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
+    const disconnectGoogle = async () => {
+        const token = await getAccessToken();
+        if (!token) throw new Error("Not authenticated");
+        const apiUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "";
+        const res = await fetch(`${apiUrl}/api/auth/google/disconnect`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) {
+            const body = await res.json().catch(() => ({}));
+            throw new Error(body.error || `Request failed (${res.status})`);
+        }
+        setHasGoogleAuth(false);
+    };
+
     return (
-        <AuthContext.Provider value={{ user, loading, hasGoogleAuth, login, signup, logout, connectGoogle, recheckGoogleAuth: checkGoogleAuth }}>
+        <AuthContext.Provider value={{ user, loading, hasGoogleAuth, login, signup, logout, connectGoogle, disconnectGoogle, recheckGoogleAuth: checkGoogleAuth }}>
             {children}
         </AuthContext.Provider>
     );

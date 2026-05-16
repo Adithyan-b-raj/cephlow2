@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireAuth } from "../middlewares/auth.js";
-import { generateAuthUrl, handleCallback, hasGoogleToken } from "../lib/googleAuth.js";
+import { generateAuthUrl, handleCallback, hasGoogleToken, disconnectGoogleToken } from "../lib/googleAuth.js";
 
 const router = Router();
 
@@ -42,6 +42,16 @@ router.get("/auth/google/callback", async (req, res) => {
     res.redirect(`${frontendUrl}?google_auth=success`);
   } catch (err: any) {
     res.redirect(`${frontendUrl}?google_auth=error&reason=${encodeURIComponent(err.message)}`);
+  }
+});
+
+// Protected: disconnect Google account
+router.delete("/auth/google/disconnect", requireAuth, async (req, res) => {
+  try {
+    await disconnectGoogleToken(req.user!.uid);
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
   }
 });
 

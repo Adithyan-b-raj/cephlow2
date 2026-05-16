@@ -3,8 +3,7 @@ import { supabaseAdmin } from "@workspace/supabase";
 import crypto from "crypto";
 
 const SCOPES = [
-  "https://www.googleapis.com/auth/gmail.send",
-  "https://www.googleapis.com/auth/spreadsheets",
+  "https://www.googleapis.com/auth/spreadsheets.readonly",
   "https://www.googleapis.com/auth/drive",
   "https://www.googleapis.com/auth/presentations",
 ];
@@ -99,6 +98,10 @@ function isInvalidGrant(err: any): boolean {
     err?.response?.data?.error === "invalid_grant" ||
     err?.code === "invalid_grant"
   );
+}
+
+export async function disconnectGoogleToken(uid: string): Promise<void> {
+  await supabaseAdmin.from("user_google_tokens").delete().eq("user_id", uid);
 }
 
 export async function handleGoogleError(uid: string, err: any): Promise<never> {
