@@ -16,7 +16,7 @@ export const CLICK_SOUND_LABELS: Record<ClickSound, string> = {
 const STORAGE_ENABLED = 'clickSoundEnabled'
 const STORAGE_SOUND   = 'clickSound'
 const STORAGE_VOLUME  = 'clickVolume'
-const DEFAULT_SOUND: ClickSound = 'clack'
+const DEFAULT_SOUND: ClickSound = 'soft-dome'
 const DEFAULT_VOLUME = 0.7
 
 export function getClickSoundEnabled(): boolean {
