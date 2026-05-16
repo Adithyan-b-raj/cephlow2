@@ -11,7 +11,7 @@ COPY packages/firebase/package.json ./packages/firebase/
 COPY packages/supabase/package.json ./packages/supabase/
 COPY scripts/package.json ./scripts/
 
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --ignore-scripts
 
 COPY apps/api-server ./apps/api-server
 COPY packages ./packages
