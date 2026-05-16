@@ -147,7 +147,7 @@ function playSound(type: ClickSound) {
       lpf.type = 'lowpass'
       lpf.frequency.value = 600
       const g = ctx.createGain()
-      g.gain.setValueAtTime(0.5, now)
+      g.gain.setValueAtTime(3.0, now)
       g.gain.exponentialRampToValueAtTime(0.001, now + 0.05)
       noise.connect(lpf); lpf.connect(g); g.connect(dest())
       noise.start()
