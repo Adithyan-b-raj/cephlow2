@@ -19,7 +19,7 @@ router.get("/p/:username", async (req, res) => {
 
     const { data: certsData } = await supabaseAdmin
       .from("student_profile_certs")
-      .select("*, batches!batch_id(banner_url, banner_overlay_opacity, banner_text_color)")
+      .select("*, batches!batch_id(banner_url)")
       .eq("profile_slug", username)
       .order("issued_at", { ascending: false });
 
@@ -34,8 +34,8 @@ router.get("/p/:username", async (req, res) => {
       issuedAt: row.issued_at,
       status: row.status,
       bannerUrl: (row.batches as any)?.banner_url ?? null,
-      bannerOverlayOpacity: (row.batches as any)?.banner_overlay_opacity ?? 0.70,
-      bannerTextColor: (row.batches as any)?.banner_text_color ?? "default",
+      bannerOverlayOpacity: 0.70,
+      bannerTextColor: "default",
     }));
 
     return res.json({ slug: profile.slug, name: profile.name, certificates });
