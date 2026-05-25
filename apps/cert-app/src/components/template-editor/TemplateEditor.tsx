@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { uploadAssetToR2 } from "@workspace/api-client-react";
 import { ensureFontStylesInjected, BUNDLED_FONTS, ensureFontLoaded } from "./fonts";
 import { useEditorStore } from "./useEditorStore";
-import { Gamepad2, ZoomIn, ZoomOut, Maximize2, Layers } from "lucide-react";
+import { Gamepad2, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
 import { EditorCanvas } from "./EditorCanvas";
 import { EditorToolbar } from "./EditorToolbar";
 import { PropertiesPanel } from "./PropertiesPanel";
@@ -31,7 +31,6 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
   const [templateName, setTemplateName] = useState(initialName);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [joystickVisible, setJoystickVisible] = useState(true);
-  const [layersPanelOpen, setLayersPanelOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasAreaRef = useRef<HTMLDivElement>(null);
   const prevZoomRef = useRef(zoom);
@@ -192,7 +191,7 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
         toggleFullscreen={toggleFullscreen}
         fullscreenContainer={isFullscreen ? (containerRef.current ?? null) : null}
       />
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+      <div className={`flex-1 flex overflow-hidden ${isFullscreen ? "flex-row" : "flex-col md:flex-row"}`}>
         <div ref={canvasAreaRef} className="flex-1 min-w-0 min-h-0 relative">
           <EditorCanvas store={store} zoom={zoom} setZoom={setZoom} />
 
@@ -230,43 +229,15 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
           </div>
 
           {isFullscreen && (
-            <div style={{ position: "absolute", top: 8, right: 8, zIndex: 50 }} className="flex items-center gap-1.5">
-              <button
-                onClick={() => setLayersPanelOpen((v) => !v)}
-                title="Layers"
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border shadow-md backdrop-blur-sm md:hidden ${layersPanelOpen ? "bg-primary text-primary-foreground border-primary" : "bg-background/90 text-foreground border-border"}`}
-              >
-                <Layers className="w-3.5 h-3.5" />
-                Layers
-              </button>
-              <button
-                onClick={() => setJoystickVisible((v) => !v)}
-                title={joystickVisible ? "Hide joystick" : "Show joystick"}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border shadow-md backdrop-blur-sm ${joystickVisible ? "bg-primary text-primary-foreground border-primary" : "bg-background/90 text-foreground border-border"}`}
-              >
-                <Gamepad2 className="w-3.5 h-3.5" />
-                {joystickVisible ? "Hide pad" : "Show pad"}
-              </button>
-            </div>
-          )}
-
-          {/* Layers slide-up panel for mobile fullscreen */}
-          {isFullscreen && layersPanelOpen && (
-            <div
-              className="absolute bottom-0 left-0 right-0 z-40 md:hidden bg-background border-t border-border shadow-2xl"
-              style={{ maxHeight: "45vh", overflowY: "auto" }}
+            <button
+              onClick={() => setJoystickVisible((v) => !v)}
+              title={joystickVisible ? "Hide joystick" : "Show joystick"}
+              style={{ position: "absolute", top: 8, right: 8, zIndex: 50 }}
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border shadow-md backdrop-blur-sm ${joystickVisible ? "bg-primary text-primary-foreground border-primary" : "bg-background/90 text-foreground border-border"}`}
             >
-              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Layers</span>
-                <button
-                  onClick={() => setLayersPanelOpen(false)}
-                  className="text-xs text-muted-foreground hover:text-foreground px-2 py-1"
-                >
-                  Close
-                </button>
-              </div>
-              <LayersPanel store={store} />
-            </div>
+              <Gamepad2 className="w-3.5 h-3.5" />
+              {joystickVisible ? "Hide pad" : "Show pad"}
+            </button>
           )}
           {isFullscreen && joystickVisible && store.selectedIds.length > 0 && (
             <JoystickPad
@@ -284,8 +255,8 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
             />
           )}
         </div>
-        <div className={`w-full md:w-72 border-t md:border-t-0 md:border-l flex flex-col bg-background max-h-[45vh] md:max-h-none shrink-0${isFullscreen ? " hidden md:flex" : ""}`}>
-          <div className="flex-1 min-h-0">
+        <div className={`flex flex-col bg-background shrink-0 border-l ${isFullscreen ? "w-44 max-h-none" : "w-full md:w-72 border-t md:border-t-0 md:border-l max-h-[45vh] md:max-h-none"}`}>
+          <div className="flex-1 min-h-0 overflow-y-auto">
             <PropertiesPanel store={store} />
           </div>
           <LayersPanel store={store} />
