@@ -241,8 +241,8 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
           )}
           {isFullscreen && joystickVisible && store.selectedIds.length > 0 && (
             <JoystickPad
+              onMoveStart={() => store.beginTransient()}
               onMove={(dx, dy) => {
-                store.beginTransient();
                 store.updateMany(
                   store.selectedIds.map((id) => {
                     const el = store.doc.elements.find((x) => x.id === id);

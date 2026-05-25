@@ -2,19 +2,21 @@ import { useRef } from "react";
 import { ChevronUp, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 
 interface Props {
+  onMoveStart: () => void;
   onMove: (dx: number, dy: number) => void;
   onMoveEnd: () => void;
 }
 
-export function JoystickPad({ onMove, onMoveEnd }: Props) {
+export function JoystickPad({ onMoveStart, onMove, onMoveEnd }: Props) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startMove = (dx: number, dy: number) => {
+    onMoveStart();
     onMove(dx, dy);
     timeoutRef.current = setTimeout(() => {
       intervalRef.current = setInterval(() => onMove(dx, dy), 40);
-    }, 350);
+    }, 200);
   };
 
   const stopMove = () => {
@@ -24,7 +26,7 @@ export function JoystickPad({ onMove, onMoveEnd }: Props) {
   };
 
   return (
-    <div className="absolute bottom-4 right-4 grid grid-cols-3 gap-1.5 pointer-events-auto">
+    <div className="absolute bottom-4 left-4 grid grid-cols-3 gap-1.5 pointer-events-auto">
       <span />
       <DirBtn dx={0} dy={-3} onStart={startMove} onEnd={stopMove}>
         <ChevronUp className="w-5 h-5" />
@@ -64,9 +66,15 @@ function DirBtn({
   return (
     <button
       className="w-11 h-11 flex items-center justify-center rounded-xl bg-background/80 backdrop-blur-sm border border-border shadow-md active:bg-accent touch-none select-none"
-      onPointerDown={(e) => { e.preventDefault(); onStart(dx, dy); }}
-      onPointerUp={onEnd}
-      onPointerLeave={onEnd}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+        onStart(dx, dy);
+      }}
+      onPointerUp={(e) => {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+        onEnd();
+      }}
       onPointerCancel={onEnd}
     >
       {children}
