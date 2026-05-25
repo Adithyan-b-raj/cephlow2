@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { uploadAssetToR2 } from "@workspace/api-client-react";
 import { ensureFontStylesInjected, BUNDLED_FONTS, ensureFontLoaded } from "./fonts";
 import { useEditorStore } from "./useEditorStore";
-import { Gamepad2, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
+import { Gamepad2, ZoomIn, ZoomOut, Maximize2, Layers } from "lucide-react";
 import { EditorCanvas } from "./EditorCanvas";
 import { EditorToolbar } from "./EditorToolbar";
 import { PropertiesPanel } from "./PropertiesPanel";
@@ -31,6 +31,7 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
   const [templateName, setTemplateName] = useState(initialName);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [joystickVisible, setJoystickVisible] = useState(true);
+  const [layersPanelOpen, setLayersPanelOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasAreaRef = useRef<HTMLDivElement>(null);
   const prevZoomRef = useRef(zoom);
@@ -229,15 +230,43 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
           </div>
 
           {isFullscreen && (
-            <button
-              onClick={() => setJoystickVisible((v) => !v)}
-              title={joystickVisible ? "Hide joystick" : "Show joystick"}
-              style={{ position: "absolute", top: 8, right: 8, zIndex: 50 }}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border shadow-md backdrop-blur-sm ${joystickVisible ? "bg-primary text-primary-foreground border-primary" : "bg-background/90 text-foreground border-border"}`}
+            <div style={{ position: "absolute", top: 8, right: 8, zIndex: 50 }} className="flex items-center gap-1.5">
+              <button
+                onClick={() => setLayersPanelOpen((v) => !v)}
+                title="Layers"
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border shadow-md backdrop-blur-sm md:hidden ${layersPanelOpen ? "bg-primary text-primary-foreground border-primary" : "bg-background/90 text-foreground border-border"}`}
+              >
+                <Layers className="w-3.5 h-3.5" />
+                Layers
+              </button>
+              <button
+                onClick={() => setJoystickVisible((v) => !v)}
+                title={joystickVisible ? "Hide joystick" : "Show joystick"}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border shadow-md backdrop-blur-sm ${joystickVisible ? "bg-primary text-primary-foreground border-primary" : "bg-background/90 text-foreground border-border"}`}
+              >
+                <Gamepad2 className="w-3.5 h-3.5" />
+                {joystickVisible ? "Hide pad" : "Show pad"}
+              </button>
+            </div>
+          )}
+
+          {/* Layers slide-up panel for mobile fullscreen */}
+          {isFullscreen && layersPanelOpen && (
+            <div
+              className="absolute bottom-0 left-0 right-0 z-40 md:hidden bg-background border-t border-border shadow-2xl"
+              style={{ maxHeight: "45vh", overflowY: "auto" }}
             >
-              <Gamepad2 className="w-3.5 h-3.5" />
-              {joystickVisible ? "Hide pad" : "Show pad"}
-            </button>
+              <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+                <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Layers</span>
+                <button
+                  onClick={() => setLayersPanelOpen(false)}
+                  className="text-xs text-muted-foreground hover:text-foreground px-2 py-1"
+                >
+                  Close
+                </button>
+              </div>
+              <LayersPanel store={store} />
+            </div>
           )}
           {isFullscreen && joystickVisible && store.selectedIds.length > 0 && (
             <JoystickPad
