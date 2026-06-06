@@ -1,5 +1,5 @@
 const WA_API_VERSION = "v18.0";
-const TEMPLATE_NAME = process.env.WHATSAPP_TEMPLATE_NAME || "document_senderv2";
+const TEMPLATE_NAME = process.env.WHATSAPP_TEMPLATE_NAME || "document_senderv3";
 
 export function isWhatsAppConfigured(): boolean {
   return !!(process.env.WHATSAPP_PHONE_NUMBER_ID && process.env.WHATSAPP_ACCESS_TOKEN);

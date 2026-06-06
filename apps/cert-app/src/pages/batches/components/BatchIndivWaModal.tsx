@@ -20,7 +20,7 @@ export function BatchIndivWaModal({ cert, onClose, var1, onVar1Change, var2, onV
         <DialogHeader>
           <DialogTitle>Send via WhatsApp — {cert?.recipientName}</DialogTitle>
           <DialogDescription>
-            Uses the <strong>document_senderv2</strong> template.
+            Uses the <strong>document_senderv3</strong> template.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-4">

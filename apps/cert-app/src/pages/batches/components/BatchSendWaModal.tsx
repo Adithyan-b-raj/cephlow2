@@ -22,7 +22,7 @@ export function BatchSendWaModal({ open, onOpenChange, var1, onVar1Change, var2,
         <DialogHeader>
           <DialogTitle>Send via WhatsApp</DialogTitle>
           <DialogDescription>
-            Uses the <strong>document_senderv2</strong> template. The PDF certificate will be attached and sent to each recipient's phone number.
+            Uses the <strong>document_senderv3</strong> template. The PDF certificate will be attached and sent to each recipient's phone number.
           </DialogDescription>
         </DialogHeader>
         <div className="grid md:grid-cols-3 gap-6 py-4">
