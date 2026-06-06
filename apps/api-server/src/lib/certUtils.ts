@@ -30,6 +30,7 @@ export function emailToSlug(email: string): string {
   const prefix = email.split("@")[0] ?? "user";
   return prefix
     .toLowerCase()
+    .replace(/\./g, "")
     .replace(/[^a-z0-9]/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "") || "user";

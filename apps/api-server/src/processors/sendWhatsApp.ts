@@ -1,7 +1,7 @@
 import { supabaseAdmin, toCamel, type Certificate } from "@workspace/supabase";
 import type { SendWhatsAppJobData } from "../types.js";
 import { sendWhatsAppDocument } from "../lib/whatsapp.js";
-import { extractPhoneNumber } from "../lib/certUtils.js";
+import { extractPhoneNumber, emailToSlug } from "../lib/certUtils.js";
 
 export async function processSendWhatsApp(payload: SendWhatsAppJobData) {
   const { batchId, userId, var1Template, var2Template, var3Template } = payload;
@@ -43,7 +43,7 @@ export async function processSendWhatsApp(payload: SendWhatsAppJobData) {
 
         let var1 = var1Template || cert.recipientName;
         let var2 = var2Template || batch.name;
-        const emailPrefix = cert.recipientEmail?.split("@")[0] || cert.recipientName;
+        const emailPrefix = emailToSlug(cert.recipientEmail || cert.recipientName);
         let var3 = var3Template || emailPrefix;
         for (const [col, value] of Object.entries(rowData)) {
           var1 = var1.replace(new RegExp(`<<${col}>>`, "gi"), value);

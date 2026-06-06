@@ -5,7 +5,7 @@ import { createFolder, makeFilePublic, generateCertificate, uploadPdf } from "..
 import { handleGoogleError } from "../lib/googleAuth.js";
 import { deleteR2Objects, isR2Configured, uploadBufferToR2, getR2PublicUrl } from "../lib/cloudflareR2.js";
 import { isWhatsAppConfigured, sendWhatsAppDocument } from "../lib/whatsapp.js";
-import { extractPhoneNumber, bulkUpsertStudentProfiles } from "../lib/certUtils.js";
+import { extractPhoneNumber, bulkUpsertStudentProfiles, emailToSlug } from "../lib/certUtils.js";
 import { isApprovedInContext, isUserApproved } from "../lib/approval.js";
 import { requireApproval } from "../middlewares/requireApproval.js";
 import { isAdminOrOwner } from "../middlewares/requireWorkspace.js";
@@ -860,7 +860,7 @@ router.post("/batches/:batchId/certificates/:certId/send-whatsapp", requireAppro
 
     let var1 = var1Template || cert.recipientName;
     let var2 = var2Template || batch.name;
-    const emailPrefix = cert.recipientEmail?.split("@")[0] || cert.recipientName;
+    const emailPrefix = emailToSlug(cert.recipientEmail || cert.recipientName);
     let var3 = var3Template || emailPrefix;
     for (const [col, value] of Object.entries(rowData)) {
       var1 = var1.replace(new RegExp(`<<${col}>>`, "gi"), value);
