@@ -945,6 +945,15 @@ router.patch("/batches/:batchId", async (req, res) => {
     }
 
     await supabaseAdmin.from("batches").update(finalUpdate).eq("id", batchId);
+
+    // Keep the denormalized batch name on student profile certs in sync
+    if (finalUpdate.name !== undefined) {
+      await supabaseAdmin
+        .from("student_profile_certs")
+        .update({ batch_name: finalUpdate.name, updated_at: new Date().toISOString() })
+        .eq("batch_id", batchId);
+    }
+
     return res.json({ success: true, updatedFields: Object.keys(finalUpdate) });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });

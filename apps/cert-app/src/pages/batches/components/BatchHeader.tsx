@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { LockedFeature } from "@/components/LockedFeature";
 import { useApproval } from "@/hooks/use-approval";
-import { Play, Send, Loader2, Share2, MessageCircle, RefreshCcw, Eye, X, ChevronDown, ChevronUp } from "lucide-react";
+import { Play, Send, Loader2, Share2, MessageCircle, RefreshCcw, Eye, X, ChevronDown, ChevronUp, Pencil, Check } from "lucide-react";
 import { FileSpreadsheet, Table2 } from "lucide-react";
 import { format } from "date-fns";
 import { FileText } from "lucide-react";
@@ -30,16 +31,32 @@ interface Props {
   onBannerEdit: () => void;
   onOpenSend: () => void;
   onOpenWa: () => void;
+  onRename: (newName: string) => void;
+  isRenaming?: boolean;
 }
 
 export function BatchHeader({
   batch, isGenerating, isSyncing, isSharing, isSending, isSendingWhatsapp,
   bannerUploading, generateBtnText, canResumeAll, selectedCertIds, generationLimit,
   getStatusColor, onGenerate, onCancelGeneration, onSync, onShare, onBannerEdit, onOpenSend, onOpenWa,
+  onRename, isRenaming,
 }: Props) {
   const [moreOpen, setMoreOpen] = useState(false);
   const { isApproved } = useApproval();
   const [, setLocation] = useLocation();
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState(batch.name);
+
+  const startEditingName = () => {
+    setNameDraft(batch.name);
+    setEditingName(true);
+  };
+
+  const commitNameEdit = () => {
+    const trimmed = nameDraft.trim();
+    if (trimmed && trimmed !== batch.name) onRename(trimmed);
+    setEditingName(false);
+  };
 
   const isInbuilt = batch.dataSourceKind === "inbuilt";
 
@@ -72,7 +89,40 @@ export function BatchHeader({
       {/* Title */}
       <div className="min-w-0">
         <div className="flex items-center gap-2 sm:gap-3 mb-1 flex-wrap">
-          <h1 className="text-xl sm:text-3xl font-display font-bold truncate">{batch.name}</h1>
+          {editingName ? (
+            <div className="flex items-center gap-1.5">
+              <Input
+                autoFocus
+                value={nameDraft}
+                onChange={(e) => setNameDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitNameEdit();
+                  if (e.key === "Escape") setEditingName(false);
+                }}
+                disabled={isRenaming}
+                className="h-9 text-xl sm:text-2xl font-display font-bold max-w-xs sm:max-w-md"
+              />
+              <Button size="icon" variant="ghost" onClick={commitNameEdit} disabled={isRenaming || !nameDraft.trim()} title="Save">
+                {isRenaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+              </Button>
+              <Button size="icon" variant="ghost" onClick={() => setEditingName(false)} disabled={isRenaming} title="Cancel">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 min-w-0 group/title">
+              <h1 className="text-xl sm:text-3xl font-display font-bold truncate">{batch.name}</h1>
+              <Button
+                size="icon"
+                variant="ghost"
+                className="shrink-0 opacity-0 group-hover/title:opacity-100 transition-opacity"
+                onClick={startEditingName}
+                title="Rename batch"
+              >
+                <Pencil className="w-4 h-4" />
+              </Button>
+            </div>
+          )}
           <Badge className={`uppercase shrink-0 ${getStatusColor(batch.status)}`}>
             {batch.status.toLowerCase() === 'outdated' ? (
               batch.certificates?.some((c: any) => c.status === 'outdated' && c.requiresVisualRegen)

@@ -1168,6 +1168,10 @@ function AdvancedInner() {
                 className="font-mono text-sm"
                 disabled={isGenerating}
               />
+              <p className="text-xs text-destructive">
+                This name will be shown to recipients as the event name and used in the
+                certificate file name sent over WhatsApp/email — choose carefully.
+              </p>
             </div>
 
             <div className="space-y-1.5">

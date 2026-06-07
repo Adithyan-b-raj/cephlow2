@@ -15,6 +15,7 @@ import {
   useSendCertWhatsapp,
   useSyncBatch,
   useGetWalletBalance,
+  useUpdateBatchFields,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Loader2, ExternalLink } from "lucide-react";
@@ -41,6 +42,19 @@ export default function BatchDetail() {
   const { isApproved } = useApproval();
   const { connectGoogle } = useAuth();
   const [showConnectDriveDialog, setShowConnectDriveDialog] = useState(false);
+
+  const { mutate: updateBatchFields, isPending: isRenaming } = useUpdateBatchFields({
+    mutation: {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: getGetBatchQueryKey(batchId) });
+        toast({ title: "Batch renamed" });
+      },
+      onError: (err: any) => {
+        toast({ title: "Rename failed", description: err?.message, variant: "destructive" });
+      },
+    },
+  });
+  const handleRename = (newName: string) => updateBatchFields({ batchId, data: { name: newName } });
 
   const { data: batch, isLoading, error: batchError, refetch } = useGetBatch(batchId as any, {
     query: {
@@ -322,6 +336,8 @@ export default function BatchDetail() {
         onBannerEdit={() => setBannerEditorOpen(true)}
         onOpenSend={handleOpenSend}
         onOpenWa={handleOpenWa}
+        onRename={handleRename}
+        isRenaming={isRenaming}
       />
 
       <BatchStatsCards
