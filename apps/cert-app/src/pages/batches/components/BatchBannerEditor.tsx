@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { customFetch } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
+import { compressImage } from "@/lib/compressImage";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -202,11 +203,12 @@ export function BatchBannerEditor({ open, onOpenChange, batchId, batch, walletBa
     let step = "upload";
     try {
       if (bannerPreviewFile) {
-        const mimeType = bannerPreviewFile.type || "application/octet-stream";
+        const compressed = await compressImage(bannerPreviewFile, { maxDimension: 1600 });
+        const mimeType = compressed.type || "application/octet-stream";
         await customFetch(`/api/batches/${batchId}/banner`, {
           method: "POST",
           headers: { "Content-Type": mimeType },
-          body: bannerPreviewFile,
+          body: compressed,
         });
       }
       step = "settings";
@@ -221,9 +223,10 @@ export function BatchBannerEditor({ open, onOpenChange, batchId, batch, walletBa
       if (bannerPreviewUrl && bannerPreviewUrl.startsWith("blob:")) URL.revokeObjectURL(bannerPreviewUrl);
     } catch (err: any) {
       const isInsufficientFunds = err?.status === 402;
+      const serverMessage = typeof err?.data?.error === "string" ? err.data.error : null;
       const detail = isInsufficientFunds
         ? "Not enough wallet balance to apply this frame. Top up your workspace wallet and try again."
-        : err?.status ? `HTTP ${err.status} — ${err.message}` : err.message;
+        : serverMessage ?? err?.message ?? "Something went wrong";
       toast({ title: isInsufficientFunds ? "Insufficient balance" : `Banner update failed (${step})`, description: detail, variant: "destructive" });
     } finally {
       setBannerUploading(false);

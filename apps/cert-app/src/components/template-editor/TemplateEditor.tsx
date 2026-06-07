@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { uploadAssetToR2 } from "@workspace/api-client-react";
+import { compressImage } from "@/lib/compressImage";
 import { ensureFontStylesInjected, BUNDLED_FONTS, ensureFontLoaded } from "./fonts";
 import { useEditorStore } from "./useEditorStore";
 import { Gamepad2, ZoomIn, ZoomOut, Maximize2 } from "lucide-react";
@@ -152,8 +153,9 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
 
   const handleAddImage = async (file: File) => {
     try {
-      const url = await uploadAssetToR2(file, file.name, "image");
-      const naturalDims = await readImageSize(file);
+      const compressed = await compressImage(file);
+      const url = await uploadAssetToR2(compressed, compressed.name, "image");
+      const naturalDims = await readImageSize(compressed);
       const maxDim = 400;
       const ratio = naturalDims.width / naturalDims.height;
       let w = maxDim;
