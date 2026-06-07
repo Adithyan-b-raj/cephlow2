@@ -15,8 +15,9 @@ interface GalleryData {
 }
 
 export default function BatchGallery() {
-  const [, params] = useRoute("/gallery/:batchId");
-  const batchId = params?.batchId ?? "";
+  const [, slugParams] = useRoute("/event/:slug/:batchId");
+  const [, legacyParams] = useRoute("/event/:batchId");
+  const batchId = slugParams?.batchId ?? legacyParams?.batchId ?? "";
 
   const [data, setData] = useState<GalleryData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,8 +67,8 @@ export default function BatchGallery() {
         {/* Hero: banner left, event info right (stacks on mobile) */}
         <div className="border-2 border-foreground flex flex-col md:flex-row overflow-hidden">
           {data.bannerUrl && (
-            <div className="w-full md:w-2/5 md:border-r-2 md:border-foreground border-b-2 md:border-b-0 border-foreground shrink-0">
-              <img src={data.bannerUrl} alt="" className="w-full h-44 md:h-full object-cover" />
+            <div className="w-full h-[140px] md:w-2/5 md:h-auto md:border-r-2 md:border-foreground border-b-2 md:border-b-0 border-foreground shrink-0">
+              <img src={data.bannerUrl} alt="" className="w-full h-full object-cover" />
             </div>
           )}
           <div className={`flex flex-col justify-center gap-2 p-5 md:p-8 ${data.bannerUrl ? "md:w-3/5" : "w-full"}`}>

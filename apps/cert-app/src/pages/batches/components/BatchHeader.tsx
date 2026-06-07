@@ -48,7 +48,12 @@ export function BatchHeader({
   const [, setLocation] = useLocation();
 
   const copyGalleryLink = () => {
-    const url = `${window.location.origin}/gallery/${batchId}`;
+    const slug = batch.name
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "event";
+    const url = `${window.location.origin}/event/${slug}/${batchId}`;
     navigator.clipboard.writeText(url);
     toast({ title: "Link copied!", description: "Anyone with this link can view recipient names and their certificate PDFs (no email addresses shown)." });
   };

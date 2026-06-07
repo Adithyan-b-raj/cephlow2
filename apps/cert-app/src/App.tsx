@@ -95,13 +95,14 @@ function AuthenticatedRouter() {
 }
 
 // App paths that should never be treated as student profile slugs
-const KNOWN_APP_PATHS = ["/login", "/batches", "/history", "/wallet", "/templates", "/auth", "/verify", "/gallery", "/reports", "/workspace", "/invite", "/privacy", "/terms", "/forgot-password", "/reset-password", "/advanced", "/settings", "/frames", "/admin", "/spreadsheets"];
+const KNOWN_APP_PATHS = ["/login", "/batches", "/history", "/wallet", "/templates", "/auth", "/verify", "/event", "/reports", "/workspace", "/invite", "/privacy", "/terms", "/forgot-password", "/reset-password", "/advanced", "/settings", "/frames", "/admin", "/spreadsheets"];
 
 function AppRouter() {
   const { user, loading } = useAuth();
   const [location, setLocation] = useLocation();
   const [isVerifyRoute] = useRoute("/verify/:batchId/:certId");
-  const [isGalleryRoute] = useRoute("/gallery/:batchId");
+  const [isGalleryRoute] = useRoute("/event/:slug/:batchId");
+  const [isLegacyGalleryRoute] = useRoute("/event/:batchId");
   const [isProfileRoute] = useRoute("/:username");
 
   // Public legal pages — no auth required
@@ -116,7 +117,7 @@ function AppRouter() {
   if (isVerifyRoute) return <VerifyCertificate />;
 
   // Public certificate gallery page — no auth required
-  if (isGalleryRoute) return <BatchGallery />;
+  if (isGalleryRoute || isLegacyGalleryRoute) return <BatchGallery />;
 
   // Public student profile page — slug-like path not matching any app route
   const isKnownPath =
