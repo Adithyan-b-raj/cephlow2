@@ -4,7 +4,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { LockedFeature } from "@/components/LockedFeature";
 import { useApproval } from "@/hooks/use-approval";
-import { Play, Send, Loader2, Share2, MessageCircle, RefreshCcw, Eye, X, ChevronDown, ChevronUp, Pencil, Check } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Play, Send, Loader2, Share2, Link2, MessageCircle, RefreshCcw, Eye, X, ChevronDown, ChevronUp, Pencil, Check } from "lucide-react";
 import { FileSpreadsheet, Table2 } from "lucide-react";
 import { format } from "date-fns";
 import { FileText } from "lucide-react";
@@ -36,14 +37,21 @@ interface Props {
 }
 
 export function BatchHeader({
-  batch, isGenerating, isSyncing, isSharing, isSending, isSendingWhatsapp,
+  batch, batchId, isGenerating, isSyncing, isSharing, isSending, isSendingWhatsapp,
   bannerUploading, generateBtnText, canResumeAll, selectedCertIds, generationLimit,
   getStatusColor, onGenerate, onCancelGeneration, onSync, onShare, onBannerEdit, onOpenSend, onOpenWa,
   onRename, isRenaming,
 }: Props) {
   const [moreOpen, setMoreOpen] = useState(false);
   const { isApproved } = useApproval();
+  const { toast } = useToast();
   const [, setLocation] = useLocation();
+
+  const copyGalleryLink = () => {
+    const url = `${window.location.origin}/gallery/${batchId}`;
+    navigator.clipboard.writeText(url);
+    toast({ title: "Link copied!", description: "Anyone with this link can view recipient names and their certificate PDFs (no email addresses shown)." });
+  };
   const [editingName, setEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(batch.name);
 
@@ -204,6 +212,10 @@ export function BatchHeader({
               {isSharing ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Share2 className="w-4 h-4 mr-1.5" />}
               Share PDFs
             </Button>
+            <Button variant="outline" size="sm" onClick={copyGalleryLink} disabled={batch.generatedCount === 0} className="hover-elevate bg-background w-full justify-start" title="Copy a public link recipients can use to find their certificate">
+              <Link2 className="w-4 h-4 mr-1.5" />
+              Share Page
+            </Button>
             <LockedFeature feature="custom event banners" inline>
               <Button variant="outline" size="sm" onClick={onBannerEdit} disabled={bannerUploading} className="hover-elevate bg-background w-full justify-start">
                 {bannerUploading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Eye className="w-4 h-4 mr-1.5" />}
@@ -245,6 +257,10 @@ export function BatchHeader({
           <Button variant="outline" size="sm" onClick={onShare} disabled={isSharing || batch.generatedCount === 0} className="hover-elevate bg-background">
             {isSharing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5 mr-1.5" />}
             Share PDFs
+          </Button>
+          <Button variant="outline" size="sm" onClick={copyGalleryLink} disabled={batch.generatedCount === 0} className="hover-elevate bg-background" title="Copy a public link recipients can use to find their certificate">
+            <Link2 className="w-3.5 h-3.5 mr-1.5" />
+            Share Page
           </Button>
           <LockedFeature feature="custom event banners" inline>
             <Button variant="outline" size="sm" onClick={onBannerEdit} disabled={bannerUploading} className="hover-elevate bg-background">

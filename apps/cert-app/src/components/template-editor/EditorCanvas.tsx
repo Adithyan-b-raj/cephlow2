@@ -9,13 +9,15 @@ interface Props {
   store: EditorStore;
   zoom: number;
   setZoom: (z: number) => void;
+  /** Bumped whenever a font finishes loading, so the stage redraws with the correct typeface. */
+  fontTick?: number;
 }
 
 interface ImageCache {
   [src: string]: HTMLImageElement | undefined;
 }
 
-export function EditorCanvas({ store, zoom, setZoom }: Props) {
+export function EditorCanvas({ store, zoom, setZoom, fontTick }: Props) {
   const { doc, selectedIds, setSelected, updateElement, beginTransient, endTransient } = store;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -55,6 +57,14 @@ export function EditorCanvas({ store, zoom, setZoom }: Props) {
       cancelled = true;
     };
   }, [doc.elements, imageCache]);
+
+  // Redraw once newly-loaded fonts become available — Konva measures/draws text
+  // using whatever the browser has registered at draw time, so a font that
+  // finishes loading after the initial render needs an explicit redraw.
+  useEffect(() => {
+    if (fontTick === undefined) return;
+    layerRef.current?.batchDraw();
+  }, [fontTick]);
 
   // Attach transformer to selected nodes
   useEffect(() => {

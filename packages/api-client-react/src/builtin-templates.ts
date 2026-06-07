@@ -156,16 +156,35 @@ export async function uploadAssetToR2(
   filename: string,
   kind: "image" | "thumbnail" = "image",
 ): Promise<string> {
-  const { uploadUrl, publicUrl } = await requestAssetUploadUrl({
-    filename,
-    contentType: file.type || "application/octet-stream",
-    kind,
-  });
-  const res = await fetch(uploadUrl, {
-    method: "PUT",
-    headers: { "Content-Type": file.type || "application/octet-stream" },
-    body: file,
-  });
+  console.debug("[uploadAssetToR2] step 1 — requesting presigned URL", { filename, kind, type: file.type });
+  let uploadUrl: string;
+  let publicUrl: string | null;
+  try {
+    ({ uploadUrl, publicUrl } = await requestAssetUploadUrl({
+      filename,
+      contentType: file.type || "application/octet-stream",
+      kind,
+    }));
+    console.debug("[uploadAssetToR2] step 1 OK — uploadUrl:", uploadUrl, "publicUrl:", publicUrl);
+  } catch (err: any) {
+    console.error("[uploadAssetToR2] step 1 FAILED (requestAssetUploadUrl):", err);
+    throw err;
+  }
+
+  console.debug("[uploadAssetToR2] step 2 — PUT to R2", uploadUrl);
+  let res: Response;
+  try {
+    res = await fetch(uploadUrl, {
+      method: "PUT",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+    });
+    console.debug("[uploadAssetToR2] step 2 response — status:", res.status, res.statusText);
+  } catch (err: any) {
+    console.error("[uploadAssetToR2] step 2 FAILED (fetch PUT to R2):", err);
+    throw err;
+  }
+
   if (!res.ok) throw new Error(`R2 upload failed: HTTP ${res.status}`);
   if (!publicUrl) throw new Error("R2_PUBLIC_URL is not configured");
   return publicUrl;

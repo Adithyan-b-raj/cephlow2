@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation, useRoute } from "wouter";
 import { useQueryClient } from "@tanstack/react-query";
 import {
@@ -68,7 +68,13 @@ export default function BuiltinTemplateEditorPage() {
     },
   });
 
-  const saving = creating || updating;
+  // `creating || updating` only flips to true once the mutation actually
+  // starts, but doSave does an async thumbnail render + upload first. Without
+  // this ref, repeated clicks during that window each kick off their own
+  // create/update, producing duplicate templates.
+  const isSavingRef = useRef(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const saving = creating || updating || isSaving;
 
   const doSave = async (n: string, canvas: CanvasDocument) => {
     setName(n);
@@ -92,13 +98,20 @@ export default function BuiltinTemplateEditorPage() {
   };
 
   const handleSave = async ({ name: n, canvas }: { name: string; canvas: CanvasDocument }) => {
-    if (!n) return;
+    if (!n || isSavingRef.current) return;
     const hasQr = canvas.elements?.some((el: any) => el.type === "qr");
     if (isApproved && !hasQr) {
       setPendingSave({ name: n, canvas });
       return;
     }
-    await doSave(n, canvas);
+    isSavingRef.current = true;
+    setIsSaving(true);
+    try {
+      await doSave(n, canvas);
+    } finally {
+      isSavingRef.current = false;
+      setIsSaving(false);
+    }
   };
 
   if (!isNew && isLoading && !docState) {

@@ -1,5 +1,6 @@
 import type { CanvasDocument } from "./types";
 import { renderCanvasToPdf } from "./pdfRenderer";
+import { ensureFontLoaded } from "./fonts";
 
 /**
  * Render the canvas as a PNG using a Konva-equivalent approach via the existing
@@ -22,6 +23,22 @@ export async function renderThumbnail(
   canvas.height = Math.round(doc.height * scale);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas 2D context unavailable");
+
+  // Make sure every text element's font is registered with the document before
+  // we measure/draw — otherwise the canvas silently substitutes a fallback font.
+  const fontsNeeded = new Set<string>();
+  for (const el of doc.elements) {
+    if (el.type === "text" && !el.hidden) {
+      fontsNeeded.add(`${el.fontFamily}::400`);
+      fontsNeeded.add(`${el.fontFamily}::${el.fontWeight === 700 ? 700 : 400}`);
+    }
+  }
+  await Promise.all(
+    Array.from(fontsNeeded, (key) => {
+      const [family, weight] = key.split("::");
+      return ensureFontLoaded(family, Number(weight));
+    }),
+  );
 
   ctx.fillStyle = doc.backgroundColor || "#ffffff";
   ctx.fillRect(0, 0, canvas.width, canvas.height);

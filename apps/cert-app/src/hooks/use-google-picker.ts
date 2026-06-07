@@ -8,7 +8,7 @@ declare global {
   }
 }
 
-type PickedFile = { id: string; name: string };
+type PickedFile = { id: string; name: string; accessToken: string };
 
 function loadScript(src: string): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -74,7 +74,7 @@ export function useGooglePicker() {
           .setCallback((data: any) => {
             if (data.action === window.google.picker.Action.PICKED) {
               const doc = data.docs?.[0];
-              resolve(doc ? { id: doc.id, name: doc.name } : null);
+              resolve(doc ? { id: doc.id, name: doc.name, accessToken } : null);
             } else if (data.action === window.google.picker.Action.CANCEL) {
               resolve(null);
             }

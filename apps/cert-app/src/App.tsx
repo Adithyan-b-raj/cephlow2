@@ -18,6 +18,7 @@ const NewTemplate = lazy(() => import("@/pages/templates/NewTemplate"));
 const BuiltinTemplateEditorPage = lazy(() => import("@/pages/templates/BuiltinTemplateEditor"));
 const BuiltinTemplatesListPage = lazy(() => import("@/pages/templates/BuiltinTemplatesList"));
 const VerifyCertificate = lazy(() => import("@/pages/VerifyCertificate"));
+const BatchGallery = lazy(() => import("@/pages/BatchGallery"));
 const StudentProfile = lazy(() => import("@/pages/StudentProfile"));
 const Login = lazy(() => import("@/pages/Login"));
 const NotFound = lazy(() => import("@/pages/not-found"));
@@ -94,12 +95,13 @@ function AuthenticatedRouter() {
 }
 
 // App paths that should never be treated as student profile slugs
-const KNOWN_APP_PATHS = ["/login", "/batches", "/history", "/wallet", "/templates", "/auth", "/verify", "/reports", "/workspace", "/invite", "/privacy", "/terms", "/forgot-password", "/reset-password", "/advanced", "/settings", "/frames", "/admin", "/spreadsheets"];
+const KNOWN_APP_PATHS = ["/login", "/batches", "/history", "/wallet", "/templates", "/auth", "/verify", "/gallery", "/reports", "/workspace", "/invite", "/privacy", "/terms", "/forgot-password", "/reset-password", "/advanced", "/settings", "/frames", "/admin", "/spreadsheets"];
 
 function AppRouter() {
   const { user, loading } = useAuth();
   const [location, setLocation] = useLocation();
   const [isVerifyRoute] = useRoute("/verify/:batchId/:certId");
+  const [isGalleryRoute] = useRoute("/gallery/:batchId");
   const [isProfileRoute] = useRoute("/:username");
 
   // Public legal pages — no auth required
@@ -112,6 +114,9 @@ function AppRouter() {
 
   // Public certificate verification page — no auth required
   if (isVerifyRoute) return <VerifyCertificate />;
+
+  // Public certificate gallery page — no auth required
+  if (isGalleryRoute) return <BatchGallery />;
 
   // Public student profile page — slug-like path not matching any app route
   const isKnownPath =

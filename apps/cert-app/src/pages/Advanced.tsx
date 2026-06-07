@@ -24,7 +24,6 @@ import {
 import "@xyflow/react/dist/style.css";
 import {
   useGetSheetData,
-  useGetSlidePlaceholders,
   useListBuiltinTemplates,
   useCreateBatch,
   getListBatchesQueryKey,
@@ -33,7 +32,6 @@ import {
   type SheetFile,
   type SlideTemplate,
 } from "@workspace/api-client-react";
-import { useGooglePicker } from "@/hooks/use-google-picker";
 import type { BuiltinTemplateSummary } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -60,6 +58,8 @@ import {
   GitBranch,
   Expand,
   Shrink,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -92,9 +92,6 @@ interface TemplateData extends Record<string, unknown> {
 function SpreadsheetNode({ id, data }: NodeProps) {
   const d = data as SpreadsheetData;
   const { updateNodeData, deleteElements, setNodes, setEdges, getNode } = useReactFlow();
-
-  const { openPicker } = useGooglePicker();
-  const [sheetPickerLoading, setSheetPickerLoading] = useState(false);
 
   const { data: sheetDataRes } = useGetSheetData(
     (d.sheetId as string) || "",
@@ -190,59 +187,40 @@ function SpreadsheetNode({ id, data }: NodeProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [(inbuiltSheetData as any)?.id]);
 
+  // Whenever a sheet/spreadsheet is (re-)picked, collapse the source-selection
+  // section so the node mainly shows the resulting columns. Still toggleable by hand.
+  const selectionKey = d.source === "googlesheet" ? (d.sheetId as string) : d.source === "inbuilt" ? (d.inbuiltSpreadsheetId as string) : "";
+  const hasSelection = !!selectionKey;
+  const [collapsed, setCollapsed] = useState(false);
+  const prevSelectionKey = useRef(selectionKey);
+  useEffect(() => {
+    if (selectionKey && selectionKey !== prevSelectionKey.current) setCollapsed(true);
+    prevSelectionKey.current = selectionKey;
+  }, [selectionKey]);
+
   return (
     <div className="bg-background border-2 border-border font-mono shadow-xl" style={{ minWidth: 280, maxWidth: 320 }}>
       {/* Header */}
       <div className="px-3 py-2 border-b-2 border-border bg-foreground text-background flex items-center gap-2">
         <Database className="w-3 h-3 shrink-0" />
         <span className="text-[10px] font-bold uppercase tracking-widest flex-1">Spreadsheet Data</span>
+        {hasSelection && (
+          <button
+            onClick={() => setCollapsed((c) => !c)}
+            className="opacity-60 hover:opacity-100"
+            title={collapsed ? "Expand source selection" : "Collapse source selection"}
+          >
+            {collapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+          </button>
+        )}
         <button onClick={() => deleteElements({ nodes: [{ id }] })} className="opacity-60 hover:opacity-100">
           <X className="w-3 h-3" />
         </button>
       </div>
 
       {/* Source selector */}
+      {!collapsed && (
       <div className="p-3 space-y-2.5">
-        <div className="space-y-1">
-          <span className="text-[9px] uppercase tracking-widest text-muted-foreground">Source</span>
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => updateNodeData(id, { source: "googlesheet", columns: [], rows: [], sheetId: "", tabName: "", fileName: undefined, routingColumns: [] })}
-              className={`flex-1 text-[9px] py-1 px-2 border font-bold uppercase tracking-wider transition-colors ${d.source === "googlesheet" ? "bg-foreground text-background border-foreground" : "border-border hover:border-foreground"}`}
-            >
-              Google Sheet
-            </button>
-            <button
-              onClick={() => updateNodeData(id, { source: "inbuilt", columns: [], rows: [], sheetId: "", sheetName: "", tabName: "", inbuiltSpreadsheetId: "", inbuiltSpreadsheetName: "", routingColumns: [] })}
-              className={`flex-1 text-[9px] py-1 px-2 border font-bold uppercase tracking-wider transition-colors ${d.source === "inbuilt" ? "bg-foreground text-background border-foreground" : "border-border hover:border-foreground"}`}
-            >
-              Builtin
-            </button>
-          </div>
-        </div>
-
-        {d.source === "googlesheet" && (
-          <div className="space-y-1">
-            <span className="text-[9px] uppercase tracking-widest text-muted-foreground">Sheet</span>
-            <button
-              className="nodrag w-full text-[9px] border border-border bg-background px-2 py-1 font-mono cursor-pointer hover:border-foreground transition-colors flex items-center gap-1 disabled:opacity-50"
-              disabled={sheetPickerLoading}
-              onClick={async () => {
-                setSheetPickerLoading(true);
-                try {
-                  const picked = await openPicker("sheet");
-                  if (picked) updateNodeData(id, { sheetId: picked.id, sheetName: picked.name, tabName: "", columns: [], rows: [], routingColumns: [] });
-                } finally {
-                  setSheetPickerLoading(false);
-                }
-              }}
-            >
-              {sheetPickerLoading && <Loader2 className="w-2.5 h-2.5 animate-spin shrink-0" />}
-              <span className="truncate">{(d.sheetName as string) || "Pick from Drive…"}</span>
-            </button>
-          </div>
-        )}
-
         {d.source === "inbuilt" && (
           <div className="space-y-1">
             <span className="text-[9px] uppercase tracking-widest text-muted-foreground">Spreadsheet</span>
@@ -253,28 +231,25 @@ function SpreadsheetNode({ id, data }: NodeProps) {
             ) : spreadsheets.length === 0 ? (
               <p className="text-[9px] text-muted-foreground/60">No spreadsheets yet. Create one from the Spreadsheets page.</p>
             ) : (
-              <div className="space-y-0.5 max-h-32 overflow-y-auto">
-                {spreadsheets.map((s: any) => {
-                  const selected = d.inbuiltSpreadsheetId === s.id;
-                  return (
-                    <button
-                      key={s.id}
-                      className={`nodrag w-full text-left text-[9px] px-2 py-1 border font-mono truncate transition-colors ${selected ? "bg-foreground text-background border-foreground" : "border-border hover:border-foreground"}`}
-                      onClick={() =>
-                        updateNodeData(id, {
-                          inbuiltSpreadsheetId: s.id,
-                          inbuiltSpreadsheetName: s.name,
-                          columns: [],
-                          rows: [],
-                          routingColumns: [],
-                        })
-                      }
-                    >
-                      {s.name}
-                    </button>
-                  );
-                })}
-              </div>
+              <select
+                value={(d.inbuiltSpreadsheetId as string) || ""}
+                onChange={(e) => {
+                  const sheet = spreadsheets.find((s: any) => s.id === e.target.value);
+                  updateNodeData(id, {
+                    inbuiltSpreadsheetId: e.target.value,
+                    inbuiltSpreadsheetName: sheet?.name ?? "",
+                    columns: [],
+                    rows: [],
+                    routingColumns: [],
+                  });
+                }}
+                className="nodrag w-full text-[9px] border border-border bg-background px-2 py-1 font-mono cursor-pointer"
+              >
+                <option value="">Select spreadsheet…</option>
+                {spreadsheets.map((s: any) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
             )}
           </div>
         )}
@@ -283,6 +258,17 @@ function SpreadsheetNode({ id, data }: NodeProps) {
           <p className="text-[9px] text-muted-foreground/60">Select a source above to see columns</p>
         )}
       </div>
+      )}
+
+      {collapsed && (
+        <button
+          onClick={() => setCollapsed(false)}
+          className="nodrag w-full px-3 py-1.5 text-left text-[9px] font-mono text-muted-foreground hover:text-foreground transition-colors border-b-2 border-border truncate"
+          title="Click to change source"
+        >
+          {d.source === "googlesheet" ? (d.sheetName as string) : (d.inbuiltSpreadsheetName as string)}
+        </button>
+      )}
 
       {/* Columns with output handles + routing toggle */}
       {(d.columns as string[]).length > 0 && (
@@ -445,28 +431,23 @@ function TemplateNode({ id, data }: NodeProps) {
   const d = data as TemplateData;
   const { updateNodeData, deleteElements, getEdges } = useReactFlow();
 
-  const { openPicker: openTemplatePicker } = useGooglePicker();
-  const [templatePickerLoading, setTemplatePickerLoading] = useState(false);
-
-  const { data: phRes } = useGetSlidePlaceholders(d.templateId as string);
-
   const { data: builtinRes } = useListBuiltinTemplates();
   const builtinTemplates = (builtinRes as { templates: BuiltinTemplateSummary[] } | undefined)?.templates ?? [];
-
-  // Sync slide placeholders
-  const prevPh = (d.placeholders as string[]).join(",");
-  useEffect(() => {
-    if (d.kind === "slides" && phRes?.placeholders) {
-      const incoming = phRes.placeholders.join(",");
-      if (incoming !== prevPh) updateNodeData(id, { placeholders: phRes.placeholders });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [phRes?.placeholders?.join(","), d.kind]);
 
   // Is this node being routed to by a ConditionNode?
   const isRouted = getEdges().some((e) => e.target === id && e.targetHandle === "route-in");
 
   const kindBadge = d.kind === "slides" ? "SLIDES" : d.kind === "builtin" ? "BUILT-IN" : null;
+
+  // Whenever a template is (re-)picked, collapse the type/template section so
+  // the node mainly shows the route-in row. Still toggleable by hand.
+  const templateId = (d.templateId as string) || "";
+  const [tplCollapsed, setTplCollapsed] = useState(false);
+  const prevTemplateId = useRef(templateId);
+  useEffect(() => {
+    if (templateId && templateId !== prevTemplateId.current) setTplCollapsed(true);
+    prevTemplateId.current = templateId;
+  }, [templateId]);
 
   return (
     <div className="bg-background border-2 border-border font-mono shadow-xl" style={{ minWidth: 280, maxWidth: 320 }}>
@@ -484,58 +465,23 @@ function TemplateNode({ id, data }: NodeProps) {
             {kindBadge}
           </span>
         )}
+        {templateId && (
+          <button
+            onClick={() => setTplCollapsed((c) => !c)}
+            className="text-muted-foreground hover:text-foreground"
+            title={tplCollapsed ? "Expand template selection" : "Collapse template selection"}
+          >
+            {tplCollapsed ? <ChevronDown className="w-3 h-3" /> : <ChevronUp className="w-3 h-3" />}
+          </button>
+        )}
         <button onClick={() => deleteElements({ nodes: [{ id }] })} className="text-muted-foreground hover:text-foreground ml-1">
           <X className="w-3 h-3" />
         </button>
       </div>
 
       {/* Template type + picker */}
+      {!tplCollapsed && (
       <div className="p-3 space-y-2.5">
-        <div className="space-y-1">
-          <span className="text-[9px] uppercase tracking-widest text-muted-foreground">Type</span>
-          <div className="flex gap-1.5">
-            <button
-              onClick={() => updateNodeData(id, { kind: "slides", templateId: "", templateName: "", placeholders: [] })}
-              className={`flex-1 text-[9px] py-1 px-2 border font-bold uppercase tracking-wider transition-colors ${d.kind === "slides" ? "bg-foreground text-background border-foreground" : "border-border hover:border-foreground"}`}
-            >
-              Google Slides
-            </button>
-            <button
-              onClick={() => updateNodeData(id, { kind: "builtin", templateId: "", templateName: "", placeholders: [] })}
-              className={`flex-1 text-[9px] py-1 px-2 border font-bold uppercase tracking-wider transition-colors ${d.kind === "builtin" ? "bg-foreground text-background border-foreground" : "border-border hover:border-foreground"}`}
-            >
-              Built-in
-            </button>
-          </div>
-        </div>
-
-        {d.kind === "slides" && (
-          <div className="space-y-1">
-            <span className="text-[9px] uppercase tracking-widest text-muted-foreground">Template</span>
-            <button
-              className="nodrag w-full text-[9px] border border-border bg-background px-2 py-1 font-mono cursor-pointer hover:border-foreground transition-colors flex items-center gap-1 disabled:opacity-50"
-              disabled={templatePickerLoading}
-              onClick={async () => {
-                setTemplatePickerLoading(true);
-                try {
-                  const picked = await openTemplatePicker("presentation");
-                  if (picked) updateNodeData(id, { templateId: picked.id, templateName: picked.name, placeholders: [] });
-                } finally {
-                  setTemplatePickerLoading(false);
-                }
-              }}
-            >
-              {templatePickerLoading && <Loader2 className="w-2.5 h-2.5 animate-spin shrink-0" />}
-              <span className="truncate">{(d.templateName as string) || "Pick from Drive…"}</span>
-            </button>
-            {d.templateId && !phRes?.placeholders && (
-              <div className="flex items-center gap-1 text-[9px] text-muted-foreground">
-                <Loader2 className="w-3 h-3 animate-spin" /> Detecting placeholders…
-              </div>
-            )}
-          </div>
-        )}
-
         {d.kind === "builtin" && (
           <div className="space-y-1">
             <span className="text-[9px] uppercase tracking-widest text-muted-foreground">Template</span>
@@ -559,6 +505,17 @@ function TemplateNode({ id, data }: NodeProps) {
           <p className="text-[9px] text-muted-foreground/60">Select a type above to configure</p>
         )}
       </div>
+      )}
+
+      {tplCollapsed && (
+        <button
+          onClick={() => setTplCollapsed(false)}
+          className="nodrag w-full px-3 py-1.5 text-left text-[9px] font-mono text-muted-foreground hover:text-foreground transition-colors border-b-2 border-border truncate"
+          title="Click to change template"
+        >
+          {(d.templateName as string) || "Template selected"}
+        </button>
+      )}
 
       {/* Route-in handle — dedicated row for routing connections from ConditionNodes */}
       <div className="border-t-2 border-border">
@@ -813,7 +770,8 @@ function AdvancedInner() {
         type: "spreadsheet",
         position: { x: 80, y: 120 },
         data: {
-          source: null, sheetId: "", sheetName: "", tabName: "",
+          source: "inbuilt", sheetId: "", sheetName: "", tabName: "",
+          inbuiltSpreadsheetId: "", inbuiltSpreadsheetName: "",
           columns: [], rows: [], routingColumns: [],
         } satisfies SpreadsheetData,
       },
@@ -834,7 +792,7 @@ function AdvancedInner() {
           type: "template",
           position: { x: baseX, y: baseY + count * 380 },
           data: {
-            kind: null, templateId: "", templateName: "", placeholders: [],
+            kind: "builtin", templateId: "", templateName: "", placeholders: [],
           } satisfies TemplateData,
         },
       ];

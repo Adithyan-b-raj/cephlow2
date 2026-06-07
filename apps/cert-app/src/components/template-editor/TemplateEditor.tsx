@@ -32,6 +32,7 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
   const [templateName, setTemplateName] = useState(initialName);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [joystickVisible, setJoystickVisible] = useState(true);
+  const [fontTick, setFontTick] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasAreaRef = useRef<HTMLDivElement>(null);
   const prevZoomRef = useRef(zoom);
@@ -92,20 +93,22 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
 
   useEffect(() => {
     ensureFontStylesInjected();
-    Promise.all(BUNDLED_FONTS.flatMap((f) => [ensureFontLoaded(f.family, 400), ensureFontLoaded(f.family, 700)]));
+    Promise.all(BUNDLED_FONTS.flatMap((f) => [ensureFontLoaded(f.family, 400), ensureFontLoaded(f.family, 700)])).then(
+      () => setFontTick((n) => n + 1),
+    );
     // Auto-fit on mount so mobile users see the full canvas
     requestAnimationFrame(fitZoom);
   }, []);
 
-  // Lazy-load any non-bundled fonts referenced by the current document
+  // Lazy-load any non-bundled fonts referenced by the current document, then
+  // bump fontTick so the canvas redraws with the now-available typeface.
   useEffect(() => {
     const families = new Set<string>();
     for (const el of store.doc.elements) {
       if (el.type === "text") families.add(el.fontFamily);
     }
     families.forEach((f) => {
-      void ensureFontLoaded(f, 400);
-      void ensureFontLoaded(f, 700);
+      Promise.all([ensureFontLoaded(f, 400), ensureFontLoaded(f, 700)]).then(() => setFontTick((n) => n + 1));
     });
   }, [store.doc.elements]);
 
@@ -195,7 +198,7 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
       />
       <div className={`flex-1 flex overflow-hidden ${isFullscreen ? "flex-row" : "flex-col md:flex-row"}`}>
         <div ref={canvasAreaRef} className="flex-1 min-w-0 min-h-0 relative">
-          <EditorCanvas store={store} zoom={zoom} setZoom={setZoom} />
+          <EditorCanvas store={store} zoom={zoom} setZoom={setZoom} fontTick={fontTick} />
 
           {/* Floating zoom control — always visible on canvas */}
           <div className="absolute bottom-3 right-3 z-40 flex items-center gap-0.5 bg-background/90 backdrop-blur-sm border border-border rounded-lg shadow-md px-1 py-0.5">

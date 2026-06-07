@@ -4,6 +4,7 @@ import { rateLimit, ipKeyGenerator } from "express-rate-limit";
 import { requireAuth } from "./middlewares/auth.js";
 import healthRouter from "./routes/health.js";
 import verifyRouter from "./routes/verify.js";
+import galleryRouter from "./routes/gallery.js";
 import authRouter from "./routes/auth.js";
 import webhooksRouter from "./routes/webhooks.js";
 import profilesRouter from "./routes/profiles.js";
@@ -57,6 +58,9 @@ app.use("/api", healthRouter);
 
 // Certificate verification — public, no auth required
 app.use("/api", verifyRouter);
+
+// Public certificate gallery — no auth required
+app.use("/api", galleryRouter);
 
 // Student profile pages — public, no auth required
 app.use("/api", profilesRouter);
