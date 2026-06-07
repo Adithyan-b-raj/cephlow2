@@ -460,7 +460,7 @@ router.post("/batches/:batchId/share-folder", async (req, res) => {
       .from("certificates")
       .select("id, recipient_name, r2_pdf_url")
       .eq("batch_id", batchId)
-      .eq("status", "generated")
+      .in("status", ["generated", "sent"])
       .not("r2_pdf_url", "is", null);
 
     if (!certs || certs.length === 0) {
