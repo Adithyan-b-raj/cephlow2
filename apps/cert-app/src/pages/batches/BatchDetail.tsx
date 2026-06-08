@@ -18,6 +18,7 @@ import {
   useUpdateBatchFields,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Loader2, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -89,6 +90,39 @@ export default function BatchDetail() {
 
 
   const [activeReport, setActiveReport] = useState<{ cert: any; report: ReportDetail } | null>(null);
+
+  const [deleteCert, setDeleteCert] = useState<any | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [isDeletingCert, setIsDeletingCert] = useState(false);
+
+  const handleConfirmDeleteCert = async () => {
+    if (!deleteCert) return;
+    setIsDeletingCert(true);
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+      const wsId = localStorage.getItem("cephlow_active_workspace");
+      const res = await fetch(`${apiBase}/api/certificates/${deleteCert.id}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}`, ...(wsId ? { "x-workspace-id": wsId } : {}) },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Failed to delete recipient");
+      }
+      toast({ title: "Recipient removed", description: `${deleteCert.recipientName}'s certificate and data have been deleted.` });
+      setDeleteCert(null);
+      setDeleteConfirmText("");
+      queryClient.invalidateQueries({ queryKey: getGetBatchQueryKey(batchId) });
+      refetch();
+    } catch (err: any) {
+      toast({ title: "Delete failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsDeletingCert(false);
+    }
+  };
 
   const { getCertKey, certHasReport, getCertReport } = useWaReports(batch);
 
@@ -363,6 +397,7 @@ export default function BatchDetail() {
         onReportClick={setActiveReport}
         onIndivEmail={handleOpenIndivEmail}
         onIndivWa={handleOpenIndivWa}
+        onDelete={(cert) => { setDeleteCert(cert); setDeleteConfirmText(""); }}
         batchId={batchId}
         getStatusColor={getStatusColor}
       />
@@ -444,6 +479,37 @@ export default function BatchDetail() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => { setShowConnectDriveDialog(false); connectGoogle("drive"); }}>
               Connect Google Drive
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteCert} onOpenChange={(open) => { if (!open) { setDeleteCert(null); setDeleteConfirmText(""); } }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete recipient?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently deletes <strong>{deleteCert?.recipientName}</strong>'s certificate, generated PDF, and any
+              event/profile data linked to them in this batch. This cannot be undone.
+              <br /><br />
+              Type <strong>{deleteCert?.recipientName}</strong> below to confirm.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <Input
+            value={deleteConfirmText}
+            onChange={(e) => setDeleteConfirmText(e.target.value)}
+            placeholder={deleteCert?.recipientName || ""}
+            autoComplete="off"
+          />
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setDeleteCert(null); setDeleteConfirmText(""); }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleteConfirmText !== deleteCert?.recipientName || isDeletingCert}
+              onClick={(e) => { e.preventDefault(); handleConfirmDeleteCert(); }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeletingCert ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+              Delete Recipient
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

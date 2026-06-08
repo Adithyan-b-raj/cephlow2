@@ -5,7 +5,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Card } from "@/components/ui/card";
 import { LockedFeature } from "@/components/LockedFeature";
-import { Loader2, Clock, CheckCircle2, MailCheck, XCircle, AlertCircle, MessageCircle, CheckCheck, Truck, Send, FileDown, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, Clock, CheckCircle2, MailCheck, XCircle, AlertCircle, MessageCircle, CheckCheck, Truck, Send, FileDown, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { QrCodePopover } from "./QrCodePopover";
 
@@ -21,6 +21,7 @@ interface Props {
   onReportClick: (entry: { cert: any; report: ReportDetail }) => void;
   onIndivEmail: (cert: any) => void;
   onIndivWa: (cert: any) => void;
+  onDelete: (cert: any) => void;
   batchId: string;
   getStatusColor: (status: string) => string;
 }
@@ -28,7 +29,7 @@ interface Props {
 export function BatchCertificatesTable({
   batch, sortedCertificates, selectedCertIds, onSelectionChange,
   certHasReport, getCertReport, onReportClick,
-  onIndivEmail, onIndivWa,
+  onIndivEmail, onIndivWa, onDelete,
   batchId, getStatusColor,
 }: Props) {
   const [expandedCertIds, setExpandedCertIds] = useState<Set<string>>(new Set());
@@ -73,6 +74,9 @@ export function BatchCertificatesTable({
       {(cert.status === 'generated' || cert.status === 'sent') && (
         <QrCodePopover batchId={batchId} certId={cert.id} />
       )}
+      <Button variant="outline" size="sm" className="hover-elevate text-destructive hover:text-destructive" onClick={() => onDelete(cert)} aria-label="Delete recipient">
+        <Trash2 className="w-3.5 h-3.5" />
+      </Button>
     </>
   );
 
@@ -101,15 +105,13 @@ export function BatchCertificatesTable({
       {(cert.status === 'generated' || cert.status === 'sent') && (
         <QrCodePopover batchId={batchId} certId={cert.id} />
       )}
+      <Button variant="outline" size="sm" className="hover-elevate w-full justify-start text-destructive hover:text-destructive" onClick={() => onDelete(cert)}>
+        <Trash2 className="w-3.5 h-3.5 mr-1.5" />Delete
+      </Button>
     </>
   );
 
-  const hasActions = (cert: any) =>
-    cert.status === 'generated' ||
-    cert.status === 'sent' ||
-    cert.status === 'failed' ||
-    cert.r2PdfUrl ||
-    cert.pdfUrl;
+  const hasActions = (_cert: any) => true;
 
   return (
     <Card className="border-border/50 shadow-sm overflow-hidden">

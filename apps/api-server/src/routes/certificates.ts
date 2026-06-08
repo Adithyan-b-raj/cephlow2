@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { supabaseAdmin, toCamel } from "@workspace/supabase";
 import { isAdminOrOwner } from "../middlewares/requireWorkspace.js";
+import { deleteR2Objects, isR2Configured } from "../lib/cloudflareR2.js";
 
 const router: IRouter = Router({ mergeParams: true });
 
@@ -51,6 +52,81 @@ router.get("/certificates", async (req, res) => {
     });
 
     return res.json({ certificates, total: certificates.length });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
+// Remove a single recipient (and their certificate/event data) from a batch
+router.delete("/certificates/:certId", async (req, res) => {
+  const userId = req.user?.uid;
+  if (!userId || !req.workspace) return res.status(401).json({ error: "Unauthorized" });
+
+  const { certId } = req.params;
+
+  try {
+    const { data: cert, error: certError } = await supabaseAdmin
+      .from("certificates")
+      .select("id, batch_id, recipient_email, r2_pdf_url")
+      .eq("id", certId)
+      .single();
+    if (certError || !cert) return res.status(404).json({ error: "Certificate not found" });
+
+    const { data: batch, error: batchError } = await supabaseAdmin
+      .from("batches")
+      .select("user_id, workspace_id")
+      .eq("id", cert.batch_id)
+      .single();
+    if (batchError || !batch) return res.status(404).json({ error: "Batch not found" });
+
+    const { id: workspaceId, role } = req.workspace;
+    if (batch.workspace_id !== workspaceId) return res.status(403).json({ error: "Access denied" });
+    if (!isAdminOrOwner(role) && batch.user_id !== userId) return res.status(403).json({ error: "Access denied" });
+
+    // Clean up the R2 PDF object
+    if (isR2Configured() && cert.r2_pdf_url) {
+      const r2PublicBase = process.env.R2_PUBLIC_URL?.replace(/\/$/, "");
+      if (r2PublicBase && cert.r2_pdf_url.startsWith(r2PublicBase + "/")) {
+        try { await deleteR2Objects([cert.r2_pdf_url.slice(r2PublicBase.length + 1)]); }
+        catch (r2Err) { console.error("[R2] Failed to delete object:", r2Err); }
+      }
+    }
+
+    // Unlink from any student profile, then drop the profile if it has no certs left
+    const { data: unlinked } = await supabaseAdmin
+      .from("student_profile_certs")
+      .delete()
+      .eq("cert_id", cert.id)
+      .select("profile_slug");
+
+    const slugs = [...new Set((unlinked || []).map((r: any) => r.profile_slug).filter(Boolean))] as string[];
+    if (slugs.length > 0) {
+      const { data: remaining } = await supabaseAdmin
+        .from("student_profile_certs")
+        .select("profile_slug")
+        .in("profile_slug", slugs);
+      const slugsWithRemainingCerts = new Set((remaining || []).map((r: any) => r.profile_slug));
+      const orphanedSlugs = slugs.filter((s) => !slugsWithRemainingCerts.has(s));
+
+      if (orphanedSlugs.length > 0) {
+        const { data: indexRows } = await supabaseAdmin
+          .from("student_profile_index")
+          .select("email_key")
+          .in("slug", orphanedSlugs);
+        const orphanedEmailKeys = (indexRows || []).map((r: any) => r.email_key);
+
+        await Promise.all([
+          supabaseAdmin.from("student_profiles").delete().in("slug", orphanedSlugs),
+          orphanedEmailKeys.length > 0
+            ? supabaseAdmin.from("student_profile_index").delete().in("email_key", orphanedEmailKeys)
+            : Promise.resolve(),
+        ]);
+      }
+    }
+
+    await supabaseAdmin.from("certificates").delete().eq("id", cert.id);
+
+    return res.json({ success: true });
   } catch (err: any) {
     return res.status(500).json({ error: err.message });
   }
