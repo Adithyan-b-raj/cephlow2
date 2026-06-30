@@ -14,3 +14,9 @@ export {
 export * from "./extras";
 export * from "./builtin-templates";
 export * from "./spreadsheets";
+export {
+  sendBatchWhatsapp,
+  useSendBatchWhatsapp,
+  sendCertWhatsapp,
+  useSendCertWhatsapp,
+} from "./whatsapp";
