@@ -29,7 +29,7 @@ router.get("/p/:username", async (c) => {
       // D1 SQL helper to fetch multiple batches using IN clause
       const placeholders = batchIds.map(() => "?").join(",");
       const { results: batchRows } = await c.env.DB.prepare(`
-        SELECT id, banner_url, banner_type, banner_overlay_opacity, banner_text_color, banner_crop_zoom, banner_crop_x, banner_crop_y, frame_tier
+        SELECT id, banner_url, banner_overlay_opacity, banner_text_color, banner_crop_zoom, banner_crop_x, banner_crop_y, frame_tier
         FROM batches
         WHERE id IN (${placeholders})
       `).bind(...batchIds).all<any>();
