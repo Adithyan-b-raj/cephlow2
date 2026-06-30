@@ -1,498 +1,468 @@
-# Migrate Express API Server → Cloudflare Workers (Free Plan)
+# Unified Master Plan: Express API & Supabase DB → Cloudflare Workers + D1
 
-Replace the entire `apps/api-server` (Express + Node.js on Render) with a **Cloudflare Workers** API. Certificate sending uses a **client-side send loop** (same pattern as generation), eliminating the need for Cloudflare Queues and the paid plan entirely.
+Replace the entire Render-hosted infrastructure with a **Cloudflare-native stack** running on the **Free Tier ($0/month)**. 
 
-**Total infrastructure cost after migration: $0/month**
+All application metadata, batches, wallet balances, and certificates will reside in a **new, dedicated Cloudflare D1 database** (`cephlow-app-db`), while **Supabase Auth** is retained purely for user identity management (sign-in/sign-up JWTs). Certificate delivery uses a **client-side send loop** to fit within the Worker 10ms CPU limit.
 
-## User Review Required
+---
 
-> [!IMPORTANT]
-> **This is a large migration** (~24 route files, ~4,600 lines of server code). Each phase can be deployed independently. The old server runs in parallel during migration.
+## 1. Resolved Decisions & Settings
 
-> [!WARNING]
-> **Google API SDK (`googleapis`) must be rewritten.** [googleDrive.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/lib/googleDrive.ts) (888 lines) and [googleSheets.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/lib/googleSheets.ts) use the `googleapis` Node.js SDK which depends on `http`, `stream`, `fs` — none of which exist in Workers. All Google API calls must be rewritten as raw `fetch()` calls.
+1. **WhatsApp Worker:** Stays separate (`whatsapp-cert-bot` Worker remains untouched and uses its own `wa-bot-analytics` D1 database).
+2. **Database:** A **brand new D1 database** (`cephlow-app-db`) will be created for the core application tables.
+3. **Frontend:** Confirmed already hosted on Cloudflare Pages. No frontend migration work needed.
+4. **Redis:** Dropped entirely. `REDIS_URL` will be removed.
 
-> [!WARNING]
-> **`cashfree-pg` SDK compatibility.** The Cashfree SDK may use Node.js-specific APIs. Will rewrite to raw REST API calls. Same for `qrcode` (uses Canvas/Buffer).
+---
 
-## Open Questions
-
-> [!IMPORTANT]
-> 1. **Keep the existing WhatsApp bot worker separate or merge?** You already have a [whatsapp-cert-bot](file:///c:/cephlow%20minimalist%20version/cephlow2/cloudflare-worker/wrangler.toml) Worker. Merge into the new API Worker or keep separate?
-> 2. **Frontend hosting?** Currently on Render static. Move to Cloudflare Pages (free)? Unified dashboard.
-> 3. **Redis (Upstash)** — no longer needed for task queue. Is it used for anything else? If not, drop it entirely.
-
-## Architecture Overview
+## 2. Architecture Overview
 
 ```mermaid
 graph TB
     subgraph "Current Architecture"
-        FE["Frontend (Render Static)"] --> API["Express API (Render $7-25/mo)"]
+        FE["Frontend (CF Pages)"] --> API["Express API (Render $7-25/mo)"]
         API --> Worker["Task Worker (Render $7-25/mo)"]
-        API --> R2["Cloudflare R2"]
-        API --> SB["Supabase"]
+        API --> SB_DB["Supabase Postgres (500MB cap)"]
         API --> GA["Google APIs (googleapis SDK)"]
-        WA_WKR["WhatsApp Bot (CF Worker)"] --> R2
         API --> Redis["Upstash Redis ($0-10/mo)"]
+        WA_WKR["WhatsApp Bot (CF Worker)"] --> WA_DB["D1 Bot Analytics DB"]
     end
 
     subgraph "New Architecture ($0/mo)"
-        FE2["Frontend (CF Pages — free)"] --> CFW["API Worker (CF Workers — free)"]
+        FE2["Frontend (CF Pages)"] --> CFW["API Worker (CF Workers — free)"]
         FE2 -->|"send loop (1 cert at a time)"| CFW
-        CFW --> R2B["R2 (native binding — free)"]
-        CFW --> SB2["Supabase (fetch)"]
+        CFW --> D1["New D1 Database (cephlow-app-db — 5GB cap)"]
+        CFW --> R2["R2 Bucket (certificates — native binding)"]
+        CFW --> SB_AUTH["Supabase Auth (free tier JWTs only)"]
         CFW --> GA2["Google APIs (raw fetch)"]
         CFW --> ZEPTO["ZeptoMail (fetch)"]
         CFW --> WAPI["WhatsApp Cloud API (fetch)"]
-        WA_WKR2["WhatsApp Bot Worker (keep separate)"]
+        WA_WKR2["WhatsApp Bot (CF Worker - unchanged)"] --> WA_DB2["D1 Bot Analytics DB"]
     end
 ```
 
-### Key Architecture Change: Client-Side Send Loop
+### Key Cost & Resource Changes
 
-Currently, batch sending works as:
-```
-User clicks "Send All" → Server queues 1 task → Polling worker processes all certs in a loop
-```
-
-New approach (mirrors existing generation pattern):
-```
-User clicks "Send All" → Frontend loops through certs one-by-one:
-  → POST /api/certificates/:certId/send-email   (cert 1) → ✅
-  → POST /api/certificates/:certId/send-email   (cert 2) → ✅
-  → POST /api/certificates/:certId/send-email   (cert 3) → ❌ retry
-  → ...progress bar updates in real-time
-```
-
-Each request processes **1 send** → ~1-2ms CPU (rest is I/O) → fits within **10ms free-plan CPU limit**.
-
-**What this eliminates:**
-- ❌ Cloudflare Queues (paid plan only)
-- ❌ [worker.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/worker.ts) (polling loop)
-- ❌ [sendEmail.ts processor](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/processors/sendEmail.ts) (batch processor)
-- ❌ [sendWhatsApp.ts processor](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/processors/sendWhatsApp.ts) (batch processor)
-- ❌ Supabase `tasks` table (no longer needed for dispatch)
-- ❌ Redis/Upstash (no longer needed)
+| Component | Current Architecture | New Architecture |
+|---|---|---|
+| **API Server Hosting** | Render Node.js ($7–25/mo) | **Cloudflare Workers (Free — $0/mo)** |
+| **Worker Queue Processors** | Render Node.js ($7–25/mo) | **Eliminated** (replaced by client-side send loops) |
+| **Database** | Supabase Postgres (500MB limit) | **Cloudflare D1 (5GB limit — $0/mo)** |
+| **Database Sleep Pause** | Sleeps after 1 week inactivity | **Never sleeps (Zero cold starts)** |
+| **Queue Broker** | Upstash Redis ($0–10/mo) | **Eliminated** (no queue server needed) |
+| **Identity Provider** | Supabase Auth (with DB storage) | **Supabase Auth (identity only, no DB storage)** |
+| **Total Server Infrastructure** | **~$14–60/month** | **$0/month** |
 
 ---
 
-## Proposed Changes
+## 3. Schema DDL: Supabase → D1 (SQLite)
 
-### Phase 1: Project Scaffolding (~2 hours)
+D1 uses SQLite, which stores UUIDs/timestamps as `TEXT` and JSON columns as `TEXT` strings. Since the Worker is the gatekeeper, RLS is handled in application code instead of database policies.
 
-#### [NEW] `workers/api/wrangler.toml`
-```toml
-name = "cephlow-api"
-main = "src/index.ts"
-compatibility_date = "2024-12-01"
-compatibility_flags = ["nodejs_compat"]
+```sql
+-- schema.sql
 
-[[r2_buckets]]
-binding = "CERTIFICATES"
-bucket_name = "certificates"
+-- 1. Workspaces
+CREATE TABLE workspaces (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  owner_id TEXT NOT NULL, -- Matches Supabase Auth UID
+  current_balance REAL NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX workspaces_owner_id_idx ON workspaces(owner_id);
 
-[[kv_namespaces]]
-binding = "CACHE"
-id = "<created-via-wrangler>"
+-- 2. Membership
+CREATE TABLE workspace_members (
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('owner','admin','member')),
+  joined_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (workspace_id, user_id)
+);
+CREATE INDEX workspace_members_user_idx ON workspace_members(user_id);
 
-[vars]
-R2_PUBLIC_URL = "https://pub-3e00f49622064202a04c19fb33ee2976.r2.dev"
-PUBLIC_BASE_URL = "https://cephlow.online"
-FRONTEND_URL = "https://cephlow.online"
+-- 3. Batches
+CREATE TABLE batches (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  sheet_id TEXT DEFAULT '',
+  sheet_name TEXT DEFAULT '',
+  tab_name TEXT,
+  spreadsheet_id TEXT,
+  data_source_kind TEXT NOT NULL,
+  template_id TEXT NOT NULL,
+  template_name TEXT NOT NULL,
+  template_kind TEXT NOT NULL,
+  column_map TEXT,               -- Stored as JSON string
+  email_column TEXT,
+  name_column TEXT,
+  email_subject TEXT,
+  email_body TEXT,
+  category_column TEXT,
+  category_template_map TEXT,    -- Stored as JSON string
+  category_slide_map TEXT,        -- Stored as JSON string
+  category_slide_indexes TEXT,
+  banner_url TEXT,
+  frame_tier TEXT DEFAULT 'none',
+  status TEXT NOT NULL DEFAULT 'draft',
+  drive_folder_id TEXT,
+  pdf_folder_id TEXT,
+  total_count INTEGER DEFAULT 0,
+  generated_count INTEGER DEFAULT 0,
+  sent_count INTEGER DEFAULT 0,
+  whatsapp_sent_count INTEGER DEFAULT 0,
+  failed_count INTEGER DEFAULT 0,
+  paid_frames TEXT DEFAULT '[]', -- Stored as JSON array string
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX batches_workspace_idx ON batches(workspace_id);
+
+-- 4. Certificates
+CREATE TABLE certificates (
+  id TEXT PRIMARY KEY,
+  batch_id TEXT NOT NULL REFERENCES batches(id) ON DELETE CASCADE,
+  recipient_name TEXT NOT NULL,
+  recipient_email TEXT,
+  status TEXT NOT NULL DEFAULT 'pending',
+  row_data TEXT,                 -- Stored as JSON string
+  slide_file_id TEXT,
+  slide_url TEXT,
+  pdf_file_id TEXT,
+  pdf_url TEXT,
+  r2_pdf_url TEXT,
+  sent_at TEXT,
+  error_message TEXT,
+  is_paid INTEGER NOT NULL DEFAULT 0, -- 0/1 for booleans
+  requires_visual_regen INTEGER NOT NULL DEFAULT 0,
+  whatsapp_message_id TEXT,
+  whatsapp_status TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX certs_batch_idx ON certificates(batch_id);
+
+-- 5. User Profiles (caching creator status/credits)
+CREATE TABLE user_profiles (
+  id TEXT PRIMARY KEY,           -- Matches Supabase Auth UID
+  email TEXT,
+  is_approved INTEGER NOT NULL DEFAULT 0,
+  creator_credits REAL NOT NULL DEFAULT 0,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- 6. Ledgers
+CREATE TABLE ledgers (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('topup','deduction','refund','transfer_in','transfer_out')),
+  amount REAL NOT NULL,
+  balance_after REAL NOT NULL,
+  description TEXT NOT NULL,
+  metadata TEXT,                 -- Stored as JSON string
+  transfer_id TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX ledgers_workspace_idx ON ledgers(workspace_id);
 ```
-
-No Queue bindings. No paid-plan features.
-
-#### [NEW] `workers/api/src/index.ts`
-Worker entry point using **Hono** (lightweight Workers-native router):
-```typescript
-import { Hono } from 'hono'
-import { cors } from 'hono/cors'
-
-const app = new Hono<{ Bindings: Env }>()
-app.use('*', cors({ origin: true, ... }))
-
-// Public routes (no auth)
-app.route('/api', healthRoutes)
-app.route('/api', verifyRoutes)
-app.route('/api', galleryRoutes)
-app.route('/api', profilesRoutes)
-app.route('/api', authRoutes)
-app.route('/api', webhooksRoutes)
-app.route('/api', qrRoutes)
-app.route('/api', internalRoutes)
-
-// Authenticated routes
-app.use('/api/*', authMiddleware)
-app.route('/api', approvalRoutes)
-app.route('/api', workspacesRoutes)
-app.route('/api', creatorCreditsRoutes)
-
-// Workspace-scoped routes
-app.use('/api/*', workspaceMiddleware)
-app.route('/api', batchesRoutes)
-app.route('/api', certificatesRoutes)
-// ... etc
-
-export default app
-```
-
-#### [NEW] `workers/api/src/middleware/auth.ts`
-Port of [auth.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/middlewares/auth.ts). Verify Supabase JWT using Web Crypto API (no `jsonwebtoken` needed):
-```typescript
-const key = await crypto.subtle.importKey('raw', secret, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify'])
-const valid = await crypto.subtle.verify('HMAC', key, signature, payload)
-```
-
-#### [NEW] `workers/api/src/middleware/workspace.ts`
-Port of [requireWorkspace.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/middlewares/requireWorkspace.ts).
-
-#### [NEW] `workers/api/src/middleware/approval.ts`
-Port of [requireApproval.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/middlewares/requireApproval.ts).
 
 ---
 
-### Phase 2: Library Rewrites (~8-12 hours)
+## 4. Proposed Changes: Implementation Steps
 
-#### [NEW] `workers/api/src/lib/supabase.ts`
-Supabase client using `@supabase/supabase-js` (Works in Workers since it uses `fetch`).
+### Phase 1: Create and Scaffolding D1 (~2 hours)
 
-#### [NEW] `workers/api/src/lib/google-auth.ts`
-Port of [googleAuth.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/lib/googleAuth.ts). Rewrite OAuth2 flow using raw `fetch()`:
-- `generateAuthUrl()` → construct URL string manually
-- `handleCallback()` → `fetch('https://oauth2.googleapis.com/token', ...)` 
-- `getAccessToken()` → `fetch('https://oauth2.googleapis.com/token', { grant_type: 'refresh_token', ... })`
-- `disconnectGoogleToken()` → `fetch('https://oauth2.googleapis.com/revoke', ...)`
+1. Create a brand new D1 database:
+   ```bash
+   npx wrangler d1 create cephlow-app-db
+   ```
+2. Initialize the schema locally and deploy to production:
+   ```bash
+   npx wrangler d1 execute cephlow-app-db --file=./schema.sql
+   npx wrangler d1 execute cephlow-app-db --remote --file=./schema.sql
+   ```
 
-#### [NEW] `workers/api/src/lib/google-drive.ts`
-Port of [googleDrive.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/lib/googleDrive.ts) (888 lines → ~400 lines). Replace `googleapis` SDK with raw REST:
+3. Create the API Worker workspace directory structure:
+   * **[NEW] `workers/api/wrangler.toml`**
+     Configure the R2 buckets, KV cache, and the newly created D1 bindings:
+     ```toml
+     name = "cephlow-api"
+     main = "src/index.ts"
+     compatibility_date = "2024-12-01"
+     compatibility_flags = ["nodejs_compat"]
 
-| SDK Call | REST Replacement |
-|---|---|
-| `drive.files.list()` | `GET https://www.googleapis.com/drive/v3/files?q=...` |
-| `drive.files.copy()` | `POST https://www.googleapis.com/drive/v3/files/{id}/copy` |
-| `drive.files.create()` | `POST https://www.googleapis.com/upload/drive/v3/files` |
-| `drive.files.delete()` | `DELETE https://www.googleapis.com/drive/v3/files/{id}` |
-| `drive.files.export()` | `GET https://www.googleapis.com/drive/v3/files/{id}/export` |
-| `drive.permissions.create()` | `POST https://www.googleapis.com/drive/v3/files/{id}/permissions` |
-| `slides.presentations.get()` | `GET https://slides.googleapis.com/v1/presentations/{id}` |
-| `slides.presentations.batchUpdate()` | `POST https://slides.googleapis.com/v1/presentations/{id}:batchUpdate` |
+     [[r2_buckets]]
+     binding = "CERTIFICATES"
+     bucket_name = "certificates"
 
-All calls use `Authorization: Bearer {accessToken}` header.
+     [[kv_namespaces]]
+     binding = "CACHE"
+     id = "<created-via-wrangler>"
 
-#### [NEW] `workers/api/src/lib/google-sheets.ts`
-Port of [googleSheets.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/lib/googleSheets.ts). Replace:
+     [[d1_databases]]
+     binding = "DB"
+     database_name = "cephlow-app-db"
+     database_id = "<your-d1-database-id>"
 
-| SDK Call | REST Replacement |
-|---|---|
-| `sheets.spreadsheets.values.get()` | `GET https://sheets.googleapis.com/v4/spreadsheets/{id}/values/{range}` |
-| `sheets.spreadsheets.create()` | `POST https://sheets.googleapis.com/v4/spreadsheets` |
+     [vars]
+     R2_PUBLIC_URL = "https://pub-3e00f49622064202a04c19fb33ee2976.r2.dev"
+     PUBLIC_BASE_URL = "https://cephlow.online"
+     ```
 
-#### [NEW] `workers/api/src/lib/r2.ts`
-Port of [cloudflareR2.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/lib/cloudflareR2.ts) (231 lines → ~50 lines). Replace S3 SDK with **native R2 binding**:
+4. **[NEW] `workers/api/src/index.ts`**
+   Worker gateway implementing Hono:
+   ```typescript
+   import { Hono } from 'hono';
+   import { cors } from 'hono/cors';
+
+   const app = new Hono<{ Bindings: Env }>();
+   app.use('*', cors({ origin: true, credentials: true }));
+
+   // Public API routes
+   app.route('/api', healthRouter);
+   app.route('/api', verifyRouter);
+   app.route('/api', galleryRouter);
+   app.route('/api', profilesRouter);
+   app.route('/api', webhooksRouter);
+   
+   // Auth verification middleware (Supabase JWT decode via Web Crypto API)
+   app.use('/api/*', authMiddleware);
+   app.route('/api', authRouter);
+   app.route('/api', workspacesRouter);
+
+   // Workspace context middleware
+   app.use('/api/*', workspaceMiddleware);
+   app.route('/api', batchesRouter);
+   app.route('/api', certificatesRouter);
+
+   export default app;
+   ```
+
+5. **[NEW] `workers/api/src/middleware/auth.ts`**
+   Extracts `Bearer <token>` and verifies it using the Web Crypto API matching the `SUPABASE_JWT_SECRET`. Since Workers runs in a serverless environment, this avoids importing heavy external JWT libraries.
+
+---
+
+### Phase 2: Transaction Rewrites (PostgreSQL RPC → JS D1 Batch) (~6 hours)
+
+Since D1 lacks PL/pgSQL RPC support, atomic operations are rewritten using the `db.batch()` API.
+
+#### 1. Port `start_batch_generation` (Deduction transaction)
+```typescript
+// JS equivalent of start_batch_generation:
+async function startBatchGeneration(db: D1Database, userId: string, batchId: string, cost: number, unpaidCertIds: string[], ledgerId: string, batchName: string, unpaidCount: number, regenCount: number, rate: number, regenRate: number) {
+  // Read workspace & batch status
+  const data = await db.prepare(`
+    SELECT b.status as batch_status, w.current_balance, w.id as workspace_id
+    FROM batches b
+    JOIN workspaces w ON b.workspace_id = w.id
+    WHERE b.id = ?
+  `).bind(batchId).first();
+
+  if (!data) throw new Error("Batch or Workspace not found");
+  if (data.batch_status === 'generating') throw new Error('already_generating');
+  if (data.batch_status === 'sending') throw new Error('currently_sending');
+  if (data.current_balance < cost) throw new Error('insufficient_funds');
+
+  const newBalance = data.current_balance - cost;
+  
+  // Assemble statements to execute atomically
+  const stmts = [
+    db.prepare(`UPDATE workspaces SET current_balance = ? WHERE id = ?`).bind(newBalance, data.workspace_id),
+    db.prepare(`UPDATE batches SET status = 'generating' WHERE id = ?`).bind(batchId),
+    db.prepare(`INSERT INTO ledgers (id, workspace_id, user_id, type, amount, balance_after, description, metadata) VALUES (?, ?, ?, 'deduction', ?, ?, ?, ?)`).bind(
+      ledgerId, data.workspace_id, userId, -cost, newBalance, `Certificate generation: ${batchName}`,
+      JSON.stringify({ batch_id: batchId, unpaid_count: unpaidCount, regen_count: regenCount, rate, regen_rate: regenRate })
+    )
+  ];
+
+  if (unpaidCertIds.length > 0) {
+    stmts.push(db.prepare(`
+      UPDATE certificates 
+      SET is_paid = 1 
+      WHERE id IN (${unpaidCertIds.map(() => '?').join(',')})
+    `).bind(...unpaidCertIds));
+  }
+
+  await db.batch(stmts);
+}
+```
+
+---
+
+### Phase 3: Library Rewrites (Google REST & R2 Native Bindings) (~8 hours)
+
+#### 1. Replace `googleapis` with pure HTTP `fetch`
+Rewrite all functions inside `googleDrive.ts` and `googleSheets.ts` to perform direct HTTP calls.
+
+```typescript
+// Example: Creating a directory in Google Drive via fetch:
+export async function createFolder(accessToken: string, folderName: string, parentId?: string): Promise<string> {
+  const metadata = {
+    name: folderName,
+    mimeType: 'application/vnd.google-apps.folder',
+    parents: parentId ? [parentId] : undefined,
+  };
+
+  const response = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(metadata),
+  });
+
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error?.message || "Failed to create folder");
+  return data.id;
+}
+```
+
+#### 2. R2 Binding Integration
+Replace the AWS S3 SDK completely with native D1/R2 bindings for direct file uploads/deletions.
 
 ```typescript
 // Before (S3 SDK):
-const client = new S3Client({ ... })
-await client.send(new PutObjectCommand({ Bucket, Key, Body, ContentType }))
+const client = new S3Client({ ... });
+await client.send(new PutObjectCommand({ Bucket, Key, Body, ContentType }));
 
-// After (R2 binding):
-await env.CERTIFICATES.put(key, buffer, { httpMetadata: { contentType } })
+// After (R2 Binding):
+await env.CERTIFICATES.put(key, buffer, {
+  httpMetadata: { contentType: 'application/pdf' }
+});
 ```
-
-> [!NOTE]
-> Presigned URLs still need the S3-compatible API. We keep `@aws-sdk/client-s3` + `@aws-sdk/s3-request-presigner` for `generatePresignedPutUrl()` only — these work in Workers.
-
-#### [NEW] `workers/api/src/lib/email.ts`
-Port of [gmail.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/lib/gmail.ts). Already uses `fetch()` to call ZeptoMail — near-direct copy, swap `Buffer.from()` with `btoa()`.
-
-#### [NEW] `workers/api/src/lib/whatsapp.ts`
-Port of [whatsapp.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/lib/whatsapp.ts). Already pure `fetch()` — direct copy.
-
-#### [NEW] `workers/api/src/lib/qr.ts`
-QR code generation. Use `qrcode` with `toDataURL()` / `toString('svg')` (no Canvas needed in Workers), or a WASM-based QR library.
-
-#### [NEW] `workers/api/src/lib/cashfree.ts`
-Rewrite `cashfree-pg` SDK as raw REST:
-- `PGCreateOrder` → `POST https://api.cashfree.com/pg/orders`
-- `PGFetchOrder` → `GET https://api.cashfree.com/pg/orders/{order_id}`
-- `PGVerifyWebhookSignature` → HMAC verification via Web Crypto API
 
 ---
 
-### Phase 3: Route Migration (~8-10 hours)
+### Phase 4: Route Migration (Express → Hono) (~8 hours)
 
-Port all route files. Business logic stays identical — only Express → Hono conversion.
+Convert all 23 REST controllers to Hono. Query logic will use standard SQL statements via D1 bindings instead of Supabase's JavaScript builder client.
 
-#### Express → Hono pattern:
 ```typescript
-// Before (Express):
-router.get("/batches", async (req, res) => {
-  const userId = req.user?.uid;
-  return res.json({ batches });
-});
+// Example endpoint: Get all batches
+app.get('/api/batches', async (c) => {
+  const workspaceId = c.get('workspaceId');
+  const user = c.get('user');
 
-// After (Hono):
-app.get("/api/batches", async (c) => {
-  const userId = c.get("user").uid;
+  const { results } = await c.env.DB.prepare(`
+    SELECT * FROM batches 
+    WHERE workspace_id = ? 
+    ORDER BY created_at DESC
+  `).bind(workspaceId).all();
+
+  // Convert JSON fields back to objects
+  const batches = results.map(row => ({
+    ...row,
+    columnMap: JSON.parse(row.column_map || '{}'),
+    paidFrames: JSON.parse(row.paid_frames || '[]'),
+  }));
+
   return c.json({ batches });
 });
 ```
 
-#### Route files to port (in dependency order):
-
-| # | Route File | Lines | Complexity | Notes |
-|---|---|---|---|---|
-| 1 | [health.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/health.ts) | 6 | Trivial | Health check |
-| 2 | [auth.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/auth.ts) | 86 | Low | Google OAuth — uses rewritten `google-auth.ts` |
-| 3 | [approval.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/approval.ts) | ~30 | Trivial | Reads `user_profiles` |
-| 4 | [workspaces.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/workspaces.ts) | 328 | Medium | CRUD + invites |
-| 5 | [verify.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/verify.ts) | 90 | Low | Public cert verification + QR |
-| 6 | [gallery.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/gallery.ts) | ~60 | Low | Public gallery |
-| 7 | [profiles.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/profiles.ts) | ~180 | Low | Student profiles |
-| 8 | [qr.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/qr.ts) | ~25 | Low | QR image |
-| 9 | [sheets.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/sheets.ts) | ~80 | Medium | Google Sheets |
-| 10 | [slides.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/slides.ts) | ~90 | Medium | Google Slides |
-| 11 | [spreadsheets.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/spreadsheets.ts) | ~160 | Medium | Inbuilt spreadsheets |
-| 12 | [batches.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/batches.ts) | 1088 | **High** | Batch CRUD + send (modified) |
-| 13 | [certificates.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/certificates.ts) | ~230 | Medium | Certificate ops |
-| 14 | [clientGenerate.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/clientGenerate.ts) | 546 | **High** | Generation orchestration |
-| 15 | [payments.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/payments.ts) | 147 | Medium | Cashfree |
-| 16 | [webhooks.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/webhooks.ts) | 137 | Medium | WhatsApp + Cashfree webhooks |
-| 17 | [wallet.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/wallet.ts) | ~200 | Medium | Wallet/ledger |
-| 18 | [reports.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/reports.ts) | ~75 | Low | Reports |
-| 19 | [builtinTemplates.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/builtinTemplates.ts) | ~230 | Medium | Template CRUD |
-| 20 | [frameTemplates.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/frameTemplates.ts) | ~140 | Medium | Custom frames |
-| 21 | [frameMarketplace.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/frameMarketplace.ts) | ~460 | Medium | Marketplace |
-| 22 | [creatorCredits.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/creatorCredits.ts) | ~460 | Medium | Creator credits |
-| 23 | [internal.ts](file:///c:/cephlow%20minimalist%20version/cephlow2/apps/api-server/src/routes/internal.ts) | 119 | Low | Worker→API notifications |
-
 ---
 
-### Phase 4: Send Endpoint Refactoring (~3 hours)
+### Phase 5: Client-Side Send Loop (~4 hours)
 
-The batch send endpoints change from "queue a task" to "send 1 cert per request." The per-cert endpoints already exist — they just need refinement.
+Since background worker queues are disabled on the free tier, the batch sending process (email & WhatsApp) is offloaded to the client browser.
 
-#### [MODIFY] Batch send endpoints in `workers/api/src/routes/batches.ts`
-
-**Remove** the batch-level send endpoints that queue tasks:
-- ~~`POST /batches/:batchId/send`~~ → removed (was: insert into `tasks` table)
-- ~~`POST /batches/:batchId/send-whatsapp`~~ → removed (was: insert into `tasks` table)
-
-**Keep and refine** the per-cert endpoints:
-- `POST /batches/:batchId/certificates/:certId/send` → sends 1 email (already exists)
-- `POST /batches/:batchId/certificates/:certId/send-whatsapp` → sends 1 WhatsApp (already exists)
-
-**Add** new status-tracking endpoints:
-- `POST /batches/:batchId/send-start` → sets batch status to "sending"
-- `POST /batches/:batchId/send-complete` → sets batch status based on results (like `client-complete` for generation)
-
-#### Per-cert email send logic (inline, no processor needed):
+#### 1. Frontend hook for client-side loop
+**`apps/cert-app/src/hooks/use-client-send.ts`**
 ```typescript
-app.post('/api/batches/:batchId/certificates/:certId/send-email', async (c) => {
-  // 1. Verify access
-  // 2. Get cert + batch from Supabase
-  // 3. Fetch PDF from R2 (if r2PdfUrl) or Drive
-  // 4. Base64 encode PDF
-  // 5. Apply personalization to subject/body
-  // 6. Call ZeptoMail API
-  // 7. Update cert status → "sent"
-  // 8. Return { success: true }
-  // Total CPU: ~1-2ms | Total wall time: ~500ms-2s (network I/O)
-})
-```
+import { useState } from 'react';
 
-#### [DELETE] Files no longer needed:
-- `apps/api-server/src/worker.ts` — polling worker
-- `apps/api-server/src/processors/sendEmail.ts` — batch email processor
-- `apps/api-server/src/processors/sendWhatsApp.ts` — batch WhatsApp processor
-
----
-
-### Phase 5: Frontend — Client-Side Send Loop (~4 hours)
-
-Add a send loop to the frontend that mirrors the existing generation loop.
-
-#### [NEW] `apps/cert-app/src/hooks/use-client-send.ts`
-
-New hook modeled after the existing client-generate flow:
-
-```typescript
 export function useClientSend() {
-  const [progress, setProgress] = useState({ sent: 0, failed: 0, total: 0 })
-  const [isSending, setIsSending] = useState(false)
+  const [progress, setProgress] = useState({ sent: 0, failed: 0, total: 0 });
+  const [isSending, setIsSending] = useState(false);
 
-  async function sendBatch(batchId: string, certIds: string[], mode: 'email' | 'whatsapp', opts) {
-    setIsSending(true)
-    setProgress({ sent: 0, failed: 0, total: certIds.length })
+  async function sendBatch(batchId: string, certIds: string[], mode: 'email' | 'whatsapp', templateOpts) {
+    setIsSending(true);
+    setProgress({ sent: 0, failed: 0, total: certIds.length });
 
-    // 1. Mark batch as "sending"
-    await api.post(`/batches/${batchId}/send-start`)
+    // Mark batch as sending
+    await api.post(`/batches/${batchId}/send-start`);
 
-    // 2. Loop through certs one-by-one (with concurrency of 2-3)
-    const CONCURRENCY = 3
-    for (let i = 0; i < certIds.length; i += CONCURRENCY) {
-      const chunk = certIds.slice(i, i + CONCURRENCY)
-      const results = await Promise.allSettled(
-        chunk.map(certId =>
-          api.post(`/batches/${batchId}/certificates/${certId}/send-${mode}`, opts)
-        )
-      )
-
-      // 3. Update progress
-      for (const r of results) {
-        if (r.status === 'fulfilled') setProgress(p => ({ ...p, sent: p.sent + 1 }))
-        else setProgress(p => ({ ...p, failed: p.failed + 1 }))
-      }
+    const CONCURRENCY_LIMIT = 3;
+    for (let i = 0; i < certIds.length; i += CONCURRENCY_LIMIT) {
+      const chunk = certIds.slice(i, i + CONCURRENCY_LIMIT);
+      
+      await Promise.allSettled(
+        chunk.map(async (certId) => {
+          try {
+            await api.post(`/batches/${batchId}/certificates/${certId}/send-${mode}`, templateOpts);
+            setProgress(p => ({ ...p, sent: p.sent + 1 }));
+          } catch (e) {
+            setProgress(p => ({ ...p, failed: p.failed + 1 }));
+          }
+        })
+      );
     }
 
-    // 4. Finalize batch status
+    // Finalize status on completion
     await api.post(`/batches/${batchId}/send-complete`, {
-      sent: progress.sent, failed: progress.failed
-    })
-    setIsSending(false)
+      sent: progress.sent,
+      failed: progress.failed
+    });
+    setIsSending(false);
   }
 
-  return { sendBatch, progress, isSending }
+  return { sendBatch, progress, isSending };
 }
 ```
 
-#### [MODIFY] `apps/cert-app/src/pages/BatchDetail.tsx` (or equivalent)
-- Replace "Send All" button → call `useClientSend().sendBatch()`
-- Show progress bar: "Sending 23/50..." (same UX as generation progress)
-- Handle cancel (user closes tab → batch stays at partial)
-- Use `navigator.sendBeacon` on unload to update batch status
-
-#### [MODIFY] Send modals (email + WhatsApp)
-- Remove "queued" success toast
-- Replace with real-time progress UI
+#### 2. Backend endpoints supporting the loop
+The server-side endpoint processes one request at a time, completely executing the send logic (fetch PDF, Base64 encode, call ZeptoMail/WhatsApp API) within **1–3ms CPU limit**:
+* `POST /api/batches/:batchId/certificates/:certId/send-email`
+* `POST /api/batches/:batchId/certificates/:certId/send-whatsapp`
 
 ---
 
-### Phase 6: Session Cache → KV (~1 hour)
+### Phase 6: Supabase → D1 Data Migration Script (~3 hours)
 
-#### `clientGenerate.ts` session cache
-Replace in-memory `Map` with **Cloudflare KV** (free tier: 100K reads/day, 1K writes/day):
+A script runs once to extract existing Supabase tables and backfill D1 production tables before the switch.
 
-```typescript
-// Before (in-memory, lost on restart):
-sessionCache.set(batchId, { userId, workspaceId, isApproved, expiresAt })
+**`scripts/d1-sync.js`**
+```javascript
+const { createClient } = require('@supabase/supabase-js');
+const { execSync } = require('child_process');
 
-// After (KV, persistent):
-await env.CACHE.put(`session:${batchId}`, JSON.stringify({ userId, workspaceId, isApproved }), { expirationTtl: 7200 })
-```
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
-Approval cache similarly moved to KV with 10-minute TTL.
+async function exportTable(tableName) {
+  console.log(`Fetching data from Supabase: ${tableName}...`);
+  const { data, error } = await supabase.from(tableName).select('*');
+  if (error) throw error;
 
----
+  console.log(`Writing inserts to D1 for ${tableName} (${data.length} rows)...`);
+  for (const row of data) {
+    // Generate sqlite insert values, stringifying JSON objects
+    const cols = Object.keys(row).join(', ');
+    const placeholders = Object.keys(row).map(() => '?').join(', ');
+    const values = Object.values(row).map(val => 
+      typeof val === 'object' && val !== null ? JSON.stringify(val) : val
+    );
 
-### Phase 7: Deployment + Cutover (~2 hours)
-
-#### [NEW] `workers/api/package.json`
-```json
-{
-  "dependencies": {
-    "hono": "^4.x",
-    "@supabase/supabase-js": "^2.x",
-    "@aws-sdk/client-s3": "^3.x",
-    "@aws-sdk/s3-request-presigner": "^3.x"
-  },
-  "devDependencies": {
-    "wrangler": "^4.x",
-    "@cloudflare/workers-types": "^4.x",
-    "typescript": "^5.x"
+    // Call wrangler D1 locally or directly remote via CLI
+    execSync(`npx wrangler d1 execute cephlow-app-db --remote --command="INSERT INTO ${tableName} (${cols}) VALUES (${placeholders})" --args='${JSON.stringify(values)}'`);
   }
 }
 ```
 
-**Dropped dependencies**: `express`, `cors`, `express-rate-limit`, `googleapis`, `cashfree-pg`, `nodemailer`, `cookie-parser`, `pdf-lib`.
-
-#### [MODIFY] `render.yaml`
-Remove `certificate-api` backend service from Render.
-
-#### [DELETE] `apps/api-server/` (after full migration verified)
-
 ---
 
-## Workers Free Plan Compatibility Check
+## 5. Verification Plan
 
-| Concern | Limit | Our Usage | Fits? |
-|---|---|---|---|
-| Requests/day | 100,000 | ~1,000-10,000 | ✅ |
-| CPU per request | 10ms | ~1-3ms (most routes are I/O) | ✅ |
-| Worker size | 10MB compressed | ~1-2MB estimated | ✅ |
-| KV reads/day | 100,000 | ~500-5,000 | ✅ |
-| KV writes/day | 1,000 | ~50-200 | ✅ |
-| R2 storage | 10GB free | Currently a few GB | ✅ |
-| R2 Class A ops/mo | 1M free | Well under | ✅ |
-| R2 Class B ops/mo | 10M free | Well under | ✅ |
-| Subrequests/request | 1,000 (free) | Max ~5-10 | ✅ |
-| Cron Triggers | 5 per worker | 0 needed | ✅ |
-
----
-
-## Rate Limiting
-
-Replace `express-rate-limit` with **Cloudflare WAF Rate Limiting Rules** (configured in dashboard, free tier includes basic rules):
-
-| Rule | Limit | Replaces |
-|---|---|---|
-| Global | 200 req/min per IP | `globalLimiter` |
-| `/client-generate` | 10 req/min per IP | `heavyLimiter` |
-| `/send-email`, `/send-whatsapp` | 30 req/min per IP | New (prevents send loop abuse) |
-| `/presigned-urls` | 20 req/min per IP | `presignedUrlLimiter` |
-
----
-
-## Verification Plan
-
-### Automated Tests
-```bash
-cd workers/api
-pnpm tsc --noEmit          # Type check
-pnpm wrangler dev --local  # Run locally
-pnpm test                  # Integration tests
-```
-
-### Manual Verification
-1. **Auth flow**: Google OAuth connect → callback → token stored
-2. **Batch lifecycle**: Create batch → generate (client-side) → report → complete
-3. **Email sending**: Click "Send All" → progress bar → each cert sent individually → batch marked "sent"
-4. **WhatsApp sending**: Same loop → Meta API calls → status updates
-5. **Payments**: Cashfree create-order → webhook → wallet credit
-6. **R2 uploads**: Presigned URL → browser upload → public URL works
-7. **Cert verification**: Public `/verify/:batchId/:certId` works
-8. **Cancel mid-send**: Close tab during send → batch status = "partial" (not stuck on "sending")
-
-### Rollback Strategy
-- Keep Render server running during migration
-- Cloudflare DNS switches `api.cephlow.online` between Render ↔ Workers
-- Rollback takes < 1 minute
-
----
-
-## Cost Comparison
-
-| Item | Current (Render) | New (Cloudflare) |
-|---|---|---|
-| API Server | $7–25/mo | **$0** (Workers free) |
-| Task Worker | $7–25/mo | **$0** (eliminated — client-side) |
-| Redis (Upstash) | $0–10/mo | **$0** (eliminated) |
-| R2 Storage | Same | Same (free 10GB) |
-| Frontend | $0 (Render static) | **$0** (CF Pages free) |
-| **Total** | **$14–60/mo** | **$0/mo** |
-
----
-
-## Estimated Effort
-
-| Phase | Effort | Description |
-|---|---|---|
-| Phase 1: Scaffolding | ~2h | Project setup, wrangler config, middleware |
-| Phase 2: Library rewrites | ~8-12h | Google API rewrite (~6h), R2/email/WA/Cashfree |
-| Phase 3: Route migration | ~8-10h | 23 routes, Express → Hono conversion |
-| Phase 4: Send endpoints | ~3h | Refactor batch send → per-cert send |
-| Phase 5: Frontend send loop | ~4h | `useClientSend` hook + UI progress bar |
-| Phase 6: Session cache → KV | ~1h | KV setup + 3 call sites |
-| Phase 7: Deploy + cutover | ~2h | Wrangler deploy, Pages deploy, DNS |
-| **Total** | **~28-34h** | |
+1. **Local Worker Testing:**
+   Use wrangler local execution to point endpoints to a local D1 instance:
+   ```bash
+   npx wrangler dev --local
+   ```
+2. **Schema Integration Check:**
+   Verify transactions run correctly under batch queries (insufficient wallet credits, double generation requests, frame purchase locks).
+3. **Loop Robustness:**
+   Simulate tab close during generation or sending to verify the backend updates batch status to `partial` cleanly without leaving the batch locked.

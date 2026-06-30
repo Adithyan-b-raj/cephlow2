@@ -95,6 +95,41 @@ function urlForFont(family: string, weight: number): string | null {
   return fontFileUrl(cat.slug, w);
 }
 
+async function fetchWithFallback(url: string): Promise<ArrayBuffer> {
+  if (!url.startsWith("https://")) {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch bundled font: HTTP ${res.status}`);
+    return res.arrayBuffer();
+  }
+
+  const unpkgUrl = url.replace("https://cdn.jsdelivr.net/npm/", "https://unpkg.com/");
+
+  const fetchWithTimeout = async (targetUrl: string, ms = 4000) => {
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), ms);
+    try {
+      const res = await fetch(targetUrl, { signal: controller.signal });
+      clearTimeout(id);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.arrayBuffer();
+    } catch (err) {
+      clearTimeout(id);
+      throw err;
+    }
+  };
+
+  try {
+    return await fetchWithTimeout(url);
+  } catch (jsDelivrErr) {
+    console.warn(`jsDelivr failed for ${url}, trying unpkg fallback...`, jsDelivrErr);
+    try {
+      return await fetchWithTimeout(unpkgUrl);
+    } catch (unpkgErr) {
+      throw new Error(`Failed to fetch font from both jsDelivr and unpkg. jsDelivr: ${jsDelivrErr}, unpkg: ${unpkgErr}`);
+    }
+  }
+}
+
 /** Fetch a font's raw bytes (cached). Used by both pdf-lib and css loading. */
 export function fetchFontBufferForFamily(
   family: string,
@@ -106,11 +141,7 @@ export function fetchFontBufferForFamily(
   const cacheKey = `${family}::${w}::${url}`;
   let p = bufferCache.get(cacheKey);
   if (!p) {
-    p = fetch(url)
-      .then((r) => {
-        if (!r.ok) throw new Error(`Failed to fetch font ${family} ${w}: HTTP ${r.status}`);
-        return r.arrayBuffer();
-      })
+    p = fetchWithFallback(url)
       .catch((err) => {
         bufferCache.delete(cacheKey);
         throw err;

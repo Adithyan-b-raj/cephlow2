@@ -112,7 +112,7 @@ export function useClientGenerate(): UseClientGenerateReturn {
         // ── KEY FIX ──────────────────────────────────────────────────────────
         // Always tell the server generation has ended so the batch is never
         // left permanently stuck at status = "generating".
-        const lastProgress = progressRef.current;
+        const lastProgress = progressRef.current as any;
         const generated = lastProgress?.current ?? 0;
         await notifyBatchAborted(apiBaseUrl, batchId, generated, 0);
         // ─────────────────────────────────────────────────────────────────────

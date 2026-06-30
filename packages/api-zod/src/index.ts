@@ -4,4 +4,6 @@ export * from "./generated/types";
 export type {
   CreateOrderResponse,
   GetSheetDataParams,
+  SendBatchWhatsappBody,
+  SendCertWhatsappBody,
 } from "./generated/types";

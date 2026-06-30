@@ -61,3 +61,11 @@ firebase-service-account.json
 #graphify
 graphify-out/manifest.json  
 graphify-out/cost.json        
+
+# Database D1 Dumps
+d1-data-dump.sql
+scripts/d1-data-dump.sql
+*.sql.tmp
+
+# Scratch files
+scratch/

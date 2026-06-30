@@ -119,13 +119,58 @@ export const sendBatchWhatsapp = async (
   batchId: string,
   data: SendBatchWhatsappRequest,
 ): Promise<SendBatchWhatsappResponse> => {
-  return customFetch<SendBatchWhatsappResponse>(
-    `/api/batches/${batchId}/send-whatsapp`,
-    {
-      method: "POST",
-      body: JSON.stringify(data),
-    },
-  );
+  // 1. Fetch certificates for this batch
+  const certsResponse = await customFetch<{ certificates: any[] }>(`/api/certificates?batchId=${batchId}`, {
+    method: "GET",
+  });
+  const toSend = (certsResponse.certificates || []).filter(c => c.status === "generated");
+
+  if (toSend.length === 0) {
+    return { success: true, message: "No certificates to send", processed: 0, failed: 0 };
+  }
+
+  // 2. Start send
+  await customFetch(`/api/batches/${batchId}/send-start`, {
+    method: "POST",
+  });
+
+  let sentCount = 0;
+  let failedCount = 0;
+
+  // 3. Process sending with concurrency limit (e.g. 5 parallel sends at a time)
+  const CONCURRENCY = 5;
+  for (let i = 0; i < toSend.length; i += CONCURRENCY) {
+    const chunk = toSend.slice(i, i + CONCURRENCY);
+    await Promise.all(
+      chunk.map(async (cert) => {
+        try {
+          await customFetch(`/api/batches/${batchId}/certificates/${cert.id}/send-whatsapp`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data),
+          });
+          sentCount++;
+        } catch (err) {
+          console.error(`Failed to send WhatsApp to cert ${cert.id}:`, err);
+          failedCount++;
+        }
+      })
+    );
+  }
+
+  // 4. Complete send
+  await customFetch(`/api/batches/${batchId}/send-complete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sentCount, failedCount }),
+  });
+
+  return {
+    success: true,
+    message: `Finished sending. Sent: ${sentCount}, Failed: ${failedCount}`,
+    processed: sentCount,
+    failed: failedCount,
+  };
 };
 
 export const useSendBatchWhatsapp = (options?: {

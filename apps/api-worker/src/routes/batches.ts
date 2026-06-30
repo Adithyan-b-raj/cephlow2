@@ -1,0 +1,814 @@
+import { Hono } from "hono";
+import { getAccessToken } from "../lib/google-auth.js";
+import { downloadDriveFile, exportSlidesToPdf } from "../lib/google-drive.js";
+import { sendEmail } from "../lib/email.js";
+import { sendWhatsAppDocument } from "../lib/whatsapp.js";
+import { workspaceMiddleware, isAdminOrOwner } from "../middleware/workspace.js";
+import { requireApproval as approvalMiddleware } from "../middleware/approval.js";
+import { upsertStudentProfile, emailToSlug } from "../lib/cert-utils.js";
+import { isApprovedInContext } from "../lib/approval.js";
+import { getSpreadsheetValues } from "../lib/google-sheets.js";
+
+const router = new Hono<ContextEnv>();
+
+router.use("/batches", workspaceMiddleware);
+router.use("/batches/*", workspaceMiddleware);
+
+// Helper to check if batch belongs to workspace and is accessible
+function canAccessBatch(batch: any, workspace: any, user: any): boolean {
+  return batch.workspace_id === workspace.id &&
+    (isAdminOrOwner(workspace.role) || batch.user_id === user.uid);
+}
+
+// 1. GET /batches — List all batches for the workspace
+router.get("/batches", async (c) => {
+  const user = c.get("user")!;
+  const workspace = c.get("workspace")!;
+  try {
+    let query = `
+      SELECT b.*, COUNT(c.id) as cert_count
+      FROM batches b
+      LEFT JOIN certificates c ON b.id = c.batch_id
+      WHERE b.workspace_id = ?
+    `;
+    const params: any[] = [workspace.id];
+
+    if (!isAdminOrOwner(workspace.role)) {
+      query += " AND b.user_id = ?";
+      params.push(user.uid);
+    }
+
+    query += " GROUP BY b.id ORDER BY b.created_at DESC";
+
+    const { results } = await c.env.DB.prepare(query).bind(...params).all<any>();
+
+    const batches = results.map(row => ({
+      id: row.id,
+      workspaceId: row.workspace_id,
+      userId: row.user_id,
+      name: row.name,
+      status: row.status,
+      sheetId: row.sheet_id,
+      sheetName: row.sheet_name,
+      tabName: row.tab_name,
+      templateId: row.template_id,
+      templateName: row.template_name,
+      columnMap: JSON.parse(row.column_map || "{}"),
+      emailColumn: row.email_column,
+      nameColumn: row.name_column,
+      emailSubject: row.email_subject,
+      emailBody: row.email_body,
+      categoryColumn: row.category_column,
+      categorySlideMap: JSON.parse(row.category_slide_map || "{}"),
+      categorySlideIndexes: JSON.parse(row.category_slide_indexes || "{}"),
+      bannerUrl: row.banner_url,
+      bannerOverlayOpacity: row.banner_overlay_opacity,
+      bannerTextColor: row.banner_text_color,
+      bannerCropZoom: row.banner_crop_zoom,
+      bannerCropX: row.banner_crop_x,
+      bannerCropY: row.banner_crop_y,
+      generatedCount: row.generated_count,
+      failedCount: row.failed_count,
+      sentCount: row.sent_count,
+      whatsappSentCount: row.whatsapp_sent_count,
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
+      certCount: row.cert_count || 0,
+      totalCount: row.cert_count || 0,
+    }));
+
+    return c.json({ spreadsheets: batches, batches });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// 2. GET /batches/:batchId — Get batch details
+router.get("/batches/:batchId", async (c) => {
+  const user = c.get("user")!;
+  const workspace = c.get("workspace")!;
+  const { batchId } = c.req.param();
+  try {
+    const batch = await c.env.DB.prepare(`
+      SELECT * FROM batches WHERE id = ?
+    `).bind(batchId).first<any>();
+
+    if (!batch) return c.json({ error: "Batch not found" }, 404);
+    if (!canAccessBatch(batch, workspace, user)) return c.json({ error: "Access denied" }, 403);
+
+    const certCountResult = await c.env.DB.prepare(`
+      SELECT COUNT(id) as count FROM certificates WHERE batch_id = ?
+    `).bind(batchId).first<{ count: number }>();
+    const totalCount = certCountResult?.count || 0;
+
+    const certsResult = await c.env.DB.prepare(`
+      SELECT * FROM certificates WHERE batch_id = ?
+    `).bind(batchId).all<any>();
+    const certificates = (certsResult.results || []).map(cert => ({
+      id: cert.id,
+      batchId: cert.batch_id,
+      recipientName: cert.recipient_name,
+      recipientEmail: cert.recipient_email || "",
+      status: cert.status,
+      slideFileId: cert.slide_file_id || undefined,
+      slideUrl: cert.slide_url || undefined,
+      sentAt: cert.sent_at || undefined,
+      errorMessage: cert.error_message || undefined,
+      rowData: JSON.parse(cert.row_data || "{}"),
+      createdAt: cert.created_at,
+      isPaid: Boolean(cert.is_paid),
+      requiresVisualRegen: Boolean(cert.requires_visual_regen),
+      r2PdfUrl: cert.r2_pdf_url || undefined,
+      whatsappStatus: cert.whatsapp_status || undefined,
+      whatsappMessageId: cert.whatsapp_message_id || undefined,
+    }));
+
+    return c.json({
+      id: batch.id,
+      workspaceId: batch.workspace_id,
+      userId: batch.user_id,
+      name: batch.name,
+      status: batch.status,
+      sheetId: batch.sheet_id,
+      sheetName: batch.sheet_name,
+      tabName: batch.tab_name,
+      templateId: batch.template_id,
+      templateName: batch.template_name,
+      columnMap: JSON.parse(batch.column_map || "{}"),
+      emailColumn: batch.email_column,
+      nameColumn: batch.name_column,
+      emailSubject: batch.email_subject,
+      emailBody: batch.email_body,
+      categoryColumn: batch.category_column,
+      categorySlideMap: JSON.parse(batch.category_slide_map || "{}"),
+      categorySlideIndexes: JSON.parse(batch.category_slide_indexes || "{}"),
+      bannerUrl: batch.banner_url,
+      bannerOverlayOpacity: batch.banner_overlay_opacity,
+      bannerTextColor: batch.banner_text_color,
+      bannerCropZoom: batch.banner_crop_zoom,
+      bannerCropX: batch.banner_crop_x,
+      bannerCropY: batch.banner_crop_y,
+      generatedCount: batch.generated_count,
+      failedCount: batch.failed_count,
+      sentCount: batch.sent_count,
+      whatsappSentCount: batch.whatsapp_sent_count,
+      createdAt: batch.created_at,
+      updatedAt: batch.updated_at,
+      totalCount,
+      certCount: totalCount,
+      certificates,
+    });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// 3. POST /batches — Create a draft batch
+router.post("/batches", async (c) => {
+  const user = c.get("user")!;
+  const workspace = c.get("workspace")!;
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const batchId = crypto.randomUUID();
+
+    const dataSourceKind = body.dataSourceKind || "google";
+    const isInbuilt = dataSourceKind === "inbuilt";
+    const spreadsheetId = body.spreadsheetId || null;
+
+    let headers: string[] = [];
+    let dataRows: Record<string, string>[] = [];
+    let inbuiltSpreadsheetName = "";
+
+    if (isInbuilt && spreadsheetId) {
+      const spreadsheet = await c.env.DB.prepare(`
+        SELECT name, columns, rows FROM spreadsheets WHERE id = ? AND workspace_id = ?
+      `).bind(spreadsheetId, workspace.id).first<any>();
+      
+      if (!spreadsheet) {
+        return c.json({ error: "Spreadsheet not found" }, 400);
+      }
+      
+      inbuiltSpreadsheetName = spreadsheet.name || "";
+      const rawCols = JSON.parse(spreadsheet.columns || "[]") as string[];
+      const rawRows = JSON.parse(spreadsheet.rows || "[]") as Record<string, string>[];
+      
+      const firstRow = rawRows[0];
+      const filledCols = rawCols.filter((c) => firstRow?.[c]?.trim());
+      if (filledCols.length > 0) {
+        headers = filledCols.map((c) => firstRow[c].trim());
+        dataRows = rawRows.slice(1)
+          .filter((r) => filledCols.some((c) => r[c]?.trim()))
+          .map((row) => {
+            const mapped: Record<string, string> = {};
+            filledCols.forEach((oldCol, i) => { mapped[headers[i]] = row[oldCol] ?? ""; });
+            return mapped;
+          });
+      } else {
+        headers = rawCols;
+        dataRows = rawRows.filter((r) => Object.values(r).some((v) => v?.trim()));
+      }
+    } else {
+      const sheetId = body.sheetId;
+      if (!sheetId) {
+        return c.json({ error: "sheetId is required for Google Sheets data source" }, 400);
+      }
+      const { accessToken } = await getAccessToken(c.env.DB, c.env, user.uid, "sheets");
+      const range = body.tabName ? `${body.tabName}!A:ZZ` : "A:ZZ";
+      const rawValues = await getSpreadsheetValues(accessToken, sheetId, range);
+      if (rawValues.length > 0) {
+        headers = rawValues[0] as string[];
+        dataRows = rawValues.slice(1).filter((r) => r.length > 0).map((row) => {
+          const obj: Record<string, string> = {};
+          headers.forEach((h, i) => { obj[h] = (row[i] as string) || ""; });
+          return obj;
+        });
+      }
+    }
+
+    const statements: any[] = [];
+
+    // 1. Prepare batch insert
+    statements.push(c.env.DB.prepare(`
+      INSERT INTO batches (
+        id, workspace_id, user_id, name, status, sheet_id, sheet_name, tab_name,
+        spreadsheet_id, data_source_kind, template_id, template_name, template_kind,
+        column_map, email_column, name_column, email_subject, email_body,
+        category_column, category_template_map, category_slide_map, category_slide_indexes,
+        total_count
+      ) VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      batchId,
+      workspace.id,
+      user.uid,
+      body.name || "Untitled Batch",
+      body.sheetId || "",
+      isInbuilt ? inbuiltSpreadsheetName : (body.sheetName || ""),
+      body.tabName || null,
+      spreadsheetId,
+      dataSourceKind,
+      body.templateId || "",
+      body.templateName || "",
+      body.templateKind || "slides",
+      JSON.stringify(body.columnMap || {}),
+      body.emailColumn || null,
+      body.nameColumn || null,
+      body.emailSubject || "Your Certificate",
+      body.emailBody || "Please find your certificate attached.",
+      body.categoryColumn || null,
+      JSON.stringify(body.categoryTemplateMap || {}),
+      JSON.stringify(body.categorySlideMap || {}),
+      JSON.stringify(body.categorySlideIndexes || {}),
+      dataRows.length
+    ));
+
+    // 2. Prepare certificate inserts
+    for (const rowData of dataRows) {
+      const certId = crypto.randomUUID();
+      const recipientName = rowData[body.nameColumn] || "Unknown";
+      const recipientEmail = rowData[body.emailColumn] || "";
+      
+      statements.push(c.env.DB.prepare(`
+        INSERT INTO certificates (
+          id, batch_id, recipient_name, recipient_email, status, row_data, is_paid
+        ) VALUES (?, ?, ?, ?, 'pending', ?, 0)
+      `).bind(
+        certId,
+        batchId,
+        recipientName,
+        recipientEmail,
+        JSON.stringify(rowData)
+      ));
+    }
+
+    // 3. Run all in a batch transaction
+    await c.env.DB.batch(statements);
+
+    const batch = await c.env.DB.prepare(`SELECT * FROM batches WHERE id = ?`).bind(batchId).first<any>();
+
+    return c.json({
+      id: batch.id,
+      workspaceId: batch.workspace_id,
+      userId: batch.user_id,
+      name: batch.name,
+      status: batch.status,
+      createdAt: batch.created_at,
+    }, 201);
+  } catch (err: any) {
+    console.error("[POST /batches] error:", err.message);
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// 4. PATCH /batches/:batchId — Update batch config
+router.patch("/batches/:batchId", async (c) => {
+  const user = c.get("user")!;
+  const workspace = c.get("workspace")!;
+  const { batchId } = c.req.param();
+  try {
+    const updateData = await c.req.json().catch(() => ({}));
+
+    const batch = await c.env.DB.prepare(`
+      SELECT user_id, workspace_id FROM batches WHERE id = ?
+    `).bind(batchId).first<any>();
+
+    if (!batch) return c.json({ error: "Batch not found" }, 404);
+    if (!canAccessBatch(batch, workspace, user)) return c.json({ error: "Access denied" }, 403);
+
+    const fieldMap: Record<string, string> = {
+      name: "name", sheetId: "sheet_id", sheetName: "sheet_name", tabName: "tab_name",
+      templateId: "template_id", templateName: "template_name", columnMap: "column_map",
+      emailColumn: "email_column", nameColumn: "name_column", emailSubject: "email_subject",
+      emailBody: "email_body", categoryColumn: "category_column",
+      categorySlideMap: "category_slide_map", categorySlideIndexes: "category_slide_indexes",
+      bannerUrl: "banner_url",
+      bannerOverlayOpacity: "banner_overlay_opacity",
+      bannerTextColor: "banner_text_color",
+      bannerCropZoom: "banner_crop_zoom",
+      bannerCropX: "banner_crop_x",
+      bannerCropY: "banner_crop_y",
+    };
+
+    const fields: string[] = ["updated_at = datetime('now')"];
+    const params: any[] = [];
+
+    for (const [camel, snake] of Object.entries(fieldMap)) {
+      if (updateData[camel] !== undefined) {
+        fields.push(`${snake} = ?`);
+        let val = updateData[camel];
+        if (camel === "columnMap" || camel === "categorySlideMap" || camel === "categorySlideIndexes") {
+          val = JSON.stringify(val);
+        }
+        params.push(val);
+      }
+    }
+
+    if (fields.length <= 1) {
+      return c.json({ error: "No valid fields to update" }, 400);
+    }
+
+    params.push(batchId);
+
+    await c.env.DB.prepare(`
+      UPDATE batches
+      SET ${fields.join(", ")}
+      WHERE id = ?
+    `).bind(...params).run();
+
+    // Synced profile certificate batch name updates
+    if (updateData.name !== undefined) {
+      await c.env.DB.prepare(`
+        UPDATE student_profile_certs
+        SET batch_name = ?, updated_at = datetime('now')
+        WHERE batch_id = ?
+      `).bind(updateData.name, batchId).run();
+    }
+
+    return c.json({ success: true, updatedFields: Object.keys(updateData) });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// 5. DELETE /batches/:batchId — Delete batch and all certs
+router.delete("/batches/:batchId", async (c) => {
+  const user = c.get("user")!;
+  const workspace = c.get("workspace")!;
+  const { batchId } = c.req.param();
+  try {
+    const batch = await c.env.DB.prepare(`
+      SELECT user_id, workspace_id FROM batches WHERE id = ?
+    `).bind(batchId).first<any>();
+
+    if (!batch) return c.json({ error: "Batch not found" }, 404);
+    if (!canAccessBatch(batch, workspace, user)) return c.json({ error: "Access denied" }, 403);
+
+    const { results: certs } = await c.env.DB.prepare(`
+      SELECT id, r2_pdf_url, recipient_email FROM certificates WHERE batch_id = ?
+    `).bind(batchId).all<{ id: string; r2_pdf_url: string | null; recipient_email: string | null }>();
+
+    // R2 file deletion
+    const r2PublicBase = c.env.R2_PUBLIC_URL?.replace(/\/$/, "");
+    if (r2PublicBase && certs.length > 0) {
+      const r2Keys: string[] = [];
+      for (const cert of certs) {
+        if (cert.r2_pdf_url && cert.r2_pdf_url.startsWith(r2PublicBase + "/")) {
+          r2Keys.push(decodeURIComponent(cert.r2_pdf_url.slice(r2PublicBase.length + 1)));
+        }
+      }
+      if (r2Keys.length > 0) {
+        c.executionCtx.waitUntil((async () => {
+          for (const key of r2Keys) {
+            try { await c.env.CERTIFICATES.delete(key); } catch {}
+          }
+        })());
+      }
+    }
+
+    // Clean up student profile certs and index listings
+    const certIds = certs.map(c => c.id);
+    if (certIds.length > 0) {
+      const placeholders = certIds.map(() => "?").join(",");
+      await c.env.DB.prepare(`
+        DELETE FROM student_profile_certs WHERE cert_id IN (${placeholders})
+      `).bind(...certIds).run();
+      
+      const uniqueEmails = [...new Set(certs.map(c => c.recipient_email).filter(Boolean))] as string[];
+      if (uniqueEmails.length > 0) {
+        const emailKeys = uniqueEmails.map(e => e.toLowerCase().replace(/[^a-z0-9]/g, "_"));
+        const emailPlaceholders = emailKeys.map(() => "?").join(",");
+
+        const { results: indexRows } = await c.env.DB.prepare(`
+          SELECT slug, email_key FROM student_profile_index
+          WHERE email_key IN (${emailPlaceholders})
+        `).bind(...emailKeys).all<{ slug: string; email_key: string }>();
+
+        if (indexRows && indexRows.length > 0) {
+          const slugs = indexRows.map(r => r.slug);
+          const slugPlaceholders = slugs.map(() => "?").join(",");
+
+          // Check if slugs have remaining certs left
+          const { results: remainingCerts } = await c.env.DB.prepare(`
+            SELECT DISTINCT profile_slug FROM student_profile_certs
+            WHERE profile_slug IN (${slugPlaceholders})
+          `).bind(...slugs).all<{ profile_slug: string }>();
+
+          const slugsWithRemaining = new Set(remainingCerts.map(r => r.profile_slug));
+          const orphanedSlugs = slugs.filter(s => !slugsWithRemaining.has(s));
+          const orphanedEmailKeys = indexRows
+            .filter(r => orphanedSlugs.includes(r.slug))
+            .map(r => r.email_key);
+
+          if (orphanedSlugs.length > 0) {
+            const osPlaceholders = orphanedSlugs.map(() => "?").join(",");
+            const oekPlaceholders = orphanedEmailKeys.map(() => "?").join(",");
+            
+            await c.env.DB.batch([
+              c.env.DB.prepare(`DELETE FROM student_profiles WHERE slug IN (${osPlaceholders})`).bind(...orphanedSlugs),
+              c.env.DB.prepare(`DELETE FROM student_profile_index WHERE email_key IN (${oekPlaceholders})`).bind(...orphanedEmailKeys),
+            ]);
+          }
+        }
+      }
+    }
+
+    // Cascade delete batch
+    await c.env.DB.prepare(`DELETE FROM batches WHERE id = ?`).bind(batchId).run();
+
+    return c.json({ success: true });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// 6. POST /batches/:batchId/certificates/:certId/send — Send single certificate via email in-line
+router.post("/batches/:batchId/certificates/:certId/send", async (c) => {
+  const user = c.get("user")!;
+  const workspace = c.get("workspace")!;
+  const { batchId, certId } = c.req.param();
+  try {
+    const { emailSubject: reqSubject, emailBody: reqBody } = await c.req.json().catch(() => ({}));
+
+    const batch = await c.env.DB.prepare(`
+      SELECT user_id, workspace_id, name, email_subject, email_body, column_map FROM batches WHERE id = ?
+    `).bind(batchId).first<any>();
+
+    if (!batch) return c.json({ error: "Batch not found" }, 404);
+    if (!canAccessBatch(batch, workspace, user)) return c.json({ error: "Access denied" }, 403);
+
+    const cert = await c.env.DB.prepare(`
+      SELECT * FROM certificates WHERE id = ? AND batch_id = ?
+    `).bind(certId, batchId).first<any>();
+
+    if (!cert) return c.json({ error: "Certificate not found" }, 404);
+    if (!cert.recipient_email) return c.json({ error: "Certificate has no email address" }, 400);
+    if (!cert.r2_pdf_url && !cert.slide_file_id) return c.json({ error: "Certificate has not been generated yet" }, 400);
+
+    const subject = reqSubject || batch.email_subject || "Your Certificate";
+    const body = reqBody || batch.email_body || "Please find your certificate attached.";
+
+    // A. Personalize templates
+    let personalizedSubject = subject;
+    let personalizedBody = body;
+    const rowData = JSON.parse(cert.row_data || "{}");
+    const colMap = JSON.parse(batch.column_map || "{}");
+
+    for (const [placeholder, column] of Object.entries(colMap)) {
+      const val = rowData[String(column)] || "";
+      personalizedSubject = personalizedSubject.replace(new RegExp(`<<${placeholder}>>`, "gi"), val);
+      personalizedBody = personalizedBody.replace(new RegExp(`<<${placeholder}>>`, "gi"), val);
+    }
+    for (const [col, val] of Object.entries(rowData)) {
+      personalizedSubject = personalizedSubject.replace(new RegExp(`<<${col}>>`, "gi"), String(val));
+      personalizedBody = personalizedBody.replace(new RegExp(`<<${col}>>`, "gi"), String(val));
+    }
+
+    // B. Fetch PDF buffer
+    let pdfBuffer: ArrayBuffer | undefined;
+    const { accessToken } = await getAccessToken(c.env.DB, c.env, user.uid, "all");
+
+    if (cert.r2_pdf_url) {
+      try {
+        const res = await fetch(cert.r2_pdf_url);
+        if (res.ok) pdfBuffer = await res.arrayBuffer();
+      } catch (e: any) {
+        console.error("[Worker Send Email] R2 fetch failed, trying Drive:", e.message);
+      }
+    }
+
+    if (!pdfBuffer && cert.pdf_file_id) {
+      try {
+        pdfBuffer = await downloadDriveFile(accessToken, cert.pdf_file_id);
+      } catch (e: any) {
+        console.error("[Worker Send Email] Drive download failed, trying Slides:", e.message);
+      }
+    }
+
+    if (!pdfBuffer && cert.slide_file_id) {
+      try {
+        pdfBuffer = await exportSlidesToPdf(accessToken, cert.slide_file_id);
+      } catch (e: any) {
+        console.error("[Worker Send Email] Slides export failed:", e.message);
+      }
+    }
+
+    if (!pdfBuffer) {
+      return c.json({ error: "Could not retrieve certificate PDF attachment" }, 500);
+    }
+
+    const safeName = (cert.recipient_name || "cert").replace(/[^a-zA-Z0-9]/g, "_");
+    const safeBatch = (batch.name || "batch").replace(/[^a-zA-Z0-9]/g, "_");
+    const pdfFilename = `${safeName}_${safeBatch}.pdf`;
+
+    // C. Send email
+    await sendEmail(c.env, {
+      to: cert.recipient_email,
+      subject: personalizedSubject,
+      body: personalizedBody,
+      pdfBuffer: new Uint8Array(pdfBuffer),
+      pdfFilename,
+    });
+
+    // D. Update certificate status to sent
+    await c.env.DB.prepare(`
+      UPDATE certificates
+      SET status = 'sent', sent_at = datetime('now'), error_message = NULL
+      WHERE id = ?
+    `).bind(certId).run();
+
+    // E. Backfill profile if approved
+    const approved = await isApprovedInContext(c.env.DB, user.uid, workspace.id);
+    if (approved) {
+      try {
+        await upsertStudentProfile(c.env.DB, {
+          email: cert.recipient_email,
+          name: cert.recipient_name,
+          certId: cert.id,
+          batchId,
+          batchName: batch.name,
+          r2PdfUrl: cert.r2_pdf_url ?? null,
+          pdfUrl: cert.pdf_url ?? null,
+          slideUrl: null,
+          status: "sent",
+        });
+      } catch (err: any) {
+        console.error("[Worker Send Email] Profile upsert failed:", err.message);
+      }
+    }
+
+    return c.json({ success: true, message: "Email sent successfully" });
+  } catch (err: any) {
+    console.error("[Worker Send Email] Error:", err.message);
+    await c.env.DB.prepare(`
+      UPDATE certificates SET status = 'failed', error_message = ? WHERE id = ?
+    `).bind(err.message, certId).run();
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// 7. POST /batches/:batchId/certificates/:certId/send-whatsapp — Send single certificate via WhatsApp in-line
+router.post("/batches/:batchId/certificates/:certId/send-whatsapp", approvalMiddleware, async (c) => {
+  const user = c.get("user")!;
+  const workspace = c.get("workspace")!;
+  const { batchId, certId } = c.req.param();
+  try {
+    const { var1Template, var2Template, var3Template } = await c.req.json().catch(() => ({}));
+
+    const batch = await c.env.DB.prepare(`
+      SELECT user_id, workspace_id, name, column_map FROM batches WHERE id = ?
+    `).bind(batchId).first<any>();
+
+    if (!batch) return c.json({ error: "Batch not found" }, 404);
+    if (!canAccessBatch(batch, workspace, user)) return c.json({ error: "Access denied" }, 403);
+
+    const cert = await c.env.DB.prepare(`
+      SELECT * FROM certificates WHERE id = ? AND batch_id = ?
+    `).bind(certId, batchId).first<any>();
+
+    if (!cert) return c.json({ error: "Certificate not found" }, 404);
+    if (!cert.r2_pdf_url) return c.json({ error: "No R2 PDF URL for this certificate" }, 400);
+
+    const rowData = JSON.parse(cert.row_data || "{}");
+    
+    // Extract phone number
+    const keys = Object.keys(rowData);
+    const pKey = keys.find(k => k.toLowerCase() === "phone" || k.toLowerCase() === "whatsapp" || k.toLowerCase().includes("phone"));
+    const phone = pKey ? String(rowData[pKey] || "").replace(/[^0-9]/g, "") : "";
+
+    if (!phone) return c.json({ error: "No phone number found for this certificate" }, 400);
+
+    // Personalize variables
+    let var1 = var1Template || cert.recipient_name;
+    let var2 = var2Template || batch.name;
+    const emailPrefix = emailToSlug(cert.recipient_email || cert.recipient_name);
+    let var3 = var3Template || emailPrefix;
+
+    for (const [col, value] of Object.entries(rowData)) {
+      var1 = var1.replace(new RegExp(`<<${col}>>`, "gi"), String(value));
+      var2 = var2.replace(new RegExp(`<<${col}>>`, "gi"), String(value));
+      var3 = var3.replace(new RegExp(`<<${col}>>`, "gi"), String(value));
+    }
+    var3 = var3.replace(/<<EmailPrefix>>/gi, emailPrefix);
+
+    const safeName = (cert.recipient_name || "cert").trim().replace(/[^a-zA-Z0-9]/g, "_").replace(/^_+|_+$/g, "") || "cert";
+    const safeBatch = (batch.name || "batch").trim().replace(/[^a-zA-Z0-9]/g, "_").replace(/^_+|_+$/g, "") || "batch";
+    const pdfFilename = `${safeName}_${safeBatch}.pdf`;
+
+    const r2Base = c.env.R2_PUBLIC_URL?.replace(/\/$/, "") ?? "";
+    const certKey = r2Base && cert.r2_pdf_url?.startsWith(r2Base)
+      ? decodeURIComponent(cert.r2_pdf_url.slice(r2Base.length + 1))
+      : undefined;
+
+    // Send WhatsApp Document via Meta Cloud API
+    const wamid = await sendWhatsAppDocument(c.env, phone, cert.r2_pdf_url, pdfFilename, var1, var2, var3, certKey);
+
+    const stmts = [
+      c.env.DB.prepare(`
+        UPDATE certificates
+        SET status = 'sent', sent_at = datetime('now'), error_message = NULL, whatsapp_message_id = ?, whatsapp_status = 'sent'
+        WHERE id = ?
+      `).bind(wamid || null, certId),
+    ];
+
+    if (wamid) {
+      stmts.push(c.env.DB.prepare(`
+        INSERT INTO wa_messages (wamid, batch_id, cert_id) VALUES (?, ?, ?)
+      `).bind(wamid, batchId, certId));
+    }
+
+    await c.env.DB.batch(stmts);
+
+    // Backfill profile if approved
+    const approved = await isApprovedInContext(c.env.DB, user.uid, workspace.id);
+    if (approved) {
+      try {
+        await upsertStudentProfile(c.env.DB, {
+          email: cert.recipient_email,
+          name: cert.recipient_name,
+          certId: cert.id,
+          batchId,
+          batchName: batch.name,
+          r2PdfUrl: cert.r2_pdf_url ?? null,
+          pdfUrl: cert.pdf_url ?? null,
+          slideUrl: null,
+          status: "sent",
+        });
+      } catch (err: any) {
+        console.error("[Worker Send WhatsApp] Profile upsert failed:", err.message);
+      }
+    }
+
+    // Update batch sent count in background
+    c.executionCtx.waitUntil((async () => {
+      const allCerts = await c.env.DB.prepare(`SELECT status FROM certificates WHERE batch_id = ?`).bind(batchId).all<{ status: string }>();
+      const sentCount = (allCerts.results || []).filter(c => c.status === "sent").length;
+      await c.env.DB.prepare(`
+        UPDATE batches
+        SET sent_count = ?, whatsapp_sent_count = whatsapp_sent_count + 1
+        WHERE id = ?
+      `).bind(sentCount, batchId).run();
+    })());
+
+    return c.json({ success: true, message: `WhatsApp sent to ${phone}` });
+  } catch (err: any) {
+    console.error("[Worker Send WhatsApp] Error:", err.message);
+    await c.env.DB.prepare(`
+      UPDATE certificates SET status = 'failed', error_message = ? WHERE id = ?
+    `).bind(err.message, certId).run();
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// 8. POST /batches/:batchId/send-start — client send loops hook to mark status as sending
+router.post("/batches/:batchId/send-start", async (c) => {
+  const user = c.get("user")!;
+  const workspace = c.get("workspace")!;
+  const { batchId } = c.req.param();
+  try {
+    const batch = await c.env.DB.prepare(`
+      SELECT user_id, workspace_id FROM batches WHERE id = ?
+    `).bind(batchId).first<any>();
+
+    if (!batch) return c.json({ error: "Batch not found" }, 404);
+    if (!canAccessBatch(batch, workspace, user)) return c.json({ error: "Access denied" }, 403);
+
+    await c.env.DB.prepare(`UPDATE batches SET status = 'sending' WHERE id = ?`).bind(batchId).run();
+    return c.json({ success: true, status: "sending" });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// 9. POST /batches/:batchId/send-complete — client send loops hook to wrap up
+router.post("/batches/:batchId/send-complete", async (c) => {
+  const user = c.get("user")!;
+  const workspace = c.get("workspace")!;
+  const { batchId } = c.req.param();
+  try {
+    const { sentCount = 0, failedCount = 0 } = await c.req.json().catch(() => ({}));
+
+    const batch = await c.env.DB.prepare(`
+      SELECT user_id, workspace_id, sent_count FROM batches WHERE id = ?
+    `).bind(batchId).first<any>();
+
+    if (!batch) return c.json({ error: "Batch not found" }, 404);
+    if (!canAccessBatch(batch, workspace, user)) return c.json({ error: "Access denied" }, 403);
+
+    const totalSent = (batch.sent_count || 0) + sentCount;
+    const newStatus = failedCount === 0 ? "sent" : totalSent > 0 ? "partial" : "generated";
+
+    await c.env.DB.prepare(`
+      UPDATE batches SET status = ?, sent_count = ? WHERE id = ?
+    `).bind(newStatus, totalSent, batchId).run();
+
+    return c.json({ success: true, status: newStatus, totalSent });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// 10. POST /batches/:batchId/sync-profiles — Backfill student profiles
+router.post("/batches/:batchId/sync-profiles", async (c) => {
+  const user = c.get("user")!;
+  const workspace = c.get("workspace")!;
+  const { batchId } = c.req.param();
+  try {
+    const batch = await c.env.DB.prepare(`
+      SELECT user_id, workspace_id, name FROM batches WHERE id = ?
+    `).bind(batchId).first<any>();
+
+    if (!batch) return c.json({ error: "Batch not found" }, 404);
+    if (!canAccessBatch(batch, workspace, user)) return c.json({ error: "Access denied" }, 403);
+
+    const approved = await isApprovedInContext(c.env.DB, batch.user_id, workspace.id);
+    if (!approved) {
+      return c.json({ error: "Profile pages are available for approved organizations only." }, 403);
+    }
+
+    const { results: certs } = await c.env.DB.prepare(`
+      SELECT id, recipient_name, recipient_email, r2_pdf_url, pdf_url, status
+      FROM certificates
+      WHERE batch_id = ? AND status IN ('sent', 'generated')
+    `).bind(batchId).all<any>();
+
+    const profiles = certs
+      .filter((c) => c.recipient_email)
+      .map((c) => ({
+        email: c.recipient_email!,
+        name: c.recipient_name,
+        certId: c.id,
+        batchName: batch.name,
+        r2PdfUrl: c.r2_pdf_url ?? null,
+        pdfUrl: c.pdf_url ?? null,
+        slideUrl: null,
+      }));
+
+    if (profiles.length === 0) return c.json({ synced: 0 });
+
+    // Sync in background using c.executionCtx
+    c.executionCtx.waitUntil((async () => {
+      for (const p of profiles) {
+        try {
+          await upsertStudentProfile(c.env.DB, {
+            email: p.email,
+            name: p.name,
+            certId: p.certId,
+            batchId,
+            batchName: p.batchName,
+            r2PdfUrl: p.r2PdfUrl,
+            pdfUrl: p.pdfUrl,
+            slideUrl: null,
+            status: "generated",
+          });
+        } catch (err: any) {
+          console.error("[sync-profiles] Profile backfill failed:", err.message);
+        }
+      }
+    })());
+
+    return c.json({ synced: profiles.length });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+export default router;

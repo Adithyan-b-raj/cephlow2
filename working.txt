@@ -1,32 +1,38 @@
 # Running the project
 
-## Start API server (port 3000)
-pnpm --filter @workspace/api-server run dev
-
 ## Start frontend / cert-app (port 5173 or 5174)
 pnpm --filter @workspace/cert-app run dev
+# The frontend will call https://api.cephlow.in (production API) via apps/cert-app/.env.local
+# No local wrangler needed!
 
-
-pnpm --filter @workspace/api-server worker
-## Start both at once (run in separate terminals)
-pnpm --filter @workspace/api-server run dev &
-pnpm --filter @workspace/cert-app run dev &
-
-## URLs
+## URLs (local dev)
 - Frontend: http://localhost:5173 (or 5174 if 5173 is taken)
-- API:      http://localhost:3000
+- API:      https://api.cephlow.in  (live production worker)
 
+## URLs (production)
+- Frontend: https://cephlow.in
+- API:      https://api.cephlow.in
 
-What you need to do (one-time setup)
-Go to console.cloud.google.com → select your cephlow project
-APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client ID
-Application type: Web application
-Add Authorized redirect URIs:
-http://localhost:3001/api/auth/google/callback (dev)
-https://<your-api-render-domain>/api/auth/google/callback (prod)
-Copy the Client ID and Client Secret into .env:
+## Deploy API Worker to production
+npx wrangler deploy --config=./apps/api-worker/wrangler.toml
 
-GOOGLE_CLIENT_ID=...
-GOOGLE_CLIENT_SECRET=...
-On Render/production, also set GOOGLE_REDIRECT_URI and FRONTEND_URL to the production URLs
-After this, existing users will see the "Connect Google" screen once, click it, consent, and never be asked again
+## Sync Supabase data to D1 (if needed)
+npx tsx scripts/db-sync-to-d1.ts
+npx wrangler d1 execute cephlow-app-db --remote --file=./scripts/d1-data-dump.sql --config=./apps/api-worker/wrangler.toml
+
+## Database commands
+# Apply schema locally
+npx wrangler d1 execute cephlow-app-db --local --file=./apps/api-worker/schema.sql --config=./apps/api-worker/wrangler.toml
+
+# Apply schema to production
+npx wrangler d1 execute cephlow-app-db --remote --file=./apps/api-worker/schema.sql --config=./apps/api-worker/wrangler.toml
+
+## Secrets management
+# List secrets
+npx wrangler secret list --config=./apps/api-worker/wrangler.toml
+
+# Set a secret
+echo "VALUE" | npx wrangler secret put SECRET_NAME --config=./apps/api-worker/wrangler.toml
+
+## NOTE: apps/api-server is the OLD Digital Ocean Node.js server (no longer used).
+## The new backend is apps/api-worker (Cloudflare Workers + D1 + R2).

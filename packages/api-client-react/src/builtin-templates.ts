@@ -42,7 +42,7 @@ export const useListBuiltinTemplates = <
     TData
   >;
 }) => {
-  return useQuery({
+  return useQuery<Awaited<ReturnType<typeof listBuiltinTemplates>>, TError, TData>({
     queryKey: KEY_LIST,
     queryFn: () => listBuiltinTemplates(),
     ...options?.query,
@@ -56,7 +56,7 @@ export const useGetBuiltinTemplate = (
   id: string,
   options?: { query?: UseQueryOptions<BuiltinTemplate, ErrorType<unknown>, BuiltinTemplate> },
 ) => {
-  return useQuery({
+  return useQuery<BuiltinTemplate, ErrorType<unknown>, BuiltinTemplate>({
     queryKey: KEY_ONE(id),
     queryFn: () => getBuiltinTemplate(id),
     enabled: !!id,

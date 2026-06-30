@@ -994,12 +994,55 @@ export const sendBatch = async (
   sendBatchRequest: SendBatchRequest,
   options?: RequestInit,
 ): Promise<BatchOperationResponse> => {
-  return customFetch<BatchOperationResponse>(getSendBatchUrl(batchId), {
-    ...options,
+  // 1. Fetch certificates for this batch
+  const certsResponse = await customFetch<{ certificates: any[] }>(`/api/certificates?batchId=${batchId}`, {
+    method: "GET",
+    headers: options?.headers,
+  });
+  const toSend = (certsResponse.certificates || []).filter(c => c.recipientEmail && c.status === "generated");
+
+  if (toSend.length === 0) {
+    return { success: true, message: "No certificates to send" } as any;
+  }
+
+  // 2. Start send
+  await customFetch(`/api/batches/${batchId}/send-start`, {
+    method: "POST",
+    headers: options?.headers,
+  });
+
+  let sentCount = 0;
+  let failedCount = 0;
+
+  // 3. Process sending with concurrency limit (e.g. 5 parallel sends at a time)
+  const CONCURRENCY = 5;
+  for (let i = 0; i < toSend.length; i += CONCURRENCY) {
+    const chunk = toSend.slice(i, i + CONCURRENCY);
+    await Promise.all(
+      chunk.map(async (cert) => {
+        try {
+          await customFetch(`/api/batches/${batchId}/certificates/${cert.id}/send`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...options?.headers },
+            body: JSON.stringify(sendBatchRequest),
+          });
+          sentCount++;
+        } catch (err) {
+          console.error(`Failed to send email to cert ${cert.id}:`, err);
+          failedCount++;
+        }
+      })
+    );
+  }
+
+  // 4. Complete send
+  await customFetch(`/api/batches/${batchId}/send-complete`, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...options?.headers },
-    body: JSON.stringify(sendBatchRequest),
+    body: JSON.stringify({ sentCount, failedCount }),
   });
+
+  return { success: true, message: `Finished sending. Sent: ${sentCount}, Failed: ${failedCount}` } as any;
 };
 
 export const getSendBatchMutationOptions = <

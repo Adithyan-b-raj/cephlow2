@@ -49,7 +49,7 @@ export const useListSpreadsheets = <
 >(options?: {
   query?: UseQueryOptions<Awaited<ReturnType<typeof listSpreadsheets>>, TError, TData>;
 }) =>
-  useQuery({
+  useQuery<Awaited<ReturnType<typeof listSpreadsheets>>, TError, TData>({
     queryKey: KEY_LIST,
     queryFn: () => listSpreadsheets(),
     ...options?.query,
@@ -62,7 +62,7 @@ export const useGetSpreadsheet = (
   id: string,
   options?: { query?: UseQueryOptions<Spreadsheet, ErrorType<unknown>, Spreadsheet> },
 ) =>
-  useQuery({
+  useQuery<Spreadsheet, ErrorType<unknown>, Spreadsheet>({
     queryKey: KEY_ONE(id),
     queryFn: () => getSpreadsheet(id),
     enabled: !!id,
