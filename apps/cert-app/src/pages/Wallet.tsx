@@ -342,14 +342,9 @@ export default function Wallet() {
   const [isTopUpOpen, setIsTopUpOpen]           = useState(false);
   const [topUpAmount, setTopUpAmount]           = useState<string>("500");
   const [isProcessingTopUp, setIsProcessingTopUp] = useState(false);
-  const [creatorCredits, setCreatorCredits]     = useState<number | null>(null);
   const [transferKey, setTransferKey]           = useState(0);
 
-  useEffect(() => {
-    customFetch<{ creatorCredits: number }>("/api/creator/credits")
-      .then((d) => setCreatorCredits(d.creatorCredits ?? 0))
-      .catch(() => {});
-  }, []);
+
 
   const currentBalance  = balanceData?.currentBalance ?? 0;
   const transferCode    = (balanceData as any)?.transferCode as string | null ?? null;
@@ -552,21 +547,6 @@ export default function Wallet() {
         <TransferHistory key={transferKey} workspaceId={activeWorkspace.id} />
       )}
 
-      {/* Creator credits banner */}
-      {creatorCredits !== null && (
-        <div className="border-2 border-foreground flex items-center justify-between px-5 py-4">
-          <div className="flex items-center gap-3">
-            <Coins className="w-4 h-4 text-muted-foreground" />
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Creator Credits</p>
-              <p className="text-xl font-display font-black font-mono">₹{creatorCredits.toFixed(2)}</p>
-            </div>
-          </div>
-          <Link href="/frames#credits" className="text-[10px] font-bold uppercase tracking-widest underline underline-offset-2">
-            Transfer to workspace →
-          </Link>
-        </div>
-      )}
     </div>
   );
 }

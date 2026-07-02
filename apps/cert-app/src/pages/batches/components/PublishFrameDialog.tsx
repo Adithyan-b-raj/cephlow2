@@ -113,27 +113,6 @@ export function PublishFrameDialog({ open, onOpenChange, frameId, frameName, fra
               />
             </div>
 
-            <div className="space-y-1.5">
-              <p className="text-xs font-bold uppercase tracking-widest">Price</p>
-              <div className="flex flex-wrap gap-1.5">
-                {PRICE_OPTIONS.map(p => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setPrice(p)}
-                    className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest border-2 transition-colors
-                      ${price === p ? "border-foreground bg-foreground text-background" : "border-border hover:border-foreground/50"}`}
-                  >
-                    {p === 0 ? "Free" : `₹${p}`}
-                  </button>
-                ))}
-              </div>
-              {price > 0 && (
-                <p className="text-[10px] text-muted-foreground">
-                  You earn ₹{price} in creator credits each time an organizer uses this frame.
-                </p>
-              )}
-            </div>
           </div>
         </div>
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Loader2, Search, ShoppingBag, LayoutTemplate, Coins, Star, Package, Paintbrush, Heart, Pencil, Trash2, Check, X, Copy } from "lucide-react";
+import { Loader2, Search, ShoppingBag, LayoutTemplate, Star, Package, Paintbrush, Heart, Pencil, Trash2, Check, X } from "lucide-react";
 import { customFetch } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -250,16 +250,9 @@ function MyListingsTab() {
   const [workspaceFrames, setWorkspaceFrames] = useState<WorkspaceFrame[]>([]);
   const [publishTarget, setPublishTarget] = useState<WorkspaceFrame | null>(null);
 
-  // Creator name state
-  const [creatorName, setCreatorName] = useState("");
-  const [nameInput, setNameInput] = useState("");
-  const [savingName, setSavingName] = useState(false);
-  const [editingName, setEditingName] = useState(false);
-
   // Per-listing inline edit state
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingValue, setEditingValue] = useState("");
-  const [editingPrice, setEditingPrice] = useState("");
   const [savingEditId, setSavingEditId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -268,40 +261,16 @@ function MyListingsTab() {
     Promise.all([
       customFetch<{ listings: Listing[] }>("/api/marketplace/my-listings"),
       customFetch<{ frames: WorkspaceFrame[] }>("/api/frame-templates"),
-      customFetch<{ creatorName: string }>("/api/creator/credits"),
     ])
-      .then(([d, t, c]) => {
+      .then(([d, t]) => {
         setListings(d.listings ?? []);
         setWorkspaceFrames(t.frames ?? []);
-        setCreatorName((c as any).creatorName ?? "");
-        setNameInput((c as any).creatorName ?? "");
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   };
 
   useEffect(() => { load(); }, []);
-
-  const totalLikes = listings.reduce((sum, l) => sum + (l.likeCount ?? 0), 0);
-
-  const handleSaveName = async () => {
-    if (!nameInput.trim() || nameInput.trim() === creatorName) { setEditingName(false); return; }
-    setSavingName(true);
-    try {
-      const result = await customFetch<{ creatorName: string }>("/api/creator/name", {
-        method: "PATCH",
-        body: JSON.stringify({ name: nameInput.trim() }),
-      });
-      setCreatorName(result.creatorName);
-      setNameInput(result.creatorName);
-      setEditingName(false);
-      toast({ title: "Creator name saved" });
-    } catch (err: any) {
-      toast({ title: "Failed to save name", description: err.message, variant: "destructive" });
-    } finally {
-      setSavingName(false);
-    }
-  };
 
   const handleToggleActive = async (listing: Listing) => {
     try {
@@ -319,28 +288,23 @@ function MyListingsTab() {
   const startEdit = (listing: Listing) => {
     setEditingId(listing.id);
     setEditingValue(listing.name);
-    setEditingPrice(String(listing.price));
   };
 
-  const cancelEdit = () => { setEditingId(null); setEditingValue(""); setEditingPrice(""); };
+  const cancelEdit = () => { setEditingId(null); setEditingValue(""); };
 
   const handleSaveEdit = async (listing: Listing) => {
     const newName = editingValue.trim();
-    const newPrice = parseInt(editingPrice, 10);
     const nameChanged = newName && newName !== listing.name;
-    const priceChanged = !isNaN(newPrice) && newPrice >= 0 && newPrice !== listing.price;
-    if (!nameChanged && !priceChanged) { cancelEdit(); return; }
+    if (!nameChanged) { cancelEdit(); return; }
     setSavingEditId(listing.id);
     try {
-      const patch: Record<string, unknown> = {};
-      if (nameChanged) patch.name = newName;
-      if (priceChanged) patch.price = newPrice;
+      const patch = { name: newName };
       await customFetch(`/api/marketplace/listings/${listing.id}`, {
         method: "PATCH",
         body: JSON.stringify(patch),
       });
       setListings(prev => prev.map(l => l.id === listing.id
-        ? { ...l, ...(nameChanged ? { name: newName } : {}), ...(priceChanged ? { price: newPrice } : {}) }
+        ? { ...l, name: newName }
         : l));
       setEditingId(null);
       toast({ title: "Listing updated" });
@@ -374,45 +338,11 @@ function MyListingsTab() {
 
   return (
     <div className="space-y-4">
-      {/* Header bar: creator name + stats + publish */}
-      <div className="border-2 border-border p-3 flex flex-wrap items-center gap-4">
-        {/* Creator name */}
-        <div className="flex items-center gap-2 flex-1 min-w-48">
-          <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground shrink-0">Creator</span>
-          {editingName ? (
-            <div className="flex items-center gap-1 flex-1">
-              <input
-                autoFocus
-                className="flex-1 border border-border bg-background px-2 py-0.5 text-xs font-mono outline-none focus:border-foreground transition-colors"
-                maxLength={40}
-                value={nameInput}
-                onChange={e => setNameInput(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") handleSaveName(); if (e.key === "Escape") { setEditingName(false); setNameInput(creatorName); } }}
-              />
-              <button onClick={handleSaveName} disabled={savingName} className="text-green-600 hover:text-green-700 disabled:opacity-50">
-                {savingName ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              </button>
-              <button onClick={() => { setEditingName(false); setNameInput(creatorName); }} className="text-muted-foreground hover:text-foreground">
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setEditingName(true)}
-              className="flex items-center gap-1.5 text-left hover:opacity-70 transition-opacity"
-            >
-              <span className="text-xs font-black uppercase tracking-widest">
-                {creatorName || <span className="text-muted-foreground font-normal normal-case tracking-normal italic">Set creator name…</span>}
-              </span>
-              <Pencil className="w-3 h-3 text-muted-foreground shrink-0" />
-            </button>
-          )}
-        </div>
-
+      {/* Header bar: stats + publish */}
+      <div className="border-2 border-border p-3 flex flex-wrap items-center justify-between gap-4">
         {/* Stats */}
-        <div className="flex items-center gap-4 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
           <span>{listings.length} listing{listings.length !== 1 ? "s" : ""}</span>
-          <span className="flex items-center gap-1"><Heart className="w-3 h-3" />{totalLikes} total</span>
         </div>
 
         {/* Publish */}
@@ -462,19 +392,7 @@ function MyListingsTab() {
                       onKeyDown={e => { if (e.key === "Enter") handleSaveEdit(listing); if (e.key === "Escape") cancelEdit(); }}
                       placeholder="Name"
                     />
-                    <div className="flex items-center border border-border bg-background focus-within:border-foreground transition-colors" title="0 = free, or ₹20–₹100">
-                      <span className="pl-2 text-xs font-mono text-muted-foreground">₹</span>
-                      <input
-                        type="number"
-                        min="0"
-                        max="100"
-                        className="w-16 bg-transparent px-1.5 py-0.5 text-xs font-mono outline-none"
-                        value={editingPrice}
-                        onChange={e => setEditingPrice(e.target.value)}
-                        onKeyDown={e => { if (e.key === "Enter") handleSaveEdit(listing); if (e.key === "Escape") cancelEdit(); }}
-                        placeholder="0"
-                      />
-                    </div>
+                    
                     <button onClick={() => handleSaveEdit(listing)} disabled={savingEditId === listing.id} className="text-green-600 hover:text-green-700 disabled:opacity-50">
                       {savingEditId === listing.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
                     </button>
@@ -558,235 +476,6 @@ function DesignTab() {
 
 // ─── Tab: Credits ─────────────────────────────────────────────────────────────
 
-interface RedemptionRequest {
-  id: string;
-  amount: number;
-  brand: string;
-  status: "pending" | "fulfilled" | "rejected";
-  voucherCode: string | null;
-  adminNote: string | null;
-  createdAt: string;
-}
-
-function CreditsTab() {
-  const { toast } = useToast();
-  const [credits, setCredits] = useState<number | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [creatorName, setCreatorName] = useState("");
-  const [nameInput, setNameInput] = useState("");
-  const [savingName, setSavingName] = useState(false);
-
-  // Redemption state
-  const [redeemAmount, setRedeemAmount] = useState("");
-  const [redeemBrand, setRedeemBrand] = useState<"amazon" | "flipkart">("amazon");
-  const [redeeming, setRedeeming] = useState(false);
-  const [redemptions, setRedemptions] = useState<RedemptionRequest[]>([]);
-  const [yearlyUsed, setYearlyUsed] = useState(0);
-
-  const loadRedemptions = () =>
-    customFetch<{ requests: RedemptionRequest[]; yearlyUsed: number }>("/api/creator/credits/redemptions")
-      .then((d: { requests: RedemptionRequest[]; yearlyUsed: number }) => {
-        setRedemptions(d.requests ?? []);
-        setYearlyUsed(d.yearlyUsed ?? 0);
-      })
-      .catch(() => {});
-
-  useEffect(() => {
-    Promise.all([
-      customFetch<{ creatorCredits: number; creatorName: string }>("/api/creator/credits")
-        .then((d: { creatorCredits: number; creatorName: string }) => {
-          setCredits(d.creatorCredits ?? 0);
-          setCreatorName(d.creatorName ?? "");
-          setNameInput(d.creatorName ?? "");
-        })
-        .catch(() => setCredits(0)),
-      loadRedemptions(),
-    ]).finally(() => setLoading(false));
-  }, []);
-
-  const handleSaveName = async () => {
-    if (!nameInput.trim()) return;
-    setSavingName(true);
-    try {
-      const result = await customFetch<{ creatorName: string }>("/api/creator/name", {
-        method: "PATCH",
-        body: JSON.stringify({ name: nameInput.trim() }),
-      });
-      setCreatorName(result.creatorName);
-      setNameInput(result.creatorName);
-      toast({ title: "Creator name saved" });
-    } catch (err: any) {
-      toast({ title: "Failed to save name", description: err.message, variant: "destructive" });
-    } finally {
-      setSavingName(false);
-    }
-  };
-
-  const handleRedeem = async () => {
-    const amt = parseInt(redeemAmount);
-    if (!amt || amt < 100) {
-      toast({ title: "Amount must be at least ₹100", variant: "destructive" });
-      return;
-    }
-    if (yearlyUsed + amt > 20000) {
-      toast({
-        title: "Annual cap reached",
-        description: `You can redeem up to ₹${20000 - yearlyUsed} more this year.`,
-        variant: "destructive",
-      });
-      return;
-    }
-    setRedeeming(true);
-    try {
-      const result = await customFetch<{ newCreatorCredits: number }>(
-        "/api/creator/credits/redeem",
-        { method: "POST", body: JSON.stringify({ amount: amt, brand: redeemBrand }) }
-      );
-      setCredits(result.newCreatorCredits);
-      setRedeemAmount("");
-      toast({ title: `Voucher requested! Your ${redeemBrand === "amazon" ? "Amazon" : "Flipkart"} gift card will be sent to your email within 2-3 business days.` });
-      await loadRedemptions();
-    } catch (err: any) {
-      toast({ title: "Redemption failed", description: err.message, variant: "destructive" });
-    } finally {
-      setRedeeming(false);
-    }
-  };
-
-  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
-
-  const yearlyRemaining = 20000 - yearlyUsed;
-  const redeemAmt = parseInt(redeemAmount) || 0;
-
-  return (
-    <div className="max-w-md space-y-6">
-      {/* Balance display — first thing visible */}
-      <div className="border-2 border-foreground p-6 text-center">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Your Creator Credits</p>
-        <p className="text-4xl font-black font-mono">₹{credits ?? 0}</p>
-        <p className="text-[10px] text-muted-foreground mt-2">Earned from marketplace frame sales</p>
-        {yearlyUsed > 0 && (
-          <p className="text-[9px] text-muted-foreground mt-1">₹{yearlyUsed} redeemed this year · ₹{yearlyRemaining} remaining</p>
-        )}
-      </div>
-
-      {/* Redeem for gift voucher — primary action, right below balance */}
-      <div className="space-y-3">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-widest">Redeem for Gift Voucher</p>
-          <p className="text-[10px] text-muted-foreground mt-1">Min ₹100 · Delivered to your email within 2-3 business days · ₹20,000/year cap</p>
-        </div>
-
-        <div className="space-y-1.5">
-          <p className="text-[10px] font-bold uppercase tracking-widest">Brand</p>
-          <div className="flex border-2 border-border w-fit">
-            {(["amazon", "flipkart"] as const).map(b => (
-              <button key={b} onClick={() => setRedeemBrand(b)}
-                className={`px-4 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors
-                  ${redeemBrand === b ? "bg-foreground text-background" : "hover:bg-muted"}`}>
-                {b === "amazon" ? "Amazon" : "Flipkart"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="space-y-1.5">
-          <p className="text-[10px] font-bold uppercase tracking-widest">Amount (₹)</p>
-          <input
-            type="number" min="100" step="1"
-            className="w-full border-2 border-border bg-background px-3 py-1.5 text-sm font-mono outline-none focus:border-foreground transition-colors"
-            value={redeemAmount} onChange={e => setRedeemAmount(e.target.value)} placeholder="e.g. 200"
-          />
-        </div>
-
-        {redeemAmt >= 100 && credits !== null && (
-          <div className="border border-border p-3 text-[10px] font-mono space-y-1">
-            <div className="flex justify-between"><span className="text-muted-foreground">Credits after redemption</span><span>₹{Math.max(0, credits - redeemAmt)}</span></div>
-            <div className="flex justify-between"><span className="text-muted-foreground">Yearly used after this</span><span className={yearlyUsed + redeemAmt > 20000 ? "text-red-500" : ""}>₹{yearlyUsed + redeemAmt} / ₹20,000</span></div>
-          </div>
-        )}
-
-        <Button
-          onClick={handleRedeem}
-          disabled={redeeming || !redeemAmount || redeemAmt < 100 || (credits ?? 0) < redeemAmt || yearlyUsed + redeemAmt > 20000}
-          className="w-full"
-        >
-          {redeeming && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-          {redeeming ? "Submitting…" : `Request ${redeemBrand === "amazon" ? "Amazon" : "Flipkart"} Voucher`}
-        </Button>
-
-        <p className="text-[9px] text-muted-foreground leading-relaxed border border-border p-2">
-          Gift vouchers are a goodwill reward from Cephlow. Recipients are responsible for any applicable taxes on received benefits. Redemptions are subject to a ₹20,000/year cap per user.
-        </p>
-      </div>
-
-      {/* Divider */}
-      <div className="border-t-2 border-border" />
-
-      {/* Creator name — settings, least urgent */}
-      <div className="space-y-2">
-        <p className="text-xs font-bold uppercase tracking-widest">Creator Name</p>
-        <p className="text-[10px] text-muted-foreground">Shown on your listings in the marketplace.</p>
-        <div className="flex gap-2">
-          <input
-            className="flex-1 border-2 border-border bg-background px-3 py-1.5 text-sm font-mono outline-none focus:border-foreground transition-colors"
-            placeholder="e.g. Adithyan"
-            maxLength={40}
-            value={nameInput}
-            onChange={e => setNameInput(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleSaveName()}
-          />
-          <Button onClick={handleSaveName} disabled={savingName || !nameInput.trim() || nameInput.trim() === creatorName} size="sm" variant="outline">
-            {savingName ? <Loader2 className="w-3 h-3 animate-spin" /> : "Save"}
-          </Button>
-        </div>
-      </div>
-
-      {/* Redemption history */}
-      {redemptions.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-bold uppercase tracking-widest">Redemption History</p>
-          <div className="space-y-2">
-            {redemptions.map(r => (
-              <div key={r.id} className="border-2 border-border p-3 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="font-black text-sm">₹{r.amount}</p>
-                    <p className="text-[9px] text-muted-foreground uppercase tracking-widest">{r.brand} · {new Date(r.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</p>
-                  </div>
-                  <span className={`text-[9px] font-black px-1.5 py-0.5 border shrink-0 ${
-                    r.status === "fulfilled" ? "border-green-600 text-green-600"
-                    : r.status === "rejected" ? "border-red-500 text-red-500"
-                    : "border-foreground text-foreground"
-                  }`}>
-                    {r.status.toUpperCase()}
-                  </span>
-                </div>
-                {r.status === "fulfilled" && r.voucherCode && (
-                  <div className="flex items-center gap-2 border border-border bg-muted px-2 py-1">
-                    <span className="flex-1 text-xs font-mono tracking-widest truncate">{r.voucherCode}</span>
-                    <button
-                      onClick={() => { navigator.clipboard.writeText(r.voucherCode!); toast({ title: "Code copied!" }); }}
-                      className="text-muted-foreground hover:text-foreground transition-colors shrink-0"
-                    >
-                      <Copy className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                )}
-                {r.adminNote && r.status === "rejected" && (
-                  <p className="text-[9px] text-muted-foreground">{r.adminNote}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Tab: Owned ───────────────────────────────────────────────────────────────
-
 function OwnedTab() {
   const [frames, setFrames] = useState<OwnedFrame[]>([]);
   const [loading, setLoading] = useState(true);
@@ -831,14 +520,13 @@ function OwnedTab() {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-type Tab = "browse" | "listings" | "design" | "credits" | "owned";
+type Tab = "browse" | "listings" | "design" | "owned";
 
 const TABS: { id: Tab; label: string; icon: React.FC<any> }[] = [
   { id: "browse",   label: "Browse",        icon: ShoppingBag },
   { id: "listings", label: "My Listings",   icon: Star },
   { id: "design",   label: "Design Frame",  icon: Paintbrush },
-  { id: "credits",  label: "Credits",       icon: Coins },
-  { id: "owned",    label: "Owned",         icon: Package },
+    { id: "owned",    label: "Owned",         icon: Package },
 ];
 
 export default function FrameInventory() {
@@ -880,7 +568,6 @@ export default function FrameInventory() {
         {tab === "browse"   && <BrowseTab />}
         {tab === "listings" && <MyListingsTab />}
         {tab === "design"   && <DesignTab />}
-        {tab === "credits"  && <CreditsTab />}
         {tab === "owned"    && <OwnedTab />}
       </div>
     </div>
