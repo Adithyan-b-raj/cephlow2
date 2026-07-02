@@ -74,8 +74,6 @@ function BrowseTab() {
   const [listings, setListings] = useState<Listing[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "free" | "paid">("all");
-  const [walletBalance, setWalletBalance] = useState(0);
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
   const [likingId, setLikingId] = useState<string | null>(null);
   const [page, setPage] = useState(1);
@@ -83,14 +81,10 @@ function BrowseTab() {
 
   const load = (p = 1) => {
     setLoading(true);
-    Promise.all([
-      customFetch<{ listings: Listing[]; total: number }>(`/api/marketplace/listings?page=${p}&limit=24`),
-      customFetch<{ currentBalance: number }>("/api/wallet").catch(() => ({ currentBalance: 0 })),
-    ])
-      .then(([d, w]) => {
+    customFetch<{ listings: Listing[]; total: number }>('/api/marketplace/listings?page=' + p + '&limit=24')
+      .then((d) => {
         setListings(d.listings ?? []);
         setTotal(d.total ?? 0);
-        setWalletBalance((w as any).currentBalance ?? 0);
         setPage(p);
       })
       .catch(() => {})
@@ -100,8 +94,6 @@ function BrowseTab() {
   useEffect(() => { load(1); }, []);
 
   const filtered = listings.filter(l => {
-    if (filter === "free" && l.price !== 0) return false;
-    if (filter === "paid" && l.price === 0) return false;
     if (search && !l.name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -110,14 +102,14 @@ function BrowseTab() {
     setLikingId(listing.id);
     try {
       const result = await customFetch<{ liked: boolean; likeCount: number }>(
-        `/api/marketplace/listings/${listing.id}/like`,
+        '/api/marketplace/listings/' + listing.id + '/like',
         { method: "POST", body: JSON.stringify({}) }
       );
       setListings(prev => prev.map(l =>
         l.id === listing.id ? { ...l, likedByMe: result.liked, likeCount: result.likeCount } : l
       ));
     } catch {
-      // silent — like is non-critical
+      // silent
     } finally {
       setLikingId(null);
     }
@@ -126,19 +118,14 @@ function BrowseTab() {
   const handlePurchase = async (listing: Listing) => {
     if (!listing.frameConfig) return;
     if (listing.alreadyPurchased) {
-      toast({ title: `"${listing.name}" is already in your workspace` });
-      return;
-    }
-    if (listing.price > walletBalance) {
-      toast({ title: "Insufficient balance", description: `Needs ₹${listing.price}, you have ₹${walletBalance}`, variant: "destructive" });
+      toast({ title: '"' + listing.name + '" is already in your workspace' });
       return;
     }
     setPurchasingId(listing.id);
     try {
-      await customFetch(`/api/marketplace/listings/${listing.id}/purchase`, { method: "POST", body: JSON.stringify({}) });
+      await customFetch('/api/marketplace/listings/' + listing.id + '/purchase', { method: "POST", body: JSON.stringify({}) });
       setListings(prev => prev.map(l => l.id === listing.id ? { ...l, alreadyPurchased: true } : l));
-      setWalletBalance(prev => prev - listing.price);
-      toast({ title: `"${listing.name}" added to your workspace` });
+      toast({ title: '"' + listing.name + '" added to your workspace' });
     } catch (err: any) {
       toast({ title: "Purchase failed", description: err.message, variant: "destructive" });
     } finally {
@@ -154,16 +141,6 @@ function BrowseTab() {
           <Search className="w-3 h-3 text-muted-foreground shrink-0" />
           <input className="flex-1 bg-transparent text-sm outline-none font-mono" placeholder="Search frames..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
-        <div className="flex border-2 border-border">
-          {(["all", "free", "paid"] as const).map(f => (
-            <button key={f} onClick={() => setFilter(f)}
-              className={`px-3 py-1.5 text-[10px] font-black uppercase tracking-widest transition-colors
-                ${filter === f ? "bg-foreground text-background" : "hover:bg-muted"}`}>
-              {f}
-            </button>
-          ))}
-        </div>
-        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground shrink-0">Balance: ₹{walletBalance}</span>
       </div>
 
       {loading ? (
@@ -193,8 +170,8 @@ function BrowseTab() {
                 <p className="text-[9px] text-muted-foreground mt-0.5">Used in {listing.purchaseCount} event{listing.purchaseCount !== 1 ? "s" : ""}</p>
               </div>
               <div className="flex items-center justify-between gap-1">
-                <span className={`text-[9px] font-black px-1.5 py-0.5 border ${listing.price === 0 ? "border-green-600 text-green-600" : "border-foreground"}`}>
-                  {listing.price === 0 ? "FREE" : `₹${listing.price}`}
+                <span className="text-[9px] font-black px-1.5 py-0.5 border border-green-600 text-green-600">
+                  FREE
                 </span>
                 <div className="flex items-center gap-1">
                   {listing.alreadyPurchased && (
@@ -203,9 +180,9 @@ function BrowseTab() {
                   <button
                     onClick={() => handleLike(listing)}
                     disabled={likingId === listing.id}
-                    className="flex items-center gap-1 text-xs font-bold text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-50 px-1 py-0.5"
+                    className={"flex items-center gap-1 text-xs font-bold text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-50 px-1 py-0.5"}
                   >
-                    <Heart className={`w-4 h-4 ${listing.likedByMe ? "fill-red-500 text-red-500" : ""}`} />
+                    <Heart className={"w-4 h-4 " + (listing.likedByMe ? "fill-red-500 text-red-500" : "")} />
                     <span>{listing.likeCount ?? 0}</span>
                   </button>
                 </div>
@@ -213,15 +190,15 @@ function BrowseTab() {
               <button
                 onClick={() => handlePurchase(listing)}
                 disabled={purchasingId === listing.id || listing.alreadyPurchased}
-                className={`w-full py-1.5 text-[9px] font-black uppercase tracking-widest border-2 transition-colors flex items-center justify-center gap-1
-                  ${listing.alreadyPurchased
+                className={"w-full py-1.5 text-[9px] font-black uppercase tracking-widest border-2 transition-colors flex items-center justify-center gap-1 " +
+                  (listing.alreadyPurchased
                     ? "border-foreground/30 text-foreground/30 cursor-default"
-                    : "border-border hover:border-foreground hover:bg-foreground hover:text-background"}`}
+                    : "border-border hover:border-foreground hover:bg-foreground hover:text-background")}
               >
                 {purchasingId === listing.id
                   ? <Loader2 className="w-3 h-3 animate-spin" />
                   : listing.alreadyPurchased ? "Already Owned"
-                  : listing.price === 0 ? "Get Free" : `Get ₹${listing.price}`}
+                  : "Get Free"}
               </button>
             </div>
           ))}
@@ -239,8 +216,6 @@ function BrowseTab() {
     </div>
   );
 }
-
-// ─── Tab: My Listings ─────────────────────────────────────────────────────────
 
 function MyListingsTab() {
   const { toast } = useToast();
