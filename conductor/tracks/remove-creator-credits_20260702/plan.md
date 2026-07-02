@@ -7,14 +7,14 @@
     - [x] Apply the migration to D1 locally using `pnpm --filter @workspace/api-worker wrangler d1 migrations apply`
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Database Migrations' (Protocol in workflow.md)
 
-## Phase 2: Backend Router Updates
+## Phase 2: Backend Router Updates [checkpoint: 57cf29f]
 - [x] Task: Remove creator credits router and registration e310179
     - [x] Delete `apps/api-worker/src/routes/creatorCredits.ts`
     - [x] Modify `apps/api-worker/src/index.ts` to remove import and `route("/api", creatorCreditsRouter)` registration
 - [x] Task: Update marketplace acquisition flow to make frames free d62b8b3
     - [x] Modify `apps/api-worker/src/routes/frameMarketplace.ts` to set price permanently to 0 and remove balance checks/debits
     - [x] Run backend typecheck (`pnpm --filter @workspace/api-worker run typecheck`) to verify there are no compilation errors
-- [~] Task: Conductor - User Manual Verification 'Phase 2: Backend Router Updates' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Backend Router Updates' (Protocol in workflow.md)
 
 ## Phase 3: Frontend UI Updates
 - [ ] Task: Clean up Frame Inventory page UI
