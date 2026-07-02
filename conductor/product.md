@@ -1,27 +1,44 @@
-# Product Definition: Cephlow2
+# Product Definition: Cephlow
 
-## Overview
-Cephlow2 is a comprehensive **Certificate Generation and Delivery Platform** designed for organizations that need to issue personalized, verifiable certificates at scale. It automates the entire workflow from participant data in Google Sheets to PDF generation via Google Slides, followed by multi-channel delivery (Gmail, WhatsApp) and public verification through unique QR codes.
+## 1. Executive Summary & Vision
+Cephlow is a high-performance, automated platform designed for organizations to generate, manage, and deliver personalized certificates at scale. By integrating seamlessly with everyday office tools like Google Sheets (for participant data) and Google Slides (for certificate templates), and offering a Builtin Canvas Template Editor for client-side rendering, Cephlow empowers event organizers, educational institutions, and corporate training programs to automate their certificate workflows with minimal technical overhead.
 
-## Initial Concept
-The project aims to provide a seamless, end-to-end solution for administrators to generate and send hundreds of personalized certificates with a single click. By leveraging familiar tools like Google Workspace (Sheets, Slides, Gmail), it lowers the barrier to entry for non-technical users while providing a robust backend for high-volume processing.
+---
 
-## Primary Goal: Reliability & Scalability
-The current focus is on enhancing the **reliability** of the generation and delivery process, ensuring that every certificate is successfully delivered to its recipient. Additionally, we are focused on improving the **scalability**, making the platform capable of handling larger batches of certificates and more concurrent users without performance degradation.
+## 2. Target Audience & Personas
+*   **Educational Institutions & Academies:** Schools, universities, and online bootcamps issuing course completion credentials.
+*   **Event & Conference Organizers:** Managers hosting webinars, hackathons, or physical conferences needing to send participation certificates.
+*   **Corporate L&D (Learning & Development) Teams:** Human Resource professionals tracking employee training certifications.
 
-## Key Features
-- **Automated Generation:** Converts Google Sheets rows into personalized PDFs based on Google Slides templates.
-- **Multi-Channel Delivery:** Integrated sending via Gmail (individual emails) and WhatsApp (via Meta Graph API).
-- **Public Verification:** Each certificate includes a unique QR code linking to a public verification page.
-- **Cloud Storage:** PDFs are uploaded to Cloudflare R2 for secure, public access.
-- **Payment System:** (Planned) Integration for monetizing certificate issuance or premium features.
+---
 
-## Target Users
-- **Academic Institutions:** Schools and universities for academic awards and diplomas.
-- **Corporate Training:** Companies for employee training and certifications.
-- **Event Organizers:** Conferences and workshops for participation certificates.
+## 3. Core Features & Functional Requirements
 
-## Main Constraints
-- **Efficiency:** Reducing the cost and time of generating large batches of PDFs.
-- **Ease of Deployment:** Keeping the platform simple to deploy and manage (e.g., via Firebase Functions).
-- **Security:** Ensuring that only authorized users can generate certificates and that verification is secure.
+### 3.1 Template Design Options
+*   **Google Slides Templates:** Design templates in Google Slides using `<<placeholder>>` notation. Cephlow automatically pulls slide presentations to use as layouts.
+*   **Builtin Canvas Editor:** Design certificate templates directly in the application using the drag-and-drop template designer, allowing client-side rendering to bypass external API rate limits.
+
+### 3.2 Automated Processing & Generation
+*   **Data Source Integration:** Authenticate with Google OAuth 2.0 to access files. Select Google Sheets to map recipient details (Name, Email, Phone, Certificate Type).
+*   **Smart Font Scaling:** Dynamically scales down font sizes in text boxes if a recipient's name is too long, preventing layout overflow.
+*   **QR Code Injection:** Injects a custom QR code onto each certificate linked to a unique verification URL.
+
+### 3.3 Delivery Pipelines
+*   **Email Engine:** Deliver personalized messages with certificates attached as PDFs via the Gmail API.
+*   **WhatsApp Engine:** Send certificates directly to WhatsApp using the Meta Graph API.
+
+### 3.4 Prepaid Wallet System & Monetization
+*   **Credits Management:** Users top up a prepaid wallet via Cashfree Payment Gateway to generate/send certificates (e.g., 1 certificate = 1 credit).
+*   **Audit Trail:** Detailed history of transactions, credit consumption, and generation reports.
+
+### 3.5 Public Verification Portal
+*   **Validation Page:** A simple, high-performance public page where employers or readers scan the certificate's QR code to verify its authenticity against Firestore/Supabase records.
+
+---
+
+## 4. User Journey & Core Flow
+1.  **Onboarding:** Register/Login via Firebase Auth -> Connect Google Account via OAuth.
+2.  **Campaign Setup:** Choose template (Slides or Canvas) -> Select source data (Sheets).
+3.  **Mapping & Preview:** Map spreadsheet columns to placeholders -> Preview sample certificate.
+4.  **Wallet Check & Generation:** Ensure adequate wallet balance -> Start batch generation.
+5.  **Delivery & Tracking:** Monitor generation and delivery status -> Recipients receive certs and scan QR to verify.

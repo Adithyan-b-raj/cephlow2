@@ -4,5 +4,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Implement Payment System**
+- [/] **Track: Implement Prepaid Wallet & Billing System**
   *Link: [./tracks/payment_system_20260415/](./tracks/payment_system_20260415/)*

@@ -1,26 +1,30 @@
-# Product Guidelines: Cephlow2
+# Product Guidelines: Cephlow
 
-## Design System & Styling
-- **Modern UI Components:** Strictly adhere to the **shadcn/ui** and **Tailwind CSS v4** design language already established in the project.
-- **Responsive Architecture:** Maintain the existing **Layout.tsx** shell and sidebar system, ensuring all new pages work on desktop and mobile.
-- **Consistent Icons:** Use **Lucide React** for all iconography to match the current interface.
+## 1. User Experience (UX) & Design System
+Cephlow utilizes a modern design system driven by Tailwind CSS v4 and shadcn/ui. The interface must feel clean, accessible, and highly responsive.
+*   **Color Palette:** Dominated by a professional dark mode option, utilizing HSL colors for component design. Use smooth transitions for interactive states.
+*   **Typography:** Modern sans-serif typography (e.g., Inter/Outfit) with clean hierarchies.
+*   **Responsive Design:** Responsive design first. Layouts must function flawlessly on mobile screens (especially public verification pages and recipient certificate views) as well as desktop administration dashboards.
+*   **State Indicators:** Provide explicit loading states (spinners or skeletons) for asynchronous API operations (e.g., fetching sheets, generating certificates).
 
-## User Experience (UX) Patterns
-- **Multi-Step Wizards:** For complex tasks (like creating batches), follow the multi-step pattern used in the current **NewBatch.tsx**.
-- **Real-Time Progress:** Continue using **polling and progress bars** for long-running generation and delivery tasks, as seen in the batch management UI.
-- **Optimistic UI:** Utilize **TanStack React Query** mutations for a responsive feel, with proper cache invalidation.
+---
 
-## Technical Standards
-- **Monorepo Structure:** Respect the **pnpm workspace** architecture. New features should be organized into either `apps/` or shared `packages/` as appropriate.
-- **Type Safety:** Maintain 100% **TypeScript** coverage. New API endpoints must be accompanied by updated **Zod schemas** and generated **API client hooks**.
-- **Auth Protocol:** Follow the existing **two-layer auth system**: Firebase Auth for identity and Google OAuth for API permissions (Drive, Gmail, etc.).
+## 2. Component Guidelines (shadcn/ui & Tailwind)
+*   **Buttons:** Standardized `Button` states (default, secondary, destructive, ghost).
+*   **Toasts:** Strategic use of `useToast` for successful operations (e.g., "Batch created successfully") and detailed error reports (e.g., "Meta WhatsApp API error: Invalid phone number").
+*   **Dialogs:** Confirm destructive actions (e.g., deleting a batch) using `AlertDialog`.
 
-## Delivery & Verification
-- **Multi-Channel Consistency:** When adding new delivery channels, ensure they provide similar feedback to the existing **Gmail and WhatsApp** flows.
-- **Public Verification:** The **public verification page** must remain accessible without login, as it serves as a trusted source for third-party verifiers.
-- **R2 Storage Protocol:** All public-facing assets (like PDFs) should be stored in **Cloudflare R2** with the established folder and naming conventions.
+---
 
-## Reliability & Scalability
-- **Error Handling:** Use the existing **toast notification** system to inform users of both success and failure during background operations.
-- **Background Processing:** Keep generation and delivery logic in the **backend background tasks** to ensure the frontend remains responsive.
-- **Verification Trust:** Ensure the **unique QR code link** system remains robust, as it is the core of the verification trust.
+## 3. Core Workflow Guidelines
+*   **Google OAuth Consent Flow:** Keep the authentication flow intuitive. Check if Google is connected on the dashboard and display a prominent reconnect/connect prompt if the session is invalid.
+*   **Real-time Progress Bars:** During certificate generation, the interface must poll the status API and render a progress bar to show actual generation progress (completed vs total).
+*   **Validation Rules:**
+    *   Validate phone numbers before attempting WhatsApp delivery (normalize to E.164 format: e.g., `+91XXXXXXXXXX`).
+    *   Verify mapping placeholders against slide template placeholders before starting generation to catch configuration issues early.
+
+---
+
+## 4. Wallet & Payments UX
+*   **Wallet Balance Visuals:** Always display current prepaid balance in the user's header or sidebar.
+*   **Transaction Confirmation:** Prompt the user with the expected credit cost before executing any batch generation. Prevent generation if the balance is insufficient, guiding the user to the top-up wizard.
