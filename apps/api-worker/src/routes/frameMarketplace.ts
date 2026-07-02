@@ -51,12 +51,12 @@ router.get("/marketplace/listings", async (c) => {
 
       creatorIds.length > 0
         ? c.env.DB.prepare(`
-            SELECT id, creator_name, email FROM user_profiles
+            SELECT id, email FROM user_profiles
             WHERE id IN (${creatorIds.map(() => "?").join(",")})
           `).bind(...creatorIds).all<any>()
             .then(res => {
               const m = new Map<string, { name: string; email: string }>();
-              (res.results || []).forEach(p => m.set(p.id, { name: p.creator_name || "", email: p.email || "" }));
+              (res.results || []).forEach(p => m.set(p.id, { name: p.email?.split("@")[0] || "Unknown", email: p.email || "" }));
               return m;
             })
         : Promise.resolve(new Map<string, { name: string; email: string }>()),
@@ -166,7 +166,7 @@ router.get("/marketplace/my-listings", async (c) => {
       price: l.price,
       purchaseCount: l.purchase_count,
       likeCount: l.like_count ?? 0,
-      totalEarned: l.price * l.purchase_count,
+      totalEarned: 0,
       isActive: Boolean(l.is_active),
       frameConfig: JSON.parse(l.frame_config || "{}"),
       createdAt: l.created_at,
@@ -183,7 +183,7 @@ router.post("/marketplace/listings", async (c) => {
   const user = c.get("user")!;
   const workspace = c.get("workspace")!;
   try {
-    const { frameId, name, description = "", price = 0 } = await c.req.json().catch(() => ({}));
+    const { frameId, name, description = "" } = await c.req.json().catch(() => ({}));
 
     if (!frameId || typeof frameId !== "string") {
       return c.json({ error: "frameId is required" }, 400);
@@ -191,10 +191,7 @@ router.post("/marketplace/listings", async (c) => {
     if (!name || typeof name !== "string" || !name.trim()) {
       return c.json({ error: "name is required" }, 400);
     }
-    const priceNum = Number(price);
-    if (isNaN(priceNum) || (priceNum !== 0 && (priceNum < 20 || priceNum > 100))) {
-      return c.json({ error: "price must be 0 or between 20 and 100" }, 400);
-    }
+    const priceNum = 0;
 
     // Verify frame belongs to workspace
     const frame = await c.env.DB.prepare(`
@@ -240,12 +237,7 @@ router.patch("/marketplace/listings/:id", async (c) => {
     if (!existing) return c.json({ error: "Listing not found" }, 404);
     if (existing.published_by !== user.uid) return c.json({ error: "Access denied" }, 403);
 
-    if (price !== undefined) {
-      const priceNum = Number(price);
-      if (isNaN(priceNum) || (priceNum !== 0 && (priceNum < 20 || priceNum > 100))) {
-        return c.json({ error: "price must be 0 or between 20 and 100" }, 400);
-      }
-    }
+    // Price is always 0, ignore input price
 
     // Check conflict re-activating
     if (isActive === true) {
@@ -268,10 +260,7 @@ router.patch("/marketplace/listings/:id", async (c) => {
       fields.push("description = ?");
       params.push(description.trim());
     }
-    if (price !== undefined) {
-      fields.push("price = ?");
-      params.push(Number(price));
-    }
+    // Ignore price updates
     if (isActive !== undefined) {
       fields.push("is_active = ?");
       params.push(isActive ? 1 : 0);
@@ -343,51 +332,13 @@ router.post("/marketplace/listings/:id/purchase", async (c) => {
       });
     }
 
-    // C. Verify workspace balance if price > 0
-    const price = listing.price;
-    const ws = await c.env.DB.prepare(`
-      SELECT current_balance FROM workspaces WHERE id = ?
-    `).bind(workspace.id).first<{ current_balance: number }>();
-    if (!ws) return c.json({ error: "Workspace not found" }, 404);
-
-    if (price > 0 && ws.current_balance < price) {
-      return c.json({
-        error: "Insufficient workspace balance",
-        required: price,
-        available: ws.current_balance,
-      }, 402);
-    }
-
-    const newWsBalance = ws.current_balance - price;
     const stmts = [];
 
-    if (price > 0) {
-      // D. Debit workspace balance
-      stmts.push(c.env.DB.prepare(`UPDATE workspaces SET current_balance = ? WHERE id = ?`).bind(newWsBalance, workspace.id));
-      
-      // E. Log ledger deduction
-      stmts.push(c.env.DB.prepare(`
-        INSERT INTO ledgers (id, workspace_id, user_id, type, amount, balance_after, description, metadata)
-        VALUES (?, ?, ?, 'deduction', ?, ?, ?, ?)
-      `).bind(
-        crypto.randomUUID(), workspace.id, user.uid, -price, newWsBalance, `Marketplace frame: ${listing.name}`,
-        JSON.stringify({ listingId: id, frameTier: `marketplace:${id}`, batchId: batchId || null })
-      ));
-
-      // F. Credit the listing creator's profile
-      const creatorProfile = await c.env.DB.prepare(`
-        SELECT creator_credits FROM user_profiles WHERE id = ?
-      `).bind(listing.published_by).first<{ creator_credits: number }>();
-      const newCreatorCredits = (creatorProfile?.creator_credits || 0) + price;
-      
-      stmts.push(c.env.DB.prepare(`UPDATE user_profiles SET creator_credits = ? WHERE id = ?`).bind(newCreatorCredits, listing.published_by));
-    }
-
-    // G. Record purchase and increment purchase counts
+    // G. Record purchase and increment purchase counts (free)
     stmts.push(c.env.DB.prepare(`
       INSERT INTO frame_purchases (listing_id, workspace_id, purchased_by, batch_id, amount_paid, creator_uid)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `).bind(id, workspace.id, user.uid, batchId || null, price, listing.published_by));
+      VALUES (?, ?, ?, ?, 0, ?)
+    `).bind(id, workspace.id, user.uid, batchId || null, listing.published_by));
 
     stmts.push(c.env.DB.prepare(`
       UPDATE frame_listings 
