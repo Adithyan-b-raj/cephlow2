@@ -17,7 +17,7 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Backend Router Updates' (Protocol in workflow.md)
 
 ## Phase 3: Frontend UI Updates
-- [ ] Task: Clean up Frame Inventory page UI
+- [~] Task: Clean up Frame Inventory page UI
     - [ ] Modify `apps/cert-app/src/pages/FrameInventory.tsx` to remove the Credits tab and its state variables
     - [ ] Remove creator name configuration and stats references
     - [ ] Update Browse tab listings to only show "FREE" and simplify acquisition action
