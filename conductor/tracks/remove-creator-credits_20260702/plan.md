@@ -17,12 +17,12 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Backend Router Updates' (Protocol in workflow.md)
 
 ## Phase 3: Frontend UI Updates
-- [~] Task: Clean up Frame Inventory page UI
-    - [ ] Modify `apps/cert-app/src/pages/FrameInventory.tsx` to remove the Credits tab and its state variables
-    - [ ] Remove creator name configuration and stats references
-    - [ ] Update Browse tab listings to only show "FREE" and simplify acquisition action
-- [ ] Task: Clean up Publish Dialog and Wallet page
-    - [ ] Remove price input in `apps/cert-app/src/pages/batches/components/PublishFrameDialog.tsx`
-    - [ ] Remove the creator credits banner from `apps/cert-app/src/pages/Wallet.tsx`
-    - [ ] Run global typecheck (`pnpm run typecheck`) to ensure frontend and backend build cleanly
+- [x] Task: Clean up Frame Inventory page UI 6f3d5f2
+    - [x] Modify `apps/cert-app/src/pages/FrameInventory.tsx` to remove the Credits tab and its state variables
+    - [x] Remove creator name configuration and stats references
+    - [x] Update Browse tab listings to only show "FREE" and simplify acquisition action
+- [x] Task: Clean up Publish Dialog and Wallet page 6f3d5f2
+    - [x] Remove price input in `apps/cert-app/src/pages/batches/components/PublishFrameDialog.tsx`
+    - [x] Remove the creator credits banner from `apps/cert-app/src/pages/Wallet.tsx`
+    - [x] Run global typecheck (`pnpm run typecheck`) to ensure frontend and backend build cleanly
 - [ ] Task: Conductor - User Manual Verification 'Phase 3: Frontend UI Updates' (Protocol in workflow.md)
