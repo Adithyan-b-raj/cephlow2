@@ -1,11 +1,11 @@
 # Implementation Plan: Remove Creator Credits and Make Marketplace Frames Free
 
-## Phase 1: Database Migrations
+## Phase 1: Database Migrations [checkpoint: 6553c68]
 - [x] Task: Create D1 migration script to drop the `redemption_requests` table and clean up `user_profiles` schema 44165f0
     - [x] Create a migration SQL file in `migrations/` to drop `redemption_requests`
     - [x] Add SQL in migration to remove/ignore `creator_credits` and `creator_name` from `user_profiles`
     - [x] Apply the migration to D1 locally using `pnpm --filter @workspace/api-worker wrangler d1 migrations apply`
-- [ ] Task: Conductor - User Manual Verification 'Phase 1: Database Migrations' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 1: Database Migrations' (Protocol in workflow.md)
 
 ## Phase 2: Backend Router Updates
 - [ ] Task: Remove creator credits router and registration
