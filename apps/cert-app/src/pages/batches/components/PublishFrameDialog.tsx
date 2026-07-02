@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { CustomFrameRenderer, type CustomFrameConfig } from "@/components/CustomFrameRenderer";
 
-const PRICE_OPTIONS = [0, 20, 40, 60, 80, 100];
+
 
 function PreviewCard() {
   return (
@@ -48,7 +48,7 @@ export function PublishFrameDialog({ open, onOpenChange, frameId, frameName, fra
   const { toast } = useToast();
   const [name, setName] = useState(frameName);
   const [description, setDescription] = useState("");
-  const [price, setPrice] = useState(0);
+
   const [saving, setSaving] = useState(false);
 
   const handlePublish = async () => {
@@ -57,7 +57,7 @@ export function PublishFrameDialog({ open, onOpenChange, frameId, frameName, fra
     try {
       const result = await customFetch<{ listing: { id: string } }>("/api/marketplace/listings", {
         method: "POST",
-        body: JSON.stringify({ frameId, name: name.trim(), description: description.trim(), price }),
+        body: JSON.stringify({ frameId, name: name.trim(), description: description.trim(), price: 0 }),
       });
       toast({ title: `"${name.trim()}" published to Frame Inventory marketplace` });
       onPublished?.(result.listing.id);

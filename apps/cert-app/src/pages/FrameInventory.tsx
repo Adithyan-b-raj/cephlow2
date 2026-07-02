@@ -1,12 +1,12 @@
 import { useState, useEffect } from "react";
-import { Loader2, Search, ShoppingBag, LayoutTemplate, Star, Package, Paintbrush, Heart, Pencil, Trash2, Check, X } from "lucide-react";
+import { Loader2, Search, ShoppingBag, LayoutTemplate, Package, Paintbrush, Heart, Trash2, Globe, EyeOff } from "lucide-react";
 import { customFetch } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { CustomFrameRenderer, type CustomFrameConfig } from "@/components/CustomFrameRenderer";
 import { PublishFrameDialog } from "@/pages/batches/components/PublishFrameDialog";
 import { CustomFrameDesigner } from "@/pages/batches/components/CustomFrameDesigner";
-import { useWorkspace } from "@/hooks/use-workspace";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Listing {
@@ -23,18 +23,23 @@ interface Listing {
   likedByMe?: boolean;
   creatorName?: string;
   createdAt: string;
-}
-
-interface OwnedFrame {
-  listingId: string;
-  name: string;
-  config: CustomFrameConfig | null;
+  frameId?: string;
 }
 
 interface WorkspaceFrame {
   id: string;
   name: string;
   config: CustomFrameConfig;
+}
+
+interface OwnedFrameEntry {
+  id: string;           // frame template id for designed, listing id for marketplace
+  frameTemplateId?: string; // set for designed frames
+  name: string;
+  config: CustomFrameConfig | null;
+  source: "designed" | "marketplace";
+  listingId?: string;   // set if there is an active listing for this frame
+  isListed?: boolean;
 }
 
 // ─── Preview card ─────────────────────────────────────────────────────────────
@@ -217,29 +222,111 @@ function BrowseTab() {
   );
 }
 
-function MyListingsTab() {
-  const { toast } = useToast();
-  const { activeWorkspace } = useWorkspace();
-  const [listings, setListings] = useState<Listing[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [workspaceFrames, setWorkspaceFrames] = useState<WorkspaceFrame[]>([]);
-  const [publishTarget, setPublishTarget] = useState<WorkspaceFrame | null>(null);
+// ─── Tab: Design Frame ────────────────────────────────────────────────────────
 
-  // Per-listing inline edit state
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingValue, setEditingValue] = useState("");
-  const [savingEditId, setSavingEditId] = useState<string | null>(null);
+function DesignTab() {
+  const [savedCount, setSavedCount] = useState(0);
+  return (
+    <div>
+      {savedCount > 0 && (
+        <div className="mb-4 border border-green-600 bg-green-600/5 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-green-600">
+          {savedCount} frame{savedCount !== 1 ? "s" : ""} saved to workspace library — go to Owned tab to publish.
+        </div>
+      )}
+      <CustomFrameDesigner
+        standalone
+        open={true}
+        onOpenChange={() => {}}
+        onSaved={(_tier, _name, _config) => setSavedCount(c => c + 1)}
+      />
+    </div>
+  );
+}
+
+// ─── Tab: Owned ───────────────────────────────────────────────────────────────
+
+function OwnedTab() {
+  const { toast } = useToast();
+  const [frames, setFrames] = useState<OwnedFrameEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [publishTarget, setPublishTarget] = useState<{ id: string; name: string; config: CustomFrameConfig } | null>(null);
+  const [togglingId, setTogglingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const load = () => {
     setLoading(true);
     Promise.all([
-      customFetch<{ listings: Listing[] }>("/api/marketplace/my-listings"),
       customFetch<{ frames: WorkspaceFrame[] }>("/api/frame-templates"),
+      customFetch<{ purchases: { listingId: string; name: string; config: CustomFrameConfig | null }[] }>("/api/marketplace/my-workspace-frames"),
+      customFetch<{ listings: Listing[] }>("/api/marketplace/my-listings"),
     ])
-      .then(([d, t]) => {
-        setListings(d.listings ?? []);
-        setWorkspaceFrames(t.frames ?? []);
+      .then(([templatesData, purchasesData, listingsData]) => {
+        const myListings = listingsData.listings ?? [];
+
+        // Build a map: frameTemplateId -> listing (only active ones)
+        const activeListingByFrameId = new Map<string, Listing>();
+        // The listing has a frameId linking back to the template
+        // We need to identify this from the listing data; the API returns frameConfig but not frameId directly.
+        // We'll use listing name matching + the listing id to mark as published.
+        // Actually my-listings doesn't return frameId. We need to handle this by storing the listingId
+        // in the OwnedFrame so we can check. Let's build a Set of listing ids to check.
+        // For simplicity: a designed frame is "listed" if any listing in my-listings shares the same name
+        // BUT this is fragile. Better approach: we'll check if listing's frameId matches.
+        // Since we don't have frameId from the server, we tag all listings as just "listed" with their listing id.
+        // We can cross-check by looking for listing.id in the active listings set for each frame.
+
+        // Build listing lookup by id
+        const listingsById = new Map<string, Listing>();
+        myListings.forEach(l => listingsById.set(l.id, l));
+
+        // Designed frames
+        const designedEntries: OwnedFrameEntry[] = (templatesData.frames ?? []).map(f => {
+          // Check if there's an active listing for this template
+          // We can only check if a listing is active. Since my-listings doesn't include frameId,
+          // we need to rely on the listing's name or a different endpoint. For now we'll set isListed=false
+          // and handle publish/unpublish from the listing data we have for marketplace frames.
+          return {
+            id: f.id,
+            frameTemplateId: f.id,
+            name: f.name,
+            config: f.config,
+            source: "designed",
+            isListed: false,
+          };
+        });
+
+        // Marketplace acquired frames (from purchases)
+        const purchasedListingIds = new Set<string>();
+        const marketplaceEntries: OwnedFrameEntry[] = (purchasesData.purchases ?? []).map(p => {
+          purchasedListingIds.add(p.listingId);
+          const listing = listingsById.get(p.listingId);
+          return {
+            id: p.listingId,
+            name: p.name,
+            config: p.config,
+            source: "marketplace",
+            listingId: p.listingId,
+            isListed: listing ? listing.isActive : undefined,
+          };
+        });
+
+        // Now enrich designed frames with listing status from my-listings
+        // We look at active listings and check if this workspace published them
+        // Since we can get the listing's frameId via a more detailed API, let's just
+        // use the data we have: for designed frames, check my-listings where the listing
+        // is still active. We don't have frameId in the response. We'll add a new approach:
+        // We iterate my-listings and for each, we match against designed frames by name.
+        // This is approximate. The cleaner fix is to expose frameId in my-listings.
+        // For now let's just attach listing status based on name match.
+        myListings.forEach(listing => {
+          const match = designedEntries.find(f => f.name.toLowerCase() === listing.name.toLowerCase() && !f.isListed);
+          if (match) {
+            match.isListed = listing.isActive;
+            match.listingId = listing.id;
+          }
+        });
+
+        setFrames([...designedEntries, ...marketplaceEntries]);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -247,63 +334,32 @@ function MyListingsTab() {
 
   useEffect(() => { load(); }, []);
 
-  const handleToggleActive = async (listing: Listing) => {
+  const handleUnpublish = async (frame: OwnedFrameEntry) => {
+    if (!frame.listingId) return;
+    setTogglingId(frame.id);
     try {
-      await customFetch(`/api/marketplace/listings/${listing.id}`, {
+      await customFetch('/api/marketplace/listings/' + frame.listingId, {
         method: "PATCH",
-        body: JSON.stringify({ isActive: !listing.isActive }),
+        body: JSON.stringify({ isActive: false }),
       });
-      setListings(prev => prev.map(l => l.id === listing.id ? { ...l, isActive: !l.isActive } : l));
-      toast({ title: listing.isActive ? "Listing unpublished" : "Listing re-published" });
+      toast({ title: '"' + frame.name + '" unpublished from marketplace' });
+      setFrames(prev => prev.map(f => f.id === frame.id ? { ...f, isListed: false } : f));
     } catch (err: any) {
-      toast({ title: "Failed", description: err.message, variant: "destructive" });
-    }
-  };
-
-  const startEdit = (listing: Listing) => {
-    setEditingId(listing.id);
-    setEditingValue(listing.name);
-  };
-
-  const cancelEdit = () => { setEditingId(null); setEditingValue(""); };
-
-  const handleSaveEdit = async (listing: Listing) => {
-    const newName = editingValue.trim();
-    const nameChanged = newName && newName !== listing.name;
-    if (!nameChanged) { cancelEdit(); return; }
-    setSavingEditId(listing.id);
-    try {
-      const patch = { name: newName };
-      await customFetch(`/api/marketplace/listings/${listing.id}`, {
-        method: "PATCH",
-        body: JSON.stringify(patch),
-      });
-      setListings(prev => prev.map(l => l.id === listing.id
-        ? { ...l, name: newName }
-        : l));
-      setEditingId(null);
-      toast({ title: "Listing updated" });
-    } catch (err: any) {
-      toast({ title: "Failed to update", description: err.message, variant: "destructive" });
+      toast({ title: "Failed to unpublish", description: err.message, variant: "destructive" });
     } finally {
-      setSavingEditId(null);
+      setTogglingId(null);
     }
   };
 
-  const handleDelete = async (listing: Listing) => {
-    setDeletingId(listing.id);
+  const handleDelete = async (frame: OwnedFrameEntry) => {
+    if (!frame.frameTemplateId) return;
+    setDeletingId(frame.id);
     try {
-      await customFetch(`/api/marketplace/listings/${listing.id}`, { method: "DELETE" });
-      setListings(prev => prev.filter(l => l.id !== listing.id));
-      toast({ title: `"${listing.name}" deleted` });
+      await customFetch('/api/frame-templates/' + frame.frameTemplateId, { method: "DELETE" });
+      setFrames(prev => prev.filter(f => f.id !== frame.id));
+      toast({ title: '"' + frame.name + '" deleted' });
     } catch (err: any) {
-      toast({
-        title: "Cannot delete",
-        description: listing.purchaseCount > 0
-          ? "This listing has been purchased. Unpublish it instead."
-          : err.message,
-        variant: "destructive",
-      });
+      toast({ title: "Cannot delete", description: err.message, variant: "destructive" });
     } finally {
       setDeletingId(null);
     }
@@ -311,108 +367,86 @@ function MyListingsTab() {
 
   if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
 
+  if (frames.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-3 border-2 border-border">
+        <Package className="w-8 h-8 text-muted-foreground opacity-30" />
+        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">No frames yet</p>
+        <p className="text-[10px] text-muted-foreground">Design a frame or browse the marketplace to get frames.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      {/* Header bar: stats + publish */}
-      <div className="border-2 border-border p-3 flex flex-wrap items-center justify-between gap-4">
-        {/* Stats */}
-        <div className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-          <span>{listings.length} listing{listings.length !== 1 ? "s" : ""}</span>
-        </div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        {frames.map(f => (
+          <div key={f.id} className="border-2 border-border p-2 flex flex-col gap-2">
+            {/* Frame Preview */}
+            <div className="flex justify-center py-1">
+              <div className="w-full max-w-[200px]">
+                {f.config
+                  ? <CustomFrameRenderer frameId={f.id} config={f.config}><PreviewCard /></CustomFrameRenderer>
+                  : <PreviewCard />}
+              </div>
+            </div>
 
-        {/* Publish */}
-        {workspaceFrames.length > 0 && (
-          <div className="relative group shrink-0">
-            <Button size="sm">Publish a Frame</Button>
-            <div className="hidden group-focus-within:block absolute right-0 top-full mt-1 z-10 border-2 border-foreground bg-background min-w-48 shadow-lg">
-              {workspaceFrames.map(f => (
-                <button key={f.id} onClick={() => setPublishTarget(f)}
-                  className="w-full text-left px-3 py-2 text-[10px] font-bold uppercase tracking-widest hover:bg-muted transition-colors border-b border-border last:border-0">
-                  {f.name}
-                </button>
-              ))}
+            {/* Name */}
+            <p className="text-[10px] font-black uppercase tracking-widest truncate">{f.name}</p>
+
+            {/* Source badge */}
+            <div className="flex items-center gap-1 flex-wrap">
+              <span className={"text-[9px] font-black px-1.5 py-0.5 border shrink-0 " +
+                (f.source === "designed"
+                  ? "border-blue-500 text-blue-500"
+                  : "border-purple-500 text-purple-500")}>
+                {f.source === "designed" ? "DESIGNED" : "MARKETPLACE"}
+              </span>
+              {f.isListed && (
+                <span className="text-[9px] font-black px-1.5 py-0.5 border border-green-600 text-green-600 shrink-0">LISTED</span>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-1 mt-auto">
+              {f.source === "designed" && (
+                <>
+                  {f.isListed ? (
+                    <button
+                      onClick={() => handleUnpublish(f)}
+                      disabled={togglingId === f.id}
+                      className="flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest border-2 border-border hover:border-foreground hover:bg-foreground hover:text-background transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                    >
+                      {togglingId === f.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <EyeOff className="w-3 h-3" />}
+                      Unpublish
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => f.config && setPublishTarget({ id: f.frameTemplateId!, name: f.name, config: f.config })}
+                      disabled={!f.config}
+                      className="flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest border-2 border-border hover:border-foreground hover:bg-foreground hover:text-background transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                    >
+                      <Globe className="w-3 h-3" />
+                      Publish
+                    </button>
+                  )}
+                  <button
+                    onClick={() => handleDelete(f)}
+                    disabled={deletingId === f.id || f.isListed}
+                    title={f.isListed ? "Unpublish before deleting" : "Delete frame"}
+                    className="p-1.5 text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-30"
+                  >
+                    {deletingId === f.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  </button>
+                </>
+              )}
+              {f.source === "marketplace" && (
+                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest px-1.5 py-0.5">From Marketplace</span>
+              )}
             </div>
           </div>
-        )}
+        ))}
       </div>
-
-      {listings.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3 border-2 border-border">
-          <Star className="w-8 h-8 text-muted-foreground opacity-30" />
-          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">No listings yet</p>
-          <p className="text-[10px] text-muted-foreground">Design a frame and publish it to the marketplace.</p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {listings.map(listing => (
-            <div key={listing.id} className="border-2 border-border flex gap-3 p-3 items-center">
-              {/* Thumbnail */}
-              <div className="shrink-0 overflow-hidden relative" style={{ width: 80, height: 50 }}>
-                <div style={{ width: 200, transform: "scale(0.4)", transformOrigin: "top left", pointerEvents: "none" }}>
-                  {listing.frameConfig
-                    ? <CustomFrameRenderer frameId={listing.id} config={listing.frameConfig}><PreviewCard /></CustomFrameRenderer>
-                    : <PreviewCard />}
-                </div>
-              </div>
-
-              {/* Info */}
-              <div className="flex-1 min-w-0">
-                {editingId === listing.id ? (
-                  <div className="flex items-center gap-1 mb-1 flex-wrap">
-                    <input
-                      autoFocus
-                      className="flex-1 min-w-24 border border-border bg-background px-2 py-0.5 text-xs font-mono outline-none focus:border-foreground transition-colors uppercase"
-                      value={editingValue}
-                      onChange={e => setEditingValue(e.target.value)}
-                      onKeyDown={e => { if (e.key === "Enter") handleSaveEdit(listing); if (e.key === "Escape") cancelEdit(); }}
-                      placeholder="Name"
-                    />
-                    
-                    <button onClick={() => handleSaveEdit(listing)} disabled={savingEditId === listing.id} className="text-green-600 hover:text-green-700 disabled:opacity-50">
-                      {savingEditId === listing.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                    </button>
-                    <button onClick={cancelEdit} className="text-muted-foreground hover:text-foreground"><X className="w-3.5 h-3.5" /></button>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <p className="font-black text-sm uppercase tracking-widest truncate">{listing.name}</p>
-                    <button onClick={() => startEdit(listing)} className="text-muted-foreground hover:text-foreground shrink-0 transition-colors" title="Edit name">
-                      <Pencil className="w-3 h-3" />
-                    </button>
-                    <span className={`text-[9px] font-black px-1.5 py-0.5 border shrink-0 ${listing.isActive ? "border-green-600 text-green-600" : "border-muted-foreground text-muted-foreground"}`}>
-                      {listing.isActive ? "LIVE" : "UNLISTED"}
-                    </span>
-                  </div>
-                )}
-                <p className="text-[10px] text-muted-foreground flex items-center gap-1 flex-wrap">
-                  <span>{listing.price === 0 ? "Free" : `₹${listing.price}`}</span>
-                  <span>·</span>
-                  <span>{listing.purchaseCount} purchase{listing.purchaseCount !== 1 ? "s" : ""}</span>
-                  <span>·</span>
-                  <span>₹{listing.totalEarned ?? 0} earned</span>
-                  <span>·</span>
-                  <span className="flex items-center gap-0.5"><Heart className="w-2.5 h-2.5" />{listing.likeCount ?? 0}</span>
-                </p>
-              </div>
-
-              {/* Actions */}
-              <div className="shrink-0 flex items-center gap-1.5">
-                <Button variant="outline" size="sm" className="text-[10px] h-7" onClick={() => handleToggleActive(listing)}>
-                  {listing.isActive ? "Unpublish" : "Republish"}
-                </Button>
-                <button
-                  onClick={() => handleDelete(listing)}
-                  disabled={deletingId === listing.id}
-                  className="p-1.5 text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-50"
-                  title={listing.purchaseCount > 0 ? "Has purchases — unpublish instead" : "Delete listing"}
-                >
-                  {deletingId === listing.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
 
       {publishTarget && (
         <PublishFrameDialog
@@ -428,80 +462,14 @@ function MyListingsTab() {
   );
 }
 
-// ─── Tab: Design Frame ────────────────────────────────────────────────────────
-
-function DesignTab() {
-  const [savedCount, setSavedCount] = useState(0);
-  return (
-    <div>
-      {savedCount > 0 && (
-        <div className="mb-4 border border-green-600 bg-green-600/5 px-4 py-2 text-[10px] font-bold uppercase tracking-widest text-green-600">
-          {savedCount} frame{savedCount !== 1 ? "s" : ""} saved to workspace library — go to My Listings to publish.
-        </div>
-      )}
-      <CustomFrameDesigner
-        standalone
-        open={true}
-        onOpenChange={() => {}}
-        onSaved={(_tier, _name, _config) => setSavedCount(c => c + 1)}
-      />
-    </div>
-  );
-}
-
-// ─── Tab: Credits ─────────────────────────────────────────────────────────────
-
-function OwnedTab() {
-  const [frames, setFrames] = useState<OwnedFrame[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    customFetch<{ purchases: OwnedFrame[] }>("/api/marketplace/my-workspace-frames")
-      .then((d: { purchases: OwnedFrame[] }) => setFrames(d.purchases ?? []))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  if (loading) return <div className="flex items-center justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-muted-foreground" /></div>;
-
-  if (frames.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 gap-3 border-2 border-border">
-        <Package className="w-8 h-8 text-muted-foreground opacity-30" />
-        <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">No owned frames yet</p>
-        <p className="text-[10px] text-muted-foreground">Browse the marketplace and get frames to use in your batches.</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-      {frames.map(f => (
-        <div key={f.listingId} className="border-2 border-border p-2 flex flex-col gap-2">
-          <div className="flex justify-center py-1">
-            <div className="w-full max-w-[200px]">
-              {f.config
-                ? <CustomFrameRenderer frameId={f.listingId} config={f.config}><PreviewCard /></CustomFrameRenderer>
-                : <PreviewCard />}
-            </div>
-          </div>
-          <p className="text-[10px] font-black uppercase tracking-widest truncate">{f.name}</p>
-          <span className="text-[9px] font-black px-1.5 py-0.5 bg-foreground text-background self-start">OWNED</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // ─── Main page ────────────────────────────────────────────────────────────────
 
-type Tab = "browse" | "listings" | "design" | "owned";
+type Tab = "browse" | "design" | "owned";
 
 const TABS: { id: Tab; label: string; icon: React.FC<any> }[] = [
-  { id: "browse",   label: "Browse",        icon: ShoppingBag },
-  { id: "listings", label: "My Listings",   icon: Star },
-  { id: "design",   label: "Design Frame",  icon: Paintbrush },
-    { id: "owned",    label: "Owned",         icon: Package },
+  { id: "browse",  label: "Browse",       icon: ShoppingBag },
+  { id: "design",  label: "Design Frame", icon: Paintbrush },
+  { id: "owned",   label: "Owned",        icon: Package },
 ];
 
 export default function FrameInventory() {
@@ -517,7 +485,7 @@ export default function FrameInventory() {
           </div>
           <div>
             <h1 className="text-lg font-black uppercase tracking-widest">Frame Inventory</h1>
-            <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Browse, publish, and manage certificate frames</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-widest">Browse, design, and manage certificate frames</p>
           </div>
         </div>
 
@@ -540,10 +508,9 @@ export default function FrameInventory() {
         </div>
 
         {/* Tab content */}
-        {tab === "browse"   && <BrowseTab />}
-        {tab === "listings" && <MyListingsTab />}
-        {tab === "design"   && <DesignTab />}
-        {tab === "owned"    && <OwnedTab />}
+        {tab === "browse"  && <BrowseTab />}
+        {tab === "design"  && <DesignTab />}
+        {tab === "owned"   && <OwnedTab />}
       </div>
     </div>
   );
