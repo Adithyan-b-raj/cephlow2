@@ -118,10 +118,8 @@ CREATE INDEX IF NOT EXISTS certs_batch_idx ON certificates(batch_id);
 CREATE TABLE IF NOT EXISTS user_profiles (
   id TEXT PRIMARY KEY,           -- Matches Supabase Auth UID
   email TEXT,
-  creator_name TEXT,
   is_approved INTEGER NOT NULL DEFAULT 0,
   current_balance REAL NOT NULL DEFAULT 0,
-  creator_credits REAL NOT NULL DEFAULT 0,
   approval_requested_at TEXT,
   approved_at TEXT,
   approved_by TEXT,
@@ -231,20 +229,7 @@ CREATE TABLE IF NOT EXISTS workspace_transfers (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- 13. Redemption requests
-CREATE TABLE IF NOT EXISTS redemption_requests (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  amount REAL NOT NULL,
-  brand TEXT NOT NULL CHECK (brand IN ('amazon','flipkart')),
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','fulfilled','rejected')),
-  voucher_code TEXT,
-  admin_note TEXT,
-  user_email TEXT NOT NULL,
-  creator_name TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
+
 
 -- 14. WhatsApp messages tracking (link Meta message ID with certificates)
 CREATE TABLE IF NOT EXISTS wa_messages (
