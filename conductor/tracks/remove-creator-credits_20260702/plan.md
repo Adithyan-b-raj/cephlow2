@@ -8,10 +8,10 @@
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Database Migrations' (Protocol in workflow.md)
 
 ## Phase 2: Backend Router Updates
-- [ ] Task: Remove creator credits router and registration
-    - [ ] Delete `apps/api-worker/src/routes/creatorCredits.ts`
-    - [ ] Modify `apps/api-worker/src/index.ts` to remove import and `route("/api", creatorCreditsRouter)` registration
-- [ ] Task: Update marketplace acquisition flow to make frames free
+- [x] Task: Remove creator credits router and registration e310179
+    - [x] Delete `apps/api-worker/src/routes/creatorCredits.ts`
+    - [x] Modify `apps/api-worker/src/index.ts` to remove import and `route("/api", creatorCreditsRouter)` registration
+- [~] Task: Update marketplace acquisition flow to make frames free
     - [ ] Modify `apps/api-worker/src/routes/frameMarketplace.ts` to set price permanently to 0 and remove balance checks/debits
     - [ ] Run backend typecheck (`pnpm --filter @workspace/api-worker run typecheck`) to verify there are no compilation errors
 - [ ] Task: Conductor - User Manual Verification 'Phase 2: Backend Router Updates' (Protocol in workflow.md)
