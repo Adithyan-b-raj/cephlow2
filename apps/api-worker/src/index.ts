@@ -17,7 +17,6 @@ import qrRouter from "./routes/qr.js";
 import internalRouter from "./routes/internal.js";
 import workspacesRouter from "./routes/workspaces.js";
 import approvalRouter from "./routes/approval.js";
-import creatorCreditsRouter from "./routes/creatorCredits.js";
 import batchesRouter from "./routes/batches.js";
 import sheetsRouter from "./routes/sheets.js";
 import slidesRouter from "./routes/slides.js";
@@ -60,7 +59,6 @@ app.use("/api/auth/*", authMiddleware);
 app.use("/api/approval/*", authMiddleware);
 app.use("/api/workspaces*", authMiddleware);
 app.use("/api/workspaces/*", authMiddleware);
-app.use("/api/creator/*", authMiddleware);
 app.use("/api/slides/*", authMiddleware);
 app.use("/api/sheets/*", authMiddleware);
 app.use("/api/batches/*", authMiddleware);
@@ -82,7 +80,6 @@ app.use("/api/wallet/*", authMiddleware);
 app.route("/api", authRouter);
 app.route("/api", approvalRouter);
 app.route("/api", workspacesRouter);
-app.route("/api", creatorCreditsRouter);
 
 // Slide thumbnail proxy
 app.get("/api/slides/thumbnail/:fileId", async (c) => {
