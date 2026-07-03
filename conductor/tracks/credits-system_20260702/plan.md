@@ -53,7 +53,7 @@
     - [x] Write tests for credit cost display
     - [x] Show per-action credit costs in batch generation page
     - [x] Add insufficient credits warning
-- [ ] Task: Conductor - User Manual Verification 'Frontend - Wallet UI Updates' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Frontend - Wallet UI Updates' (Protocol in workflow.md)
 
 ## Phase 5: Integration Testing & Documentation
 - [ ] Task: Write integration tests
