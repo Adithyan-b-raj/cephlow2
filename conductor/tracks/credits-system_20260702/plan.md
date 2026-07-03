@@ -34,10 +34,10 @@
     - [x] Write tests for minimum recharge validation
     - [x] Modify POST /api/payments/create-order to validate MIN_RECHARGE_AMOUNT
     - [x] Update POST /api/payments/verify to calculate credits
-- [ ] Task: Update batch generation API
-    - [ ] Write tests for credit check before generation
-    - [ ] Modify POST /batches/:batchId/client-generate to check credits
-    - [ ] Return detailed credit cost breakdown in response
+- [x] Task: Update batch generation API (a039ac6)
+    - [x] Write tests for credit check before generation
+    - [x] Modify POST /batches/:batchId/client-generate to check credits
+    - [x] Return detailed credit cost breakdown in response
 - [ ] Task: Conductor - User Manual Verification 'Backend - API Updates' (Protocol in workflow.md)
 
 ## Phase 4: Frontend - Wallet UI Updates
