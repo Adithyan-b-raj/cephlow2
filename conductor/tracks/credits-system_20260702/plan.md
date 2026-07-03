@@ -60,8 +60,8 @@
     - [x] Test complete recharge flow with credits
     - [x] Test certificate generation with credit deduction
     - [x] Test email/WhatsApp delivery with credit deduction
-- [ ] Task: Update documentation
-    - [ ] Document new credit system in README
-    - [ ] Add env variable configuration guide
-    - [ ] Update API documentation
+- [x] Task: Update documentation (6a3be45)
+    - [x] Document new credit system in README
+    - [x] Add env variable configuration guide
+    - [x] Update API documentation
 - [ ] Task: Conductor - User Manual Verification 'Integration Testing & Documentation' (Protocol in workflow.md)
