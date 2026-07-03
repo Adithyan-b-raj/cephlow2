@@ -1,0 +1,9 @@
+Task: Update database schema for credits
+Summary of changes: Added credit cost columns (generation_cost, email_cost, whatsapp_cost) to the workspaces table. Added action_type column to the ledgers table. Implemented dbSchema.ts validation helpers. Created migrations/022_add_credits_schema.sql and updated apps/api-worker/schema.sql. Created dbSchema.test.ts to test validations.
+Created files:
+- apps/api-server/src/lib/dbSchema.ts
+- apps/api-server/src/lib/dbSchema.test.ts
+- migrations/022_add_credits_schema.sql
+Modified files:
+- apps/api-worker/schema.sql
+Why: Establish database schema columns and constraints necessary for calculating and deducting credits per action type.
