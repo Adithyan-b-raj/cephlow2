@@ -4,6 +4,7 @@ import { downloadDriveFile, exportSlidesToPdf } from "../lib/googleDrive.js";
 import { sendEmail } from "../lib/gmail.js";
 import { bulkUpsertStudentProfiles } from "../lib/certUtils.js";
 import { isUserApproved } from "../lib/approval.js";
+import { deductDeliveryCredits } from "../lib/creditsService.js";
 
 /**
  * Downloads a PDF for sending. Resolution order:
@@ -100,6 +101,18 @@ export async function processSendEmail(payload: SendEmailJobData) {
         const rowData = (cert.rowData as Record<string, string>) || {};
         const personalizedSubject = applyPersonalization(subject, batch, rowData);
         const personalizedBody = applyPersonalization(body, batch, rowData);
+
+        // Deduct delivery credits
+        const deducted = await deductDeliveryCredits(
+          batch.workspaceId,
+          userId,
+          "email",
+          `Email delivery: ${cert.recipientEmail} (${cert.recipientName})`,
+          { certId: cert.id, batchId }
+        );
+        if (!deducted) {
+          throw new Error("Insufficient credits for email delivery");
+        }
 
         await sendEmail(userId, { to: cert.recipientEmail, subject: personalizedSubject, body: personalizedBody, pdfBuffer, pdfFilename });
         await supabaseAdmin.from("certificates").update({

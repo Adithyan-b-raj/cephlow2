@@ -1,7 +1,8 @@
 import { test, beforeEach, afterEach } from 'node:test';
 import * as assert from 'node:assert';
-import { calculateCreditsFromRupees } from './creditsService.js';
+import { calculateCreditsFromRupees, deductDeliveryCredits } from './creditsService.js';
 import { resetCreditsConfig } from './creditsConfig.js';
+import { supabaseAdmin } from '@workspace/supabase';
 
 const originalEnv = { ...process.env };
 
@@ -42,3 +43,41 @@ test('creditsService - should throw if config is missing when performing calcula
     calculateCreditsFromRupees(100);
   }, /Missing required credits configuration/);
 });
+
+test('creditsService - deductDeliveryCredits should call RPC and return success', async () => {
+  const originalRpc = supabaseAdmin.rpc;
+  try {
+    let calledMethod = '';
+    let calledArgs: any = null;
+    supabaseAdmin.rpc = (async (method: string, args: any) => {
+      calledMethod = method;
+      calledArgs = args;
+      return { data: 950, error: null };
+    }) as any;
+
+    const result = await deductDeliveryCredits('ws-123', 'user-456', 'email', 'Test email', { certId: 'c-1' });
+    assert.strictEqual(result, true);
+    assert.strictEqual(calledMethod, 'deduct_delivery_credits');
+    assert.strictEqual(calledArgs.p_workspace_id, 'ws-123');
+    assert.strictEqual(calledArgs.p_user_id, 'user-456');
+    assert.strictEqual(calledArgs.p_action_type, 'email');
+    assert.strictEqual(calledArgs.p_description, 'Test email');
+  } finally {
+    supabaseAdmin.rpc = originalRpc;
+  }
+});
+
+test('creditsService - deductDeliveryCredits should return false and log/throw if RPC fails with insufficient funds', async () => {
+  const originalRpc = supabaseAdmin.rpc;
+  try {
+    supabaseAdmin.rpc = (async () => {
+      return { data: null, error: { message: 'insufficient_funds' } };
+    }) as any;
+
+    const result = await deductDeliveryCredits('ws-123', 'user-456', 'email', 'Test email', { certId: 'c-1' });
+    assert.strictEqual(result, false);
+  } finally {
+    supabaseAdmin.rpc = originalRpc;
+  }
+});
+

@@ -139,8 +139,16 @@ router.post("/batches/:batchId/client-generate", async (req, res) => {
     const unpaidCount = unpaidCerts.length;
     const visualRegenCount = visualRegenCerts.length;
 
-    const RATE = Number(process.env.VITE_CERT_GENERATION_RATE || 1);
-    const REGEN_RATE = Number(process.env.VITE_CERT_REGENERATION_RATE || 0.2);
+    // Fetch workspace configuration for generation cost
+    const { data: wsRow, error: wsErr } = await supabaseAdmin
+      .from("workspaces")
+      .select("generation_cost")
+      .eq("id", req.workspace!.id)
+      .single();
+    if (wsErr || !wsRow) return res.status(500).json({ error: "Could not read workspace configuration" });
+
+    const RATE = Number(wsRow.generation_cost ?? 1.0);
+    const REGEN_RATE = RATE * 0.2;
 
     // Check approval before cost calculation — free (unapproved) users generate at no charge
     const approved = await getCachedApproval(userId, req.workspace?.id);

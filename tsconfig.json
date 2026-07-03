@@ -11,6 +11,9 @@
     },
     {
       "path": "./packages/api-zod"
+    },
+    {
+      "path": "./packages/supabase"
     }
   ]
 }

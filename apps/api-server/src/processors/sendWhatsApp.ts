@@ -2,6 +2,7 @@ import { supabaseAdmin, toCamel, type Certificate } from "@workspace/supabase";
 import type { SendWhatsAppJobData } from "../types.js";
 import { sendWhatsAppDocument } from "../lib/whatsapp.js";
 import { extractPhoneNumber, emailToSlug } from "../lib/certUtils.js";
+import { deductDeliveryCredits } from "../lib/creditsService.js";
 
 export async function processSendWhatsApp(payload: SendWhatsAppJobData) {
   const { batchId, userId, var1Template, var2Template, var3Template } = payload;
@@ -63,6 +64,18 @@ export async function processSendWhatsApp(payload: SendWhatsAppJobData) {
           : undefined;
 
         console.log(`[WhatsApp] certKey="${certKey}" r2Base="${r2Base}" r2PdfUrl="${r2PdfUrl}"`);
+ 
+        // Deduct delivery credits
+        const deducted = await deductDeliveryCredits(
+          batch.workspaceId,
+          userId,
+          "whatsapp",
+          `WhatsApp delivery: ${phone} (${cert.recipientName})`,
+          { certId: cert.id, batchId }
+        );
+        if (!deducted) {
+          throw new Error("Insufficient credits for WhatsApp delivery");
+        }
 
         const wamid = await sendWhatsAppDocument(phone, r2PdfUrl, pdfFilename, var1, var2, var3, certKey);
 

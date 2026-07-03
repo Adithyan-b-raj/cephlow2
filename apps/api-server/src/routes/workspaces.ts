@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { supabaseAdmin, toCamel } from "@workspace/supabase";
 import { isAdminOrOwner, type WorkspaceRole } from "../middlewares/requireWorkspace.js";
 import { sendEmail } from "../lib/gmail.js";
+import { getCreditsConfig } from "../lib/creditsConfig.js";
 
 const router: IRouter = Router();
 
@@ -45,9 +46,17 @@ router.post("/workspaces", async (req, res) => {
   const name = String(req.body?.name || "").trim();
   if (!name) return res.status(400).json({ error: "Name required" });
 
+  const config = getCreditsConfig();
   const { data: ws, error: wsErr } = await supabaseAdmin
     .from("workspaces")
-    .insert({ name, owner_id: userId, current_balance: 0 })
+    .insert({
+      name,
+      owner_id: userId,
+      current_balance: 0,
+      generation_cost: config.CREDIT_COST_GENERATION,
+      email_cost: config.CREDIT_COST_EMAIL,
+      whatsapp_cost: config.CREDIT_COST_WHATSAPP
+    })
     .select("*")
     .single();
   if (wsErr) return res.status(500).json({ error: wsErr.message });
