@@ -37,6 +37,7 @@ import { useWaReports } from "./hooks/useWaReports";
 export default function BatchDetail() {
   const [, params] = useRoute("/batches/:id");
   const batchId = params?.id ?? "";
+  const { data: balanceData, refetch: refetchBalance } = useGetWalletBalance();
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
@@ -219,7 +220,10 @@ export default function BatchDetail() {
   const pendingCount = allCerts.filter((c: any) => ["pending", "failed"].includes(c.status)).length;
   const targetCerts = selectedCertIds.length > 0 ? allCerts.filter((c: any) => selectedCertIds.includes(c.id)) : allCerts;
   const unpaidCount = targetCerts.filter((c: any) => !c.isPaid).length;
-  const RATE = Number(import.meta.env.VITE_CERT_GENERATION_RATE || 1);
+  const rate = Number((balanceData as any)?.costs?.generation ?? 1.0);
+  const regenRate = rate * 0.2;
+  const visualRegenCount = targetCerts.filter((c: any) => c.status === "outdated").length;
+  const estimatedCost = unpaidCount * rate + visualRegenCount * regenRate;
   const canResumeAll = selectedCertIds.length === 0 && pendingCount > 0;
 
   const generateBtnText = selectedCertIds.length > 0
@@ -228,8 +232,7 @@ export default function BatchDetail() {
       ? `Resume (${pendingCount} remaining)`
       : `Generate All (${pendingCount})`;
 
-  const { data: balanceData, refetch: refetchBalance } = useGetWalletBalance();
-  const generationLimit = Math.floor((balanceData?.currentBalance ?? 0) / RATE);
+  const generationLimit = Math.floor((balanceData?.currentBalance ?? 0) / rate);
 
   const { generate: clientGenerateFn, cancel: cancelGeneration, isGenerating, progress: genProgress } = useClientGenerate();
 
@@ -373,6 +376,42 @@ export default function BatchDetail() {
         onRename={handleRename}
         isRenaming={isRenaming}
       />
+
+      {/* Cost calculation & balance check */}
+      {(pendingCount > 0 || selectedCertIds.length > 0) && (
+        <div className={`p-4 border-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 ${
+          (balanceData?.currentBalance ?? 0) < estimatedCost
+            ? "border-destructive bg-destructive/5 text-destructive"
+            : "border-foreground bg-muted/20 text-foreground"
+        }`}>
+          <div className="space-y-1">
+            <p className="text-xs font-bold uppercase tracking-widest">
+              Estimated Generation Cost
+            </p>
+            <p className="text-xs normal-case tracking-normal">
+              Rate: <span className="font-bold font-mono">{rate} credits</span>/new cert,{" "}
+              <span className="font-bold font-mono">{regenRate.toFixed(2)} credits</span>/regen.
+              {selectedCertIds.length > 0 ? " Selected: " : " Batch remaining: "}
+              <span className="font-bold font-mono">{unpaidCount} new</span>,{" "}
+              <span className="font-bold font-mono">{visualRegenCount} outdated</span>.
+            </p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className="text-lg font-black font-mono">
+              {estimatedCost.toFixed(2)} credits
+            </p>
+            {(balanceData?.currentBalance ?? 0) < estimatedCost ? (
+              <p className="text-[10px] font-bold uppercase tracking-widest text-destructive animate-pulse mt-0.5">
+                ⚠️ Insufficient balance (Available: {balanceData?.currentBalance ?? 0} credits)
+              </p>
+            ) : (
+              <p className="text-[10px] font-bold uppercase tracking-widest text-green-600 mt-0.5">
+                ✓ Balance sufficient (Available: {balanceData?.currentBalance ?? 0} credits)
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       <BatchStatsCards
         totalCount={batch.totalCount}
