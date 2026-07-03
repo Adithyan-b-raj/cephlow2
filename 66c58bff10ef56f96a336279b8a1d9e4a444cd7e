@@ -1,0 +1,7 @@
+Phase Verification Report: Phase 3: Backend - API Updates
+Automated test command: pnpm --filter @workspace/api-server test
+Manual verification steps:
+1. Verify wallet balance response: GET /api/wallet returns currentBalance in credits, transferCode, and a costs breakdown object.
+2. Verify order creation minimum limit: POST /api/payments/create-order rejects amounts below MIN_RECHARGE_AMOUNT.
+3. Verify client generation cost breakdown: POST /api/batches/:batchId/client-generate response returns costBreakdown listing rate, regenRate, counts, and totalCost.
+User Confirmation: Yes, this meets my expectations.
