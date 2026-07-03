@@ -75,7 +75,7 @@ function SendCreditsDialog({ onSent }: { onSent: () => void }) {
         method: "POST",
         body: JSON.stringify({ toCode: resolved.code, amount: amt, note: note.trim() }),
       });
-      toast({ title: `₹${amt} sent to ${resolved.name}` });
+      toast({ title: `${amt} credits sent to ${resolved.name}` });
       setOpen(false);
       reset();
       onSent();
@@ -132,7 +132,7 @@ function SendCreditsDialog({ onSent }: { onSent: () => void }) {
 
           {/* Amount */}
           <div className="space-y-1.5">
-            <label className="text-[10px] font-bold uppercase tracking-widest">Amount (₹)</label>
+            <label className="text-[10px] font-bold uppercase tracking-widest">Amount (Credits)</label>
             <Input
               type="number"
               min="1"
@@ -151,7 +151,7 @@ function SendCreditsDialog({ onSent }: { onSent: () => void }) {
                   disabled={!resolved}
                   onClick={() => setAmount(String(a))}
                 >
-                  ₹{a}
+                  {a}
                 </Button>
               ))}
             </div>
@@ -181,7 +181,7 @@ function SendCreditsDialog({ onSent }: { onSent: () => void }) {
             className="uppercase tracking-widest text-xs font-bold border-2"
           >
             {sending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Send ₹{amount || "—"}
+            Send {amount || "—"} credits
           </Button>
         </div>
       </DialogContent>
@@ -293,7 +293,7 @@ function TransferHistory({ workspaceId }: { workspaceId: string }) {
                     <td className={`px-4 py-3 text-right font-mono font-bold whitespace-nowrap ${
                       t.direction === "in" ? "text-green-600" : "text-red-500"
                     }`}>
-                      {t.direction === "in" ? "+" : "-"}₹{t.amount.toFixed(2)}
+                      {t.direction === "in" ? "+" : "-"}{t.amount.toLocaleString()} credits
                     </td>
                   </tr>
                 ))}
@@ -349,7 +349,7 @@ export default function Wallet() {
   const currentBalance  = balanceData?.currentBalance ?? 0;
   const transferCode    = (balanceData as any)?.transferCode as string | null ?? null;
   const ledgerHistory   = historyData?.ledgers || [];
-  const RATE            = Number(import.meta.env.VITE_CERT_GENERATION_RATE || 1);
+  const RATE            = Number((balanceData as any)?.costs?.generation ?? 1.0);
   const generationLimit = Math.floor(currentBalance / RATE);
 
   const handleTopUp = async () => {
@@ -367,7 +367,7 @@ export default function Wallet() {
           { method: "POST", body: JSON.stringify({ order_id }) }
         );
         if (result.credited) {
-          toast({ title: "Payment successful", description: `₹${result.amount} added to wallet.` });
+          toast({ title: "Payment successful", description: `₹${result.amount} received. Your credit balance has been updated.` });
         } else if (result.status === "already_processed") {
           toast({ title: "Payment already processed", description: "Your wallet has been credited." });
         } else {
@@ -460,7 +460,7 @@ export default function Wallet() {
             <WalletIcon className="w-4 h-4 text-muted-foreground" />
           </div>
           <div className="text-4xl font-display font-black font-mono">
-            {isLoadingBalance ? "—" : `₹${currentBalance.toFixed(2)}`}
+            {isLoadingBalance ? "—" : `${currentBalance.toLocaleString()} credits`}
           </div>
           <p className="text-xs text-muted-foreground mt-2 normal-case tracking-normal font-normal">Used for generation and delivery fees</p>
         </div>
@@ -473,6 +473,31 @@ export default function Wallet() {
             {isLoadingBalance ? "—" : generationLimit.toLocaleString()}
           </div>
           <p className="text-xs text-muted-foreground mt-2 normal-case tracking-normal font-normal">Info-only updates are free</p>
+        </div>
+      </div>
+
+      {/* Workspace Cost Rates breakdown */}
+      <div className="border-2 border-foreground p-5 bg-muted/30">
+        <h3 className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3 flex items-center gap-1.5">
+          <Coins className="w-3.5 h-3.5" />
+          Workspace Cost Rates
+        </h3>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="border border-foreground/10 p-3 bg-background">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Certificate Generation</p>
+            <p className="text-lg font-black font-mono mt-1">{(balanceData as any)?.costs?.generation ?? 1.0} credits</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Per cert generated/resumed</p>
+          </div>
+          <div className="border border-foreground/10 p-3 bg-background">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Email Delivery</p>
+            <p className="text-lg font-black font-mono mt-1">{(balanceData as any)?.costs?.email ?? 1.0} credits</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Per Gmail email sent</p>
+          </div>
+          <div className="border border-foreground/10 p-3 bg-background">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">WhatsApp Delivery</p>
+            <p className="text-lg font-black font-mono mt-1">{(balanceData as any)?.costs?.whatsapp ?? 1.0} credits</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Per Meta WhatsApp sent</p>
+          </div>
         </div>
       </div>
 
@@ -529,10 +554,10 @@ export default function Wallet() {
                     <td className={`px-4 py-3 text-right font-mono font-bold whitespace-nowrap ${
                       ledger.amount > 0 ? "" : "text-muted-foreground"
                     }`}>
-                      {ledger.amount > 0 ? "+" : "-"}₹{Math.abs(ledger.amount).toFixed(2)}
+                      {ledger.amount > 0 ? "+" : "-"}{Math.abs(ledger.amount).toLocaleString()} credits
                     </td>
                     <td className="px-4 py-3 text-right text-muted-foreground font-mono">
-                      ₹{ledger.balanceAfter.toFixed(2)}
+                      {ledger.balanceAfter.toLocaleString()} credits
                     </td>
                   </tr>
                 ))}
