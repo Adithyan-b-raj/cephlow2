@@ -45,10 +45,10 @@
     - [x] Write tests for credits display
     - [x] Modify Wallet.tsx to show credits balance
     - [x] Add credits cost information display
-- [ ] Task: Update top-up dialog
-    - [ ] Write tests for minimum recharge validation
-    - [ ] Add minimum recharge amount validation to top-up form
-    - [ ] Display credit conversion rate
+- [x] Task: Update top-up dialog (37ae3d9)
+    - [x] Write tests for minimum recharge validation
+    - [x] Add minimum recharge amount validation to top-up form
+    - [x] Display credit conversion rate
 - [ ] Task: Update batch generation UI
     - [ ] Write tests for credit cost display
     - [ ] Show per-action credit costs in batch generation page
