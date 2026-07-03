@@ -41,10 +41,10 @@
 - [x] Task: Conductor - User Manual Verification 'Backend - API Updates' (Protocol in workflow.md) (66c58bf)
 
 ## Phase 4: Frontend - Wallet UI Updates
-- [ ] Task: Update wallet page to display credits
-    - [ ] Write tests for credits display
-    - [ ] Modify Wallet.tsx to show credits balance
-    - [ ] Add credits cost information display
+- [x] Task: Update wallet page to display credits (4c32f8a)
+    - [x] Write tests for credits display
+    - [x] Modify Wallet.tsx to show credits balance
+    - [x] Add credits cost information display
 - [ ] Task: Update top-up dialog
     - [ ] Write tests for minimum recharge validation
     - [ ] Add minimum recharge amount validation to top-up form
