@@ -5,10 +5,10 @@
     - [x] Write tests for credits configuration loading
     - [x] Implement credits config module that reads env variables (CREDITS_PER_RUPEE, CREDIT_COST_GENERATION, CREDIT_COST_EMAIL, CREDIT_COST_WHATSAPP, MIN_RECHARGE_AMOUNT)
     - [x] Add validation for required env variables
-- [ ] Task: Update database schema for credits
-    - [ ] Write tests for credits schema validation
-    - [ ] Add credits_cost columns to workspaces table (generation_cost, email_cost, whatsapp_cost)
-    - [ ] Update ledgers table to include action_type field (generation, email, whatsapp)
+- [x] Task: Update database schema for credits (b51112a)
+    - [x] Write tests for credits schema validation
+    - [x] Add credits_cost columns to workspaces table (generation_cost, email_cost, whatsapp_cost)
+    - [x] Update ledgers table to include action_type field (generation, email, whatsapp)
 - [ ] Task: Conductor - User Manual Verification 'Backend - Credits Configuration & Schema' (Protocol in workflow.md)
 
 ## Phase 2: Backend - Credit Consumption Logic
