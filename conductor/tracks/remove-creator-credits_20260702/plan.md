@@ -25,4 +25,4 @@
     - [x] Remove price input in `apps/cert-app/src/pages/batches/components/PublishFrameDialog.tsx`
     - [x] Remove the creator credits banner from `apps/cert-app/src/pages/Wallet.tsx`
     - [x] Run global typecheck (`pnpm run typecheck`) to ensure frontend and backend build cleanly
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Frontend UI Updates' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Frontend UI Updates' 06904c2
