@@ -11,7 +11,7 @@
     - [x] Update ledgers table to include action_type field (generation, email, whatsapp)
 - [x] Task: Conductor - User Manual Verification 'Backend - Credits Configuration & Schema' (Protocol in workflow.md) (bd07461)
 
-## Phase 2: Backend - Credit Consumption Logic
+## Phase 2: Backend - Credit Consumption Logic [checkpoint: af73f3c]
 - [x] Task: Create credit calculation service (6014f9e)
     - [x] Write tests for credit calculation (amount * credits_per_rupee)
     - [x] Implement credit calculation service with env-based config
@@ -23,7 +23,7 @@
     - [x] Write tests for credit conversion during top-up
     - [x] Modify process_payment to calculate credits using CREDITS_PER_RUPEE
     - [x] Enforce MIN_RECHARGE_AMOUNT validation
-- [~] Task: Conductor - User Manual Verification 'Backend - Credit Consumption Logic' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Backend - Credit Consumption Logic' (Protocol in workflow.md) (af73f3c)
 
 ## Phase 3: Backend - API Updates
 - [ ] Task: Update wallet API endpoints
