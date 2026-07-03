@@ -1,0 +1,7 @@
+Task: Update documentation
+Summary of changes:
+1. Updated PROJECT_DOCS.md to document the newly introduced prepaid credits environment variables (CREDITS_PER_RUPEE, CREDIT_COST_GENERATION, CREDIT_COST_EMAIL, CREDIT_COST_WHATSAPP, MIN_RECHARGE_AMOUNT).
+2. Documented the billing loop, recharge flows, and credit cost deductions for certificate generation and multi-channel delivery.
+Modified files:
+- docs/PROJECT_DOCS.md
+Why: Keep developers and operators informed about configuration requirements and database-level financial processing logic.
