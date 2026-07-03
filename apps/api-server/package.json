@@ -7,7 +7,8 @@
     "dev": "tsx watch --env-file=../../.env ./src/index.ts",
     "worker": "tsx watch --env-file=../../.env ./src/worker.ts",
     "build": "tsx ./build.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --import tsx --test src/**/*.test.ts"
   },
   "main": "dist/index.cjs",
   "dependencies": {

@@ -8,7 +8,8 @@
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./apps/**\" --filter \"./scripts\" --if-present run typecheck",
     "dev": "pnpm --filter @workspace/api-server dev",
-    "worker": "pnpm --filter @workspace/api-server worker"
+    "worker": "pnpm --filter @workspace/api-server worker",
+    "test": "pnpm --filter @workspace/api-server test"
   },
   "private": true,
   "devDependencies": {
