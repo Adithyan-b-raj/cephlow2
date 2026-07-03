@@ -25,7 +25,7 @@
     - [x] Enforce MIN_RECHARGE_AMOUNT validation
 - [x] Task: Conductor - User Manual Verification 'Backend - Credit Consumption Logic' (Protocol in workflow.md) (af73f3c)
 
-## Phase 3: Backend - API Updates
+## Phase 3: Backend - API Updates [checkpoint: 66c58bf]
 - [x] Task: Update wallet API endpoints (f96f356)
     - [x] Write tests for credits balance response
     - [x] Modify GET /api/wallet to return credits instead of Rs.
@@ -38,7 +38,7 @@
     - [x] Write tests for credit check before generation
     - [x] Modify POST /batches/:batchId/client-generate to check credits
     - [x] Return detailed credit cost breakdown in response
-- [~] Task: Conductor - User Manual Verification 'Backend - API Updates' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Backend - API Updates' (Protocol in workflow.md) (66c58bf)
 
 ## Phase 4: Frontend - Wallet UI Updates
 - [ ] Task: Update wallet page to display credits
