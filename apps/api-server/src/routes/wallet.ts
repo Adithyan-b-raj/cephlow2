@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { supabaseAdmin } from "@workspace/supabase";
+import { getCreditsConfig } from "../lib/creditsConfig.js";
 
 const router = Router();
 
@@ -14,6 +15,7 @@ router.get("/wallet", async (req, res) => {
       .single();
 
     if (error) throw error;
+    const config = getCreditsConfig();
     return res.json({
       currentBalance: data?.current_balance ?? 0,
       transferCode: data?.transfer_code ?? null,
@@ -21,6 +23,8 @@ router.get("/wallet", async (req, res) => {
         generation: data?.generation_cost ?? 1.0,
         email: data?.email_cost ?? 1.0,
         whatsapp: data?.whatsapp_cost ?? 1.0,
+        creditsPerRupee: config.CREDITS_PER_RUPEE,
+        minRechargeAmount: config.MIN_RECHARGE_AMOUNT,
       }
     });
   } catch (err: any) {

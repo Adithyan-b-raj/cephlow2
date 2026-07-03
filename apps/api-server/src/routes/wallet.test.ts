@@ -1,7 +1,23 @@
-import { test } from 'node:test';
+import { test, beforeEach, afterEach } from 'node:test';
 import * as assert from 'node:assert';
 import router from './wallet.js';
 import { supabaseAdmin } from '@workspace/supabase';
+import { resetCreditsConfig } from '../lib/creditsConfig.js';
+
+const originalEnv = { ...process.env };
+
+beforeEach(() => {
+  resetCreditsConfig();
+  process.env.CREDITS_PER_RUPEE = '10';
+  process.env.CREDIT_COST_GENERATION = '5';
+  process.env.CREDIT_COST_EMAIL = '1';
+  process.env.CREDIT_COST_WHATSAPP = '2';
+  process.env.MIN_RECHARGE_AMOUNT = '100';
+});
+
+afterEach(() => {
+  process.env = { ...originalEnv };
+});
 
 test('GET /wallet - should return current balance and cost breakdown', async () => {
   const originalFrom = supabaseAdmin.from;
@@ -71,6 +87,8 @@ test('GET /wallet - should return current balance and cost breakdown', async () 
         generation: 2.5,
         email: 0.5,
         whatsapp: 1.5,
+        creditsPerRupee: 10,
+        minRechargeAmount: 100,
       }
     });
 

@@ -352,9 +352,15 @@ export default function Wallet() {
   const RATE            = Number((balanceData as any)?.costs?.generation ?? 1.0);
   const generationLimit = Math.floor(currentBalance / RATE);
 
+  const minRechargeAmount = Number((balanceData as any)?.costs?.minRechargeAmount ?? 100);
+  const creditsPerRupee = Number((balanceData as any)?.costs?.creditsPerRupee ?? 10);
+
   const handleTopUp = async () => {
     const amount = Number(topUpAmount);
-    if (isNaN(amount) || amount <= 0) return;
+    if (isNaN(amount) || amount < minRechargeAmount) {
+      toast({ title: "Invalid amount", description: `Minimum recharge amount is ₹${minRechargeAmount}.`, variant: "destructive" });
+      return;
+    }
     try {
       setIsProcessingTopUp(true);
       const { payment_session_id, order_id } = await createOrder({ data: { amount } } as any);
@@ -428,12 +434,27 @@ export default function Wallet() {
                 </DialogHeader>
                 <div className="py-4 space-y-4">
                   <div className="space-y-2">
-                    <label className="text-[10px] font-bold uppercase tracking-widest">Amount (INR)</label>
-                    <Input type="number" placeholder="e.g. 500" value={topUpAmount} onChange={(e) => setTopUpAmount(e.target.value)} min="1" className="text-lg font-mono border-2" />
+                    <div className="flex justify-between items-center">
+                      <label className="text-[10px] font-bold uppercase tracking-widest">Amount (INR)</label>
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">
+                        Rate: 1 INR = {creditsPerRupee} Credits
+                      </span>
+                    </div>
+                    <Input type="number" placeholder={`Min ₹${minRechargeAmount}`} value={topUpAmount} onChange={(e) => setTopUpAmount(e.target.value)} min={minRechargeAmount} className="text-lg font-mono border-2" />
+                    {Number(topUpAmount) < minRechargeAmount && (
+                      <p className="text-[10px] text-destructive uppercase tracking-widest font-bold">
+                        Minimum top-up amount is ₹{minRechargeAmount}
+                      </p>
+                    )}
+                    {Number(topUpAmount) >= minRechargeAmount && !isNaN(Number(topUpAmount)) && (
+                      <p className="text-[10px] text-green-600 uppercase tracking-widest font-bold">
+                        You will receive: {(Number(topUpAmount) * creditsPerRupee).toLocaleString()} credits
+                      </p>
+                    )}
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     {[100, 500, 1000].map((amt) => (
-                      <Button key={amt} variant="outline" type="button" onClick={() => setTopUpAmount(amt.toString())} className="border-2 font-bold uppercase tracking-widest text-xs">
+                      <Button key={amt} variant="outline" type="button" onClick={() => setTopUpAmount(amt.toString())} className="border-2 font-bold uppercase tracking-widest text-xs" disabled={amt < minRechargeAmount}>
                         ₹{amt}
                       </Button>
                     ))}
@@ -441,7 +462,7 @@ export default function Wallet() {
                 </div>
                 <div className="flex justify-end gap-3 pb-2">
                   <Button variant="ghost" onClick={() => setIsTopUpOpen(false)} className="uppercase tracking-widest text-xs font-bold">Cancel</Button>
-                  <Button onClick={handleTopUp} disabled={isProcessingTopUp} className="uppercase tracking-widest text-xs font-bold border-2">
+                  <Button onClick={handleTopUp} disabled={isProcessingTopUp || Number(topUpAmount) < minRechargeAmount || isNaN(Number(topUpAmount))} className="uppercase tracking-widest text-xs font-bold border-2">
                     {isProcessingTopUp && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Proceed to Pay
                   </Button>
