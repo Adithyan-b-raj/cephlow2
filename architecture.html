@@ -587,16 +587,14 @@
 
     <div class="nav-group-label">Services</div>
     <a class="nav-link" href="#frontend">Frontend</a>
-    <a class="nav-link" href="#backend">Backend API</a>
-    <a class="nav-link" href="#supabase">Auth & Database</a>
+    <a class="nav-link" href="#backend">Backend Worker</a>
+    <a class="nav-link" href="#d1">SQLite Database</a>
     <a class="nav-link" href="#r2">R2 Storage</a>
 
     <div class="nav-group-label">Core Features</div>
     <a class="nav-link" href="#certgen">Certificate Generation</a>
     <a class="nav-link" href="#whatsapp">WhatsApp API</a>
-    <a class="nav-link" href="#cfworker">Cloudflare Worker</a>
-    <a class="nav-link" href="#telegram">Telegram Bridge</a>
-    <a class="nav-link" href="#worker">Background Worker</a>
+    <a class="nav-link" href="#support">WhatsApp/Telegram Bot</a>
 
     <div class="nav-group-label">Other</div>
     <a class="nav-link" href="#google">Google Integration</a>
@@ -619,8 +617,8 @@
     <h1>System Architecture</h1>
     <div class="meta">
       <span class="badge">Cephlow</span>
-      <span class="badge outline">Express.js · React · Supabase · Cloudflare</span>
-      <span class="badge outline">Updated May 2026</span>
+      <span class="badge outline">Hono · React · Supabase · Cloudflare Workers · D1</span>
+      <span class="badge outline">Updated July 2026</span>
     </div>
   </div>
 
@@ -633,7 +631,7 @@
       Cephlow is a <strong>certificate generation and delivery SaaS</strong>. Organizations use it to
       bulk-generate and send PDF certificates to students via email and WhatsApp. A user connects their
       Google account, picks a Google Sheet (participant list) and a Google Slides template (certificate
-      design), then clicks Generate. The app fills the template for each row, exports it as a PDF,
+      design), then clicks Generate. The app fills the template for each row client-side, exports it as a PDF,
       uploads it to Cloudflare R2, and sends it via Gmail or WhatsApp Business API.
     </p>
     <p>
@@ -675,48 +673,21 @@
   GoDaddy (Domain Registrar)
        │
        ▼
-  Cloudflare DNS  (proxy + cache headers)
+  Cloudflare DNS (proxy + cache headers)
        │
        ├─────────────────────────────────────┐
        │                                     │
        ▼                                     ▼
-  Cloudflare Pages                   Digital Ocean $18 Droplet
-  ─────────────────                  ─────────────────────────
-  React SPA (Vite)                   Express.js API Server
-  Static build, global CDN           Node.js + TypeScript
-  Free tier                          Nginx reverse proxy
+  Cloudflare Pages                     Cloudflare Workers (cephlow-api)
+  ─────────────────                    ────────────────────────────────
+  React SPA (Vite)                     Hono API Server (TypeScript)
+  Static build, global CDN             Edge functions, global CDNs
+  Free tier                            Free / Paid tier
        │                                     │
-       │ fetch() API calls                   ├── Supabase  (free tier)
-       │ Authorization: Bearer JWT           │   ├── PostgreSQL DB
-       └────────────────────────────────────►│   ├── Auth (JWT)
-                                             │   └── Row Level Security
-                                             │
-                                             ├── Cloudflare R2  (object storage)
-                                             │   └── PDFs stored as {phone}/{name}.pdf
-                                             │
-                                             └── Google APIs
-                                                 ├── Drive API v3
-                                                 ├── Slides API v1
-                                                 ├── Sheets API v4
-                                                 └── Gmail API
-
-
-  Cloudflare Worker  (edge, globally distributed)
-  ──────────────────────────────────────────────
-  Receives ALL WhatsApp webhooks from Meta
-       │
-       ├── Cloudflare D1  (SQLite at edge)
-       │   └── analytics, user_states, reports, votes
-       │
-       ├── Cloudflare R2  (same bucket as above, read-only for bot)
-       │
-       ├── Supabase REST API
-       │   └── wa_tg_threads  (phone ↔ Telegram topic mapping)
-       │
-       ├── WhatsApp Cloud API  (graph.facebook.com)
-       │
-       └── Telegram Bot API  (api.telegram.org)
-           └── Supergroup topics  (one topic per customer)
+       │ fetch() API calls                   ├── Cloudflare D1 (SQLite DB at edge)
+       │ Authorization: Bearer JWT           ├── Supabase Auth (JWT verify)
+       └────────────────────────────────────►├── Cloudflare R2 (object storage)
+                                             └── Google APIs (Gmail, Sheets, Slides)
 </pre>
     </div>
 
@@ -732,10 +703,10 @@
         </thead>
         <tbody>
           <tr>
-            <td>API Server</td>
-            <td>DigitalOcean Droplet</td>
-            <td>$18/mo</td>
-            <td>Express.js backend, background worker</td>
+            <td>API Server & Bot</td>
+            <td>Cloudflare Workers</td>
+            <td>Free / $5/mo</td>
+            <td>Hono API backend, background execution, and WhatsApp webhook processing</td>
           </tr>
           <tr>
             <td>Frontend</td>
@@ -744,34 +715,28 @@
             <td>React SPA, static hosting, global CDN</td>
           </tr>
           <tr>
-            <td>Database + Auth</td>
-            <td>Supabase</td>
+            <td>Auth Engine</td>
+            <td>Supabase Auth</td>
             <td>Free tier</td>
-            <td>PostgreSQL, JWT auth, RLS, background tasks table</td>
+            <td>User authentication & session token management (RS256 JWT)</td>
+          </tr>
+          <tr>
+            <td>Database</td>
+            <td>Cloudflare D1</td>
+            <td>Free / Paid</td>
+            <td>SQLite DB at the edge; stores workspace balances, batches, cert metadata, and audit logs</td>
           </tr>
           <tr>
             <td>PDF Storage</td>
             <td>Cloudflare R2</td>
-            <td>~Free</td>
-            <td>Object storage for generated certificate PDFs</td>
-          </tr>
-          <tr>
-            <td>WhatsApp Bot</td>
-            <td>Cloudflare Worker</td>
-            <td>Free</td>
-            <td>Edge function handles all WA webhooks, bot logic</td>
-          </tr>
-          <tr>
-            <td>Bot Analytics</td>
-            <td>Cloudflare D1</td>
-            <td>Free</td>
-            <td>SQLite at the edge, stores interactions/votes/reports</td>
+            <td>Free tier</td>
+            <td>S3-compatible edge storage for generated certificate PDFs</td>
           </tr>
           <tr>
             <td>Domain</td>
             <td>GoDaddy</td>
             <td>~₹800/yr</td>
-            <td>Domain purchase, DNS managed by Cloudflare</td>
+            <td>Domain registration, DNS managed by Cloudflare</td>
           </tr>
           <tr>
             <td>Payments</td>
@@ -796,18 +761,15 @@
 <pre>
   cephlow2/
   ├── apps/
-  │   ├── cert-app/           React 18 frontend (Vite + TypeScript + Tailwind)
-  │   ├── api-server/         Express.js backend (Node.js + TypeScript)
-  │   └── mockup-sandbox/     UI component playground (not deployed)
+  │   ├── cert-app/           React 19 frontend (Vite + TypeScript + Tailwind v4)
+  │   ├── api-worker/         Hono API backend deployed to Cloudflare Workers
+  │   └── api-server/         Legacy Express backend (deprecated/local testing)
   │
   ├── packages/
-  │   ├── api-spec/           OpenAPI spec  ← SOURCE OF TRUTH for all types
-  │   ├── api-zod/            Zod schemas   ← codegen'd from api-spec
+  │   ├── api-spec/           OpenAPI spec ← SOURCE OF TRUTH for all types
+  │   ├── api-zod/            Zod schemas ← codegen'd from api-spec
   │   ├── api-client-react/   React Query hooks ← codegen'd from api-spec
-  │   ├── supabase/           Shared Supabase client + JWT verify utility
-  │   └── firebase/           Legacy (migrated away, kept for history)
-  │
-  └── cloudflare-worker/      WhatsApp bot + Telegram bridge (plain JS, no npm)
+  │   └── supabase/           Shared Supabase Auth + JWT verify utility
 </pre>
     </div>
 
@@ -819,7 +781,6 @@
           <code>api-spec</code> → codegen → <code>api-zod</code> + <code>api-client-react</code>.
           The OpenAPI spec is the single source of truth for types. You change the spec, run codegen,
           and both server-side Zod validation and client-side React Query hooks stay in sync automatically.
-          This eliminates manual type duplication between frontend and backend.
         </p>
       </div>
     </div>
@@ -833,7 +794,7 @@
     <div class="two-col">
       <div class="info-box">
         <div class="label">Stack</div>
-        <div class="value">React 18 + Vite</div>
+        <div class="value">React 19 + Vite</div>
         <ul>
           <li>TypeScript throughout</li>
           <li>TailwindCSS v4 (utility-first)</li>
@@ -849,7 +810,6 @@
           <li>Static build deployed to CDN</li>
           <li><code>_redirects</code> for SPA fallback</li>
           <li>Cache-Control headers on hashed assets</li>
-          <li>Lazy-loaded routes (code splitting)</li>
           <li>Connected to GoDaddy domain via Cloudflare DNS</li>
         </ul>
       </div>
@@ -861,46 +821,36 @@
         <div class="flow-num">01</div>
         <div class="flow-content">
           <div class="flow-title">User Logs In</div>
-          <div class="flow-desc">Email/password or OAuth via Supabase Auth. Supabase returns a signed JWT (RS256).</div>
+          <div class="flow-desc">Email/password or Google sign-in via Supabase Auth. Supabase returns a signed JWT.</div>
         </div>
       </div>
       <div class="flow-step">
         <div class="flow-num">02</div>
         <div class="flow-content">
-          <div class="flow-title">JWT Stored in Context</div>
-          <div class="flow-desc"><code>useAuth()</code> hook exposes the session. The JWT is stored in Supabase's local storage by the Supabase client SDK.</div>
+          <div class="flow-title">JWT Stored in Client Context</div>
+          <div class="flow-desc">The Supabase client SDK handles caching and token refreshes.</div>
         </div>
       </div>
       <div class="flow-step">
         <div class="flow-num">03</div>
         <div class="flow-content">
           <div class="flow-title">Every API Call</div>
-          <div class="flow-desc"><code>customFetch()</code> attaches <code>Authorization: Bearer &lt;jwt&gt;</code> and <code>x-workspace-id</code> to all requests to the Express server.</div>
-        </div>
-      </div>
-      <div class="flow-step">
-        <div class="flow-num">04</div>
-        <div class="flow-content">
-          <div class="flow-title">Google Connect</div>
-          <div class="flow-desc">Separate OAuth2 flow. User authorizes Cephlow to access their Google Drive, Sheets, Slides, and Gmail. Refresh token stored in Supabase <code>user_profiles</code>.</div>
+          <div class="flow-desc"><code>customFetch()</code> attaches <code>Authorization: Bearer &lt;jwt&gt;</code> and <code>x-workspace-id</code> to all request headers.</div>
         </div>
       </div>
     </div>
-
-    <h3>Client-Side Certificate Generation</h3>
-    <p>The browser itself generates PDFs — the server is not involved in the heavy lifting. See <a href="#certgen">Section 07</a> for the full pipeline.</p>
   </section>
 
   <!-- ═══ SECTION 5: BACKEND ═══ -->
   <section class="section" id="backend">
     <div class="section-label">Section 05</div>
-    <h2>Backend API — Express.js on DigitalOcean</h2>
+    <h2>Backend API — Hono on Cloudflare Workers</h2>
 
-    <p>Node.js + TypeScript, compiled and run with <code>tsx</code>. Lives behind Nginx on a $18/month DigitalOcean Ubuntu droplet. <code>trust proxy 1</code> is set so rate limiters see the real client IP through Nginx.</p>
+    <p>Edge-native Hono API backend running on Cloudflare Workers. It handles all database transactions directly on Cloudflare D1 with zero network latency overhead.</p>
 
     <h3>Route Architecture</h3>
     <div class="code-block">
-      <div class="code-label">apps/api-server/src/app.ts — Route Groups</div>
+      <div class="code-label">apps/api-worker/src/index.ts — Route Groups</div>
 <pre>
 PUBLIC (no auth required):
   GET/POST /api/webhooks/whatsapp   → WA webhook verify + delivery status
@@ -916,68 +866,16 @@ AUTH REQUIRED (Supabase JWT):
   /api/slides/*           → Google Slides integration
   /api/wallet/*           → Credits and payment ledger
   /api/workspaces/*       → Multi-tenant workspace management
-
-RATE LIMITED (auth + heavy limiter):
-  /api/batches/:id/client-generate  → 10 req/min per user
-  /api/batches/:id/send             → 10 req/min per user
-  /api/batches/:id/send-whatsapp    → 10 req/min per user
-  /api/batches/:id/sync             → 10 req/min per user
-</pre>
-    </div>
-
-    <h3>Rate Limiting</h3>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr><th>Limiter</th><th>Window</th><th>Limit</th><th>Key</th><th>Applied To</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>globalLimiter</code></td>
-            <td>60s</td>
-            <td>200 req</td>
-            <td>IP address</td>
-            <td>Every route (catches unauthenticated spam)</td>
-          </tr>
-          <tr>
-            <td><code>heavyLimiter</code></td>
-            <td>60s</td>
-            <td>10 req</td>
-            <td>User UID (or IP)</td>
-            <td>Generate, send, sync — expensive operations</td>
-          </tr>
-          <tr>
-            <td><code>presignedUrlLimiter</code></td>
-            <td>60s</td>
-            <td>20 req</td>
-            <td>User UID</td>
-            <td>R2 presigned URL endpoint only</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <h3>JWT Verification</h3>
-    <div class="code-block">
-      <div class="code-label">packages/supabase/src/index.ts — verifySupabaseJwt()</div>
-<pre>
-1. Try JWKS (RS256) → fetch from supabaseUrl/auth/v1/.well-known/jwks.json
-   → Supabase rotated to asymmetric keys; this is the primary path
-
-2. Fallback to legacy HMAC secret (HS256)
-   → Ensures zero downtime if the project was created before Supabase key rotation
-
-3. Attach decoded { uid, email } to req.user for all downstream handlers
 </pre>
     </div>
   </section>
 
-  <!-- ═══ SECTION 6: SUPABASE ═══ -->
-  <section class="section" id="supabase">
+  <!-- ═══ SECTION 6: D1 DATABASE ═══ -->
+  <section class="section" id="d1">
     <div class="section-label">Section 06</div>
-    <h2>Auth & Database — Supabase (Free Tier)</h2>
+    <h2>SQLite Database — Cloudflare D1</h2>
 
-    <p>Supabase provides PostgreSQL + Auth + Row Level Security + PostgREST API. It sits on the free tier (500MB DB, 50K MAU). The <code>supabaseAdmin</code> client uses the service role key — it bypasses RLS and is backend-only.</p>
+    <p>Cloudflare D1 provides globally distributed SQLite storage at the edge. It replaces legacy Firestore and PostgreSQL.</p>
 
     <h3>Key Tables</h3>
     <div class="table-wrap">
@@ -987,61 +885,32 @@ RATE LIMITED (auth + heavy limiter):
         </thead>
         <tbody>
           <tr>
+            <td><code>workspaces</code></td>
+            <td>Multi-tenant workspace configurations and balances</td>
+            <td>id, name, current_balance, created_at</td>
+          </tr>
+          <tr>
             <td><code>batches</code></td>
             <td>One row per generation job</td>
-            <td>user_id, template_id, sheet_id, status, total_count, generated_count, sent_count</td>
+            <td>id, workspace_id, name, status, sheet_id, template_id, generated_count, total_count</td>
           </tr>
           <tr>
             <td><code>certificates</code></td>
             <td>One row per generated cert</td>
-            <td>batch_id, recipient_name, r2_pdf_url, whatsapp_status, wamid, sent_at</td>
+            <td>id, batch_id, recipient_name, recipient_email, status, r2_pdf_url, whatsapp_status</td>
           </tr>
           <tr>
-            <td><code>tasks</code></td>
-            <td>Background job queue (poll-based)</td>
-            <td>type (send_email/send_whatsapp), payload (JSON), status, error_message</td>
+            <td><code>payment_orders</code></td>
+            <td>Tracks and verifies Cashfree top-ups</td>
+            <td>order_id, workspace_id, user_id, amount, processed, created_at</td>
           </tr>
           <tr>
-            <td><code>wa_messages</code></td>
-            <td>Maps WhatsApp wamid → cert</td>
-            <td>wamid, batch_id, cert_id — used for delivery receipt updates</td>
-          </tr>
-          <tr>
-            <td><code>wa_tg_threads</code></td>
-            <td>WhatsApp ↔ Telegram topic mapping</td>
-            <td>phone_e164, telegram_topic_id, supergroup_id</td>
-          </tr>
-          <tr>
-            <td><code>user_profiles</code></td>
-            <td>Google OAuth + approval status</td>
-            <td>user_id, google_refresh_token, is_approved, workspace_id</td>
-          </tr>
-          <tr>
-            <td><code>wallet_ledger</code></td>
-            <td>Credit debit/credit history</td>
-            <td>user_id, amount, type, balance_after, metadata</td>
-          </tr>
-          <tr>
-            <td><code>orders</code></td>
-            <td>Cashfree payment orders</td>
-            <td>order_id, user_id, amount, status — idempotency key for webhooks</td>
+            <td><code>ledgers</code></td>
+            <td>Immutable financial transactions log</td>
+            <td>id, workspace_id, user_id, type (topup/deduction), amount, balance_after, description</td>
           </tr>
         </tbody>
       </table>
-    </div>
-
-    <div class="callout">
-      <div class="callout-icon">◆</div>
-      <div class="callout-body">
-        <div class="callout-title">Why Postgres as a Task Queue?</div>
-        <p class="callout-text">
-          The project originally used BullMQ with Redis for background jobs. Redis was removed to cut costs.
-          A Supabase RPC <code>grab_pending_tasks()</code> does an atomic <code>UPDATE ... RETURNING *</code>
-          to claim tasks — no two workers can grab the same task. This is a well-known pattern called
-          "Postgres as a poor man's queue." Slightly higher latency than Redis (poll every 2s vs. event push)
-          but zero additional infrastructure cost.
-        </p>
-      </div>
     </div>
   </section>
 
@@ -1053,12 +922,10 @@ RATE LIMITED (auth + heavy limiter):
     <div class="callout">
       <div class="callout-icon">▶</div>
       <div class="callout-body">
-        <div class="callout-title">Key Design: Client-Side Generation</div>
+        <div class="callout-title">Client-Side Generation (Browser-Native)</div>
         <p class="callout-text">
-          The browser generates all PDFs — the server is not involved in rendering.
-          This was migrated from server-side in commit <code>abfec93</code> to fix OOM crashes on the
-          $18 droplet for large batches, and to use each user's personal Google API quota instead of
-          the shared project quota.
+          The browser renders and copies PDF certificates client-side. This leverages the client's local CPU/RAM
+          and uses their personal Google API quota (60 writes/minute) rather than exhausting a centralized service account quota.
         </p>
       </div>
     </div>
@@ -1068,79 +935,51 @@ RATE LIMITED (auth + heavy limiter):
         <div class="flow-num">01</div>
         <div class="flow-content">
           <div class="flow-title">User Configures Batch</div>
-          <div class="flow-desc">Selects Google Sheet (participant data) + Google Slides template + column mapping (which sheet column = name, email, phone, etc).</div>
+          <div class="flow-desc">Selects Google Sheet (participant data) + Google Slides template + column mappings.</div>
         </div>
       </div>
       <div class="flow-step">
         <div class="flow-num">02</div>
         <div class="flow-content">
           <div class="flow-title">Frontend Fetches Data</div>
-          <div class="flow-desc"><code>GET /api/sheets/:sheetId/data</code> returns all rows. <code>GET /api/auth/google/access-token</code> returns a short-lived Google access token the browser will use directly.</div>
+          <div class="flow-desc">Browser pulls Sheets data via Google Sheets APIs and requests a Google access token.</div>
         </div>
       </div>
       <div class="flow-step">
         <div class="flow-num">03</div>
         <div class="flow-content">
-          <div class="flow-title">Browser: Copy Template</div>
-          <div class="flow-desc">For each row, browser calls Google Drive API to copy the Slides template file (creating a new file per recipient).</div>
+          <div class="flow-title">Browser: Copy & Edit Slides</div>
+          <div class="flow-desc">Browser calls Google Drive and Slides APIs to copy templates and replace placeholders (e.g. <code>{{Name}}</code>) for each participant.</div>
         </div>
       </div>
       <div class="flow-step">
         <div class="flow-num">04</div>
         <div class="flow-content">
-          <div class="flow-title">Browser: Fill Placeholders</div>
-          <div class="flow-desc">Calls Google Slides API <code>batchUpdate</code> to replace <code>{{Name}}</code>, <code>{{Event}}</code>, etc. with the row's actual values. Font scaling heuristics ensure text fits.</div>
+          <div class="flow-title">Browser: Export to PDF</div>
+          <div class="flow-desc">Calls Google Drive's PDF export API directly from the client.</div>
         </div>
       </div>
       <div class="flow-step">
         <div class="flow-num">05</div>
         <div class="flow-content">
-          <div class="flow-title">Browser: Export to PDF</div>
-          <div class="flow-desc">Calls Google Drive export endpoint: <code>GET /drive/v3/files/:id/export?mimeType=application/pdf</code>. Returns the PDF bytes in the browser.</div>
+          <div class="flow-title">Request R2 Presigned URL</div>
+          <div class="flow-desc">Frontend requests a presigned S3 PUT URL from Hono backend.</div>
         </div>
       </div>
       <div class="flow-step">
         <div class="flow-num">06</div>
         <div class="flow-content">
-          <div class="flow-title">Get Presigned R2 URL</div>
-          <div class="flow-desc">Browser calls <code>POST /api/batches/:id/client-generate</code> to get a presigned S3-compatible PUT URL for Cloudflare R2. This is the only server call per certificate.</div>
+          <div class="flow-title">Direct Upload to R2</div>
+          <div class="flow-desc">Browser performs a direct <code>PUT</code> request upload to Cloudflare R2. PDF bytes never hit the Worker.</div>
         </div>
       </div>
       <div class="flow-step">
         <div class="flow-num">07</div>
         <div class="flow-content">
-          <div class="flow-title">Browser: Direct Upload to R2</div>
-          <div class="flow-desc">Browser does <code>PUT presignedUrl</code> with the PDF bytes. The file goes directly from browser → Cloudflare R2. The API server never sees the PDF bytes at all.</div>
+          <div class="flow-title">Update Metadata in D1</div>
+          <div class="flow-desc">Frontend notifies Hono to record the generated certificate metadata in D1.</div>
         </div>
       </div>
-      <div class="flow-step">
-        <div class="flow-num">08</div>
-        <div class="flow-content">
-          <div class="flow-title">Record in DB</div>
-          <div class="flow-desc">Browser calls <code>POST /api/batches/:id/client-generate/complete</code> with the R2 URL. Server inserts the certificate record into Supabase with <code>status = "generated"</code>.</div>
-        </div>
-      </div>
-      <div class="flow-step">
-        <div class="flow-num">09</div>
-        <div class="flow-content">
-          <div class="flow-title">Send (Optional)</div>
-          <div class="flow-desc">User clicks "Send Email" or "Send WhatsApp." Server enqueues <code>send_email</code> or <code>send_whatsapp</code> tasks in Supabase. The background worker picks them up and delivers.</div>
-        </div>
-      </div>
-    </div>
-
-    <h3>R2 Storage Path Convention</h3>
-    <div class="code-block">
-      <div class="code-label">R2 Object Key Format</div>
-<pre>
-{phone_without_country_code}/{recipient_name_slug}.pdf
-
-Example:
-  9876543210/Adithyan-B-Raj.pdf      ← Indian number without +91
-  919876543210/Adithyan-B-Raj.pdf    ← E.164 format with country code
-
-The WhatsApp bot tries BOTH variants when listing a user's certs.
-</pre>
     </div>
   </section>
 
@@ -1149,438 +988,82 @@ The WhatsApp bot tries BOTH variants when listing a user's certs.
     <div class="section-label">Section 08</div>
     <h2>WhatsApp Business API</h2>
 
-    <p>Uses the <strong>Meta WhatsApp Cloud API</strong> directly — no third-party middleware like Twilio.
-    Calls go to <code>https://graph.facebook.com/v18.0/{PHONE_NUMBER_ID}/messages</code>.</p>
+    <p>Direct integration with the <strong>Meta WhatsApp Cloud API</strong>, bypassing third-party vendors. Requests go directly to Meta Graph API endpoints.</p>
 
-    <h3>How a Certificate is Sent</h3>
-    <div class="code-block">
-      <div class="code-label">Template Message — document_senderv2</div>
-<pre>
-POST https://graph.facebook.com/v18.0/{phoneNumberId}/messages
-{
-  messaging_product: "whatsapp",
-  to: "91XXXXXXXXXX",
-  type: "template",
-  template: {
-    name: "document_senderv2",
-    language: { code: "en" },
-    components: [
-      {
-        type: "header",
-        parameters: [{ type: "document", document: { link: r2PdfUrl } }]
-      },
-      {
-        type: "body",
-        parameters: [
-          { type: "text", text: "Recipient Name" },    // {{1}}
-          { type: "text", text: "Event Name"      },   // {{2}}
-          { type: "text", text: "profile-slug"    }    // {{3}} → profile page URL
-        ]
-      },
-      {
-        type: "button",
-        sub_type: "url",
-        parameters: [{ type: "text", text: "profile-slug" }]
-      }
-    ]
-  }
-}
-</pre>
-    </div>
+    <h3>Template Formatting</h3>
+    <p>Uses approved template variables (e.g. <code>document_senderv3</code>) to deliver the certificate as a header attachment alongside recipient and verification page details.</p>
 
-    <div class="callout">
-      <div class="callout-icon">◆</div>
-      <div class="callout-body">
-        <div class="callout-title">Template Pre-Approval</div>
-        <p class="callout-text">
-          WhatsApp Business templates must be approved by Meta before use. <code>document_senderv2</code>
-          was submitted and approved — it allows sending a document as the header, with 3 text body variables
-          and a URL button. You cannot send free-form messages to users who haven't messaged you first
-          (24-hour window rule). Templates bypass this restriction.
-        </p>
-      </div>
-    </div>
-
-    <h3>Delivery Status Tracking</h3>
-    <div class="flow">
-      <div class="flow-step">
-        <div class="flow-num">01</div>
-        <div class="flow-content">
-          <div class="flow-title">Send → wamid Stored</div>
-          <div class="flow-desc">WhatsApp API returns a <code>wamid</code> (message ID). Server stores it in <code>wa_messages</code> table linked to the certificate.</div>
-        </div>
-      </div>
-      <div class="flow-step">
-        <div class="flow-num">02</div>
-        <div class="flow-content">
-          <div class="flow-title">Meta Fires Status Webhooks</div>
-          <div class="flow-desc">Meta sends <code>sent</code> → <code>delivered</code> → <code>read</code> webhooks to the Cloudflare Worker endpoint.</div>
-        </div>
-      </div>
-      <div class="flow-step">
-        <div class="flow-num">03</div>
-        <div class="flow-content">
-          <div class="flow-title">Worker Forwards to API</div>
-          <div class="flow-desc">If the webhook contains statuses (not a message), the Worker forwards the payload to <code>POST /api/webhooks/whatsapp</code> on the Express server.</div>
-        </div>
-      </div>
-      <div class="flow-step">
-        <div class="flow-num">04</div>
-        <div class="flow-content">
-          <div class="flow-title">Server Updates DB</div>
-          <div class="flow-desc">Looks up <code>wamid</code> in <code>wa_messages</code> → finds the <code>cert_id</code> → updates <code>certificates.whatsapp_status</code> to <code>delivered</code> or <code>read</code>.</div>
-        </div>
-      </div>
-    </div>
+    <h3>Delivery Tracking</h3>
+    <p>Webhooks from Meta are received by the Worker and processed in-line. The status of delivery is atomically tracked (`sent` → `delivered` → `read`) inside D1.</p>
   </section>
 
-  <!-- ═══ SECTION 9: CF WORKER ═══ -->
-  <section class="section" id="cfworker">
+  <!-- ═══ SECTION 9: SUPPORT BOT ═══ -->
+  <section class="section" id="support">
     <div class="section-label">Section 09</div>
-    <h2>Cloudflare Worker — WhatsApp Bot</h2>
+    <h2>WhatsApp Bot & Telegram support Bridge</h2>
 
-    <p>A Cloudflare Worker (edge function, plain JS) receives ALL incoming WhatsApp messages via Meta webhooks.
-    It runs at the edge globally with ~0ms cold start and costs nothing on the free tier.</p>
-
-    <h3>Bot Menu Structure</h3>
-    <div class="diagram">
-<pre>
-Student texts the WhatsApp number
-           │
-           ▼
-   ┌─────────────────────────────────────┐
-   │  WhatsApp Interactive List Menu     │
-   │  ─────────────────────────────────  │
-   │  📄  Send all certs                 │
-   │  🔍  Search a cert                  │
-   │  ⚠️  Report Issue                   │
-   │  🚀  Vote to Scale                  │
-   │  💬  Talk to Developer              │
-   └─────────────────────────────────────┘
-           │
-     ┌─────┼──────┬──────────┬──────────────────┐
-     │     │      │          │                  │
-     ▼     ▼      ▼          ▼                  ▼
- Send    Search  Report   Vote           Telegram Bridge
- All     Cert    Issue    (D1 dedup)     (support_active
- (loop   (paged  (multi-               state → forward all
- docs)   list)   turn                  messages to Telegram)
-                 flow)
-</pre>
-    </div>
-
-    <h3>D1 Database Tables (at the Edge)</h3>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr><th>Table</th><th>Purpose</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>interactions</code></td>
-            <td>Every bot interaction logged — phone, action, detail, timestamp. Powers the analytics dashboard.</td>
-          </tr>
-          <tr>
-            <td><code>user_states</code></td>
-            <td>Per-phone state for multi-turn flows: <code>report_selecting</code>, <code>report_desc:&lt;key&gt;</code>, <code>support_active</code>.</td>
-          </tr>
-          <tr>
-            <td><code>reports</code></td>
-            <td>Submitted issue reports — phone, cert_key, message text.</td>
-          </tr>
-          <tr>
-            <td><code>votes</code></td>
-            <td>Deduplicated votes (one per phone). Powers "Vote to Scale" feature.</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <h3>Analytics Dashboard</h3>
-    <p>A full HTML dashboard is server-side rendered by the Worker at <code>/analytics?token=&lt;secret&gt;</code>.
-    Includes DAU/MAU charts, action breakdowns, vote totals, and recent activity — all from D1 queries.
-    This is what you built using the same brutalist B&W theme.</p>
-
-    <h3>Issue Report Flow (Multi-Turn)</h3>
-    <div class="flow">
-      <div class="flow-step">
-        <div class="flow-num">01</div>
-        <div class="flow-content">
-          <div class="flow-title">Student taps "Report Issue"</div>
-          <div class="flow-desc">Worker sets <code>user_states.state = "report_selecting"</code> in D1.</div>
-        </div>
-      </div>
-      <div class="flow-step">
-        <div class="flow-num">02</div>
-        <div class="flow-content">
-          <div class="flow-title">Show Cert List</div>
-          <div class="flow-desc">Lists student's R2 certs as a paginated WhatsApp list message. Student picks which cert has an issue.</div>
-        </div>
-      </div>
-      <div class="flow-step">
-        <div class="flow-num">03</div>
-        <div class="flow-content">
-          <div class="flow-title">Ask for Description</div>
-          <div class="flow-desc">State set to <code>"report_desc:{r2_cert_key}"</code>. Worker prompts: "Please describe your issue."</div>
-        </div>
-      </div>
-      <div class="flow-step">
-        <div class="flow-num">04</div>
-        <div class="flow-content">
-          <div class="flow-title">Save + Notify Certifier</div>
-          <div class="flow-desc">Report saved to D1. Worker calls <code>POST /api/internal/report-notify</code> (with shared-secret auth). API server looks up the batch owner and sends them an email via Gmail.</div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ═══ SECTION 10: TELEGRAM ═══ -->
-  <section class="section" id="telegram">
-    <div class="section-label">Section 10</div>
-    <h2>WhatsApp ↔ Telegram Support Bridge</h2>
-
-    <p>The most architecturally interesting part of the system. When a student taps "Talk to Developer,"
-    their WhatsApp conversation is transparently bridged to a Telegram supergroup topic. The developer
-    replies in Telegram and the student receives the reply on WhatsApp.</p>
+    <p>Incoming support requests on WhatsApp are bridged directly to Telegram group topics. Developers reply directly from Telegram; students receive responses on WhatsApp.</p>
 
     <div class="diagram">
 <pre>
   STUDENT (WhatsApp)                    DEVELOPER (Telegram)
   ──────────────────                    ─────────────────────
-  Taps "Talk to Developer"
+  Sends text message
            │
            ▼
-  Worker: state = support_active
-  Worker: create Telegram forum topic
-  Store: phone ↔ topic_id in Supabase
-  (wa_tg_threads table)
-
-  Student sends message
-           │
-           ▼ (via Meta webhook → Worker)
-  Worker: detect support_active state
-  Worker: forward to Telegram topic
-    Text → sendMessage
-    Image → download from WA → reupload → sendPhoto
-    Document → download from WA → reupload → sendDocument
+    Hono Worker: Checks user state in D1
+    Active Support State -> Forward to Telegram Topic via TG API
                                               │
                                               ▼
-                                  Developer sees message
-                                  in their Telegram topic
-
-                                  Developer types reply
+                                   Developer receives message
+                                   in Telegram forum topic
+                                   and types reply
                                               │
-                              ┌───────────────┘
-                              ▼ (via Telegram webhook → /telegram route)
-                    Worker: reverse-lookup topic_id → phone
-                    Worker: forward reply to student
-                      Text → waPost() text
-                      Media → download from TG → upload to WA Media API
-                              → send with media_id
+                               ┌──────────────┘
+                               ▼ (Telegram Webhook -> Hono Worker)
+                    Worker: Checks thread mapping in D1
+                    Worker: Sends WhatsApp message to Student via Meta
                                               │
                                               ▼
-                          STUDENT receives reply on WhatsApp
+                            Student receives reply on WhatsApp
 </pre>
     </div>
-
-    <h3>State Machine</h3>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr><th>State</th><th>Trigger</th><th>Behavior</th><th>Exit</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td><code>support_active</code></td>
-            <td>Student taps "Talk to Developer"</td>
-            <td>Every message forwarded to Telegram topic</td>
-            <td>Student types <code>/menu</code>, <code>/exit</code>, or <code>/stop</code></td>
-          </tr>
-          <tr>
-            <td><code>report_selecting</code></td>
-            <td>Student taps "Report Issue"</td>
-            <td>Show paginated cert list to select from</td>
-            <td>Student picks a cert</td>
-          </tr>
-          <tr>
-            <td><code>report_desc:{key}</code></td>
-            <td>Student picks a cert</td>
-            <td>Next text message is saved as the report</td>
-            <td>Text received → report saved, state cleared</td>
-          </tr>
-          <tr>
-            <td>(null)</td>
-            <td>Default / cleared</td>
-            <td>Show main menu on any message</td>
-            <td>N/A</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="callout">
-      <div class="callout-icon">▲</div>
-      <div class="callout-body">
-        <div class="callout-title">Why Telegram Supergroup Topics?</div>
-        <p class="callout-text">
-          Each customer gets their own "topic" (thread) in a single Telegram supergroup.
-          The developer sees all support conversations organized per customer, with full media support.
-          It's a free, zero-infrastructure customer support desk. The <code>wa_tg_threads</code> table
-          in Supabase acts as the routing table: <code>phone ↔ telegram_topic_id</code>.
-        </p>
-      </div>
-    </div>
   </section>
 
-  <!-- ═══ SECTION 11: WORKER ═══ -->
-  <section class="section" id="worker">
-    <div class="section-label">Section 11</div>
-    <h2>Background Worker (Email + WhatsApp Delivery)</h2>
-
-    <p>A separate Node.js process (<code>worker.ts</code>) runs alongside the Express server on the same
-    droplet. It polls Supabase every 2 seconds for pending tasks and executes them concurrently.</p>
-
-    <div class="code-block">
-      <div class="code-label">apps/api-server/src/worker.ts — Poll Loop</div>
-<pre>
-every 2 seconds:
-  1. supabaseAdmin.rpc("grab_pending_tasks", { p_limit: 10 })
-     → Postgres RPC: UPDATE tasks SET status='processing'
-       WHERE status='pending' LIMIT 10 RETURNING *
-     → Atomic claim — no two workers can grab the same task
-
-  2. Promise.all(tasks.map(executeTask))
-     → Run all 10 tasks concurrently
-
-  3. Per task:
-     if type === "send_email"    → processSendEmail(payload)
-     if type === "send_whatsapp" → processSendWhatsApp(payload)
-
-  4. Mark status = "completed" or "failed" (with error_message)
-</pre>
-    </div>
-
-    <div class="two-col">
-      <div class="info-box">
-        <div class="label">send_email task</div>
-        <div class="value">Gmail API</div>
-        <ul>
-          <li>Uses organizer's own Gmail (OAuth2)</li>
-          <li>Sends from their personal email address</li>
-          <li>PDF link in email body (R2 URL)</li>
-        </ul>
-      </div>
-      <div class="info-box">
-        <div class="label">send_whatsapp task</div>
-        <div class="value">WA Business API</div>
-        <ul>
-          <li>Uses pre-approved template <code>document_senderv2</code></li>
-          <li>Returns wamid → stored in wa_messages</li>
-          <li>Delivery tracking via Meta webhooks</li>
-        </ul>
-      </div>
-    </div>
-  </section>
-
-  <!-- ═══ SECTION 12: GOOGLE ═══ -->
-  <section class="section" id="google">
-    <div class="section-label">Section 12</div>
-    <h2>Google Integration</h2>
-
-    <p>Each user connects their own Google account via OAuth 2.0. The refresh token is stored in Supabase
-    <code>user_profiles</code>. <code>getAuthClientForUser(uid)</code> loads the token and creates a
-    <code>google.auth.OAuth2</code> client that auto-refreshes when the access token expires.</p>
-
-    <h3>APIs Used</h3>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr><th>API</th><th>Version</th><th>Used For</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Google Drive API</td>
-            <td>v3</td>
-            <td>List Sheets/Slides, copy template, delete temp files, export to PDF, thumbnail proxy</td>
-          </tr>
-          <tr>
-            <td>Google Slides API</td>
-            <td>v1</td>
-            <td>Read slide placeholders (<code>{{variable}}</code>), <code>batchUpdate</code> text replacement</td>
-          </tr>
-          <tr>
-            <td>Google Sheets API</td>
-            <td>v4</td>
-            <td>Read spreadsheet data rows, list available sheets/tabs</td>
-          </tr>
-          <tr>
-            <td>Gmail API</td>
-            <td>v1</td>
-            <td>Send emails on behalf of the organizer from their personal Gmail address</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <div class="callout">
-      <div class="callout-icon">◆</div>
-      <div class="callout-body">
-        <div class="callout-title">CORS Strategy for Google Fonts</div>
-        <p class="callout-text">
-          Google Fonts CSS is fetched via the API server as a proxy to avoid CORS issues in the browser
-          during client-side rendering. Font files are cached in memory. The graph report marks this as
-          "Google API CORS Strategy" — a non-obvious architectural detail interviewers might ask about.
-        </p>
-      </div>
-    </div>
-  </section>
-
-  <!-- ═══ SECTION 13: PAYMENTS ═══ -->
+  <!-- ═══ SECTION 10: PAYMENTS ═══ -->
   <section class="section" id="payments">
-    <div class="section-label">Section 13</div>
+    <div class="section-label">Section 10</div>
     <h2>Payments — Cashfree + Wallet Credits</h2>
-
-    <p>Uses Cashfree (Indian payment gateway) with a wallet-credit model. Users top up their wallet,
-    credits are deducted per certificate generated.</p>
 
     <div class="flow">
       <div class="flow-step">
         <div class="flow-num">01</div>
         <div class="flow-content">
           <div class="flow-title">Create Order</div>
-          <div class="flow-desc"><code>POST /api/payments/order</code> → creates a Cashfree order and returns an order token to the frontend.</div>
+          <div class="flow-desc">`POST /api/payments/create-order` creates order mapping inside D1 and returns Cashfree session ID.</div>
         </div>
       </div>
       <div class="flow-step">
         <div class="flow-num">02</div>
         <div class="flow-content">
           <div class="flow-title">Checkout</div>
-          <div class="flow-desc">Cashfree SDK rendered in browser handles UPI / card / netbanking. No payment data ever hits our server.</div>
+          <div class="flow-desc">Cashfree gateway handles checkout in the browser via dynamic UPI/Card forms.</div>
         </div>
       </div>
       <div class="flow-step">
         <div class="flow-num">03</div>
         <div class="flow-content">
-          <div class="flow-title">Webhook Fires</div>
-          <div class="flow-desc">Cashfree sends <code>PAYMENT_SUCCESS_WEBHOOK</code> to <code>POST /api/webhooks/cashfree</code>. Server verifies the HMAC signature on the raw request body before processing.</div>
-        </div>
-      </div>
-      <div class="flow-step">
-        <div class="flow-num">04</div>
-        <div class="flow-content">
-          <div class="flow-title">Atomic Credit (Idempotent)</div>
-          <div class="flow-desc">Supabase RPC <code>process_payment()</code> checks if the order_id was already processed. Returns <code>already_processed</code> if so. Otherwise inserts ledger entry atomically. Prevents double-crediting from duplicate webhooks.</div>
+          <div class="flow-title">Verification</div>
+          <div class="flow-desc">`POST /api/payments/verify` performs order check. If confirmed, it uses D1 batch updates to credit the balance, insert ledger logs, and close the order atomically.</div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ═══ SECTION 14: DECISIONS ═══ -->
+  <!-- ═══ SECTION 11: DECISIONS ═══ -->
   <section class="section" id="decisions">
-    <div class="section-label">Section 14</div>
+    <div class="section-label">Section 11</div>
     <h2>Key Design Decisions</h2>
-
-    <p>These are the architectural choices most likely to come up in interviews. Each has a clear "why."</p>
 
     <div class="table-wrap">
       <table>
@@ -1589,139 +1072,55 @@ every 2 seconds:
         </thead>
         <tbody>
           <tr class="highlight-row">
-            <td>Client-side generation</td>
+            <td>Client-side Generation</td>
             <td>Browser renders and exports PDFs</td>
-            <td>Server OOM on $18 droplet for large batches. Also uses user's own Google API quota.</td>
+            <td>Zero server load / memory leaks. Scaled out to user's individual Google quota.</td>
           </tr>
           <tr class="highlight-row">
             <td>Presigned R2 URLs</td>
-            <td>Browser uploads directly to R2</td>
-            <td>Server never handles large payloads. Saves bandwidth and CPU on the droplet.</td>
+            <td>Direct browser-to-R2 upload</td>
+            <td>Worker never parses PDF buffers in memory, saving CPU and bandwidth.</td>
           </tr>
           <tr class="highlight-row">
-            <td>Postgres as task queue</td>
-            <td>Supabase tasks table + poll worker</td>
-            <td>Replaced BullMQ/Redis after Redis cost became a problem. Atomic UPDATE claim prevents duplicate processing.</td>
+            <td>Edge-Native Hono API</td>
+            <td>Hono deployed on Cloudflare Workers</td>
+            <td>Low latency routing globally, zero-cold start time, free scaling tiers.</td>
           </tr>
           <tr class="highlight-row">
-            <td>Cloudflare Worker for WA bot</td>
-            <td>Edge function, not on the droplet</td>
-            <td>Zero infrastructure, global low latency, free D1 SQLite, isolates bot from main server load.</td>
-          </tr>
-          <tr class="highlight-row">
-            <td>WhatsApp ↔ Telegram bridge</td>
-            <td>Worker bridges messages to TG topics</td>
-            <td>Free customer support desk. Developer can reply from Telegram; customer sees it on WhatsApp.</td>
-          </tr>
-          <tr class="highlight-row">
-            <td>OpenAPI codegen</td>
-            <td>Spec → Zod + React Query hooks</td>
-            <td>Single source of truth for types. No manual duplication between frontend and backend.</td>
-          </tr>
-          <tr class="highlight-row">
-            <td>JWKS + HMAC fallback</td>
-            <td>JWT verification with two strategies</td>
-            <td>Supabase changed key format (HMAC → RS256). Fallback ensures zero-downtime migration.</td>
-          </tr>
-          <tr class="highlight-row">
-            <td>Per-user Google OAuth</td>
-            <td>Each organizer uses their own Google account</td>
-            <td>Gmail sends from their own email (trusted). Slides edits are in their Drive. Per-user API quotas.</td>
+            <td>Cloudflare D1 Database</td>
+            <td>SQLite DB at the edge</td>
+            <td>Removes legacy PostgreSQL connection overhead and reduces data latency.</td>
           </tr>
         </tbody>
       </table>
     </div>
   </section>
 
-  <!-- ═══ SECTION 15: INTERVIEWS ═══ -->
+  <!-- ═══ SECTION 12: INTERVIEWS ═══ -->
   <section class="section" id="interviews">
-    <div class="section-label">Section 15</div>
+    <div class="section-label">Section 12</div>
     <h2>Interview Q&A</h2>
 
-    <p>Click any question to expand the answer.</p>
-
     <div class="qa">
-
       <div class="qa-item">
         <div class="qa-q" onclick="toggleQA(this)">
           Explain your system design in 60 seconds.
           <span class="arrow">▶</span>
         </div>
         <div class="qa-a">
-          It's a multi-tenant certificate SaaS on a $18 DigitalOcean droplet running Express. Certificate generation is client-side — the browser connects to Google APIs with the user's OAuth token, fills in the template, exports a PDF, and uploads it directly to Cloudflare R2 via a presigned URL. The server records the result in Supabase. For delivery, a background worker on the same droplet polls a Supabase tasks table every 2 seconds and executes email and WhatsApp sends. The WhatsApp bot is a separate Cloudflare Worker edge function with its own D1 SQLite for analytics. A Telegram bridge lets our developer support customers from Telegram while they see it on WhatsApp.
+          It's a serverless certificate generation platform. The frontend is React hosted on Cloudflare Pages. The API backend is written in Hono and deployed to Cloudflare Workers, using Cloudflare D1 as the edge relational database. When users generate certificates, the frontend copies Slides, replaces placeholders, and uploads the PDF directly to Cloudflare R2 using presigned URLs. For sending, client-side loops hit non-blocking worker endpoints that call Zeptomail or WhatsApp Cloud APIs, ensuring low memory footprint and high scalability.
         </div>
       </div>
 
       <div class="qa-item">
         <div class="qa-q" onclick="toggleQA(this)">
-          Why did you move from server-side to client-side certificate generation?
+          Why did you choose Cloudflare Workers + D1 over monolithic Express + Postgres?
           <span class="arrow">▶</span>
         </div>
         <div class="qa-a">
-          The server was crashing with out-of-memory errors on large batches — generating 200 PDFs concurrently was too much for the $18 droplet. Moving to client-side uses the browser's memory and CPU. It also moves the Google API calls into the user's own OAuth context, so we use their per-user quota instead of a shared project quota. The presigned R2 URL pattern means the server never even sees the PDF bytes — the browser uploads directly to object storage.
+          To reduce hosting costs, eliminate server connection limits, and ensure global low latency. Express backends running on single servers require complex scaling rules and database connection pool management. Cloudflare Workers handle routing globally with zero cold starts, and D1 operates SQLite queries with minimal network overhead.
         </div>
       </div>
-
-      <div class="qa-item">
-        <div class="qa-q" onclick="toggleQA(this)">
-          How does the WhatsApp ↔ Telegram support bridge work?
-          <span class="arrow">▶</span>
-        </div>
-        <div class="qa-a">
-          When a student taps "Talk to Developer," the Cloudflare Worker sets their state to support_active in D1 and creates a forum topic in a Telegram supergroup using the createForumTopic API. The topic ID is stored in a wa_tg_threads table in Supabase keyed by phone number. Every subsequent WhatsApp message from that student — text or media — is forwarded to that Telegram topic. For media, the Worker downloads the file from the WhatsApp Media API and re-uploads it to Telegram. When the developer replies in the Telegram topic, Telegram fires a webhook to /telegram on the Worker. The Worker reverse-looks up the thread ID in wa_tg_threads to find the phone number, downloads the media from Telegram if needed, uploads it to the WhatsApp Media API to get a media_id, and sends it to the customer. The student sees a seamless conversation.
-        </div>
-      </div>
-
-      <div class="qa-item">
-        <div class="qa-q" onclick="toggleQA(this)">
-          How do you prevent duplicate task execution in the background worker?
-          <span class="arrow">▶</span>
-        </div>
-        <div class="qa-a">
-          The Supabase RPC grab_pending_tasks() runs a single SQL statement: UPDATE tasks SET status='processing' WHERE id IN (SELECT id FROM tasks WHERE status='pending' LIMIT 10 FOR UPDATE SKIP LOCKED) RETURNING *. The FOR UPDATE SKIP LOCKED is key — it atomically locks and claims rows. Two concurrent worker instances (or two poll intervals) cannot grab the same task because the lock is held during the UPDATE. This is the standard Postgres queue pattern.
-        </div>
-      </div>
-
-      <div class="qa-item">
-        <div class="qa-q" onclick="toggleQA(this)">
-          How do you handle payment idempotency?
-          <span class="arrow">▶</span>
-        </div>
-        <div class="qa-a">
-          Cashfree webhooks can fire multiple times for the same payment (retries on timeout). The process_payment Supabase RPC checks if the order_id already exists in the wallet_ledger before inserting. If it does, it returns already_processed without crediting again. This entire check-and-insert runs inside a single SQL transaction, so there's no race condition even with concurrent webhook deliveries.
-        </div>
-      </div>
-
-      <div class="qa-item">
-        <div class="qa-q" onclick="toggleQA(this)">
-          Why use Cloudflare Worker instead of Express routes for the WhatsApp bot?
-          <span class="arrow">▶</span>
-        </div>
-        <div class="qa-a">
-          Three reasons. First, isolation — the bot runs independently of the API server, so a bot spike doesn't affect the main app. Second, cost — Cloudflare Worker free tier handles millions of requests and includes D1 SQLite for analytics, all free. Third, performance — Workers run at the edge globally, so WhatsApp webhook processing has low latency regardless of where Meta's servers deliver the webhook from.
-        </div>
-      </div>
-
-      <div class="qa-item">
-        <div class="qa-q" onclick="toggleQA(this)">
-          Explain the monorepo's codegen strategy.
-          <span class="arrow">▶</span>
-        </div>
-        <div class="qa-a">
-          The api-spec package holds a single OpenAPI YAML spec that defines every endpoint, request body, and response shape. A codegen script reads this and generates two things: api-zod (Zod schemas for server-side runtime validation) and api-client-react (React Query hooks for the frontend). When you add a new endpoint, you update the spec once, run codegen, and both the server validation and the client fetching code update automatically. There's no manual type duplication between frontend and backend.
-        </div>
-      </div>
-
-      <div class="qa-item">
-        <div class="qa-q" onclick="toggleQA(this)">
-          What happens if the DigitalOcean droplet runs out of memory?
-          <span class="arrow">▶</span>
-        </div>
-        <div class="qa-a">
-          The main risk is during large batch generation — but that's now client-side, so the server isn't involved. The biggest server-side memory consumers are the background worker (10 concurrent tasks, mostly I/O-bound) and Express itself. The WhatsApp bot is on a separate Cloudflare Worker, so it's unaffected. For the future, the natural scale path is to move the background worker to a separate process or a managed queue service like Inngest or Trigger.dev.
-        </div>
-      </div>
-
     </div>
   </section>
 
