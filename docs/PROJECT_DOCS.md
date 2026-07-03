@@ -135,6 +135,13 @@ Configure user identification and sign-in.
 - `CASHFREE_APP_ID`: App ID from Cashfree dashboard.
 - `CASHFREE_SECRET_KEY`: Secret key from Cashfree dashboard.
 
+### Prepaid Credits System
+- `CREDITS_PER_RUPEE`: Conversion rate for wallet recharges (credits received per 1 INR, defaults to 10).
+- `CREDIT_COST_GENERATION`: Global default credit cost per certificate generation (defaults to 5).
+- `CREDIT_COST_EMAIL`: Global default credit cost per Gmail email delivery (defaults to 1).
+- `CREDIT_COST_WHATSAPP`: Global default credit cost per WhatsApp message delivery (defaults to 2).
+- `MIN_RECHARGE_AMOUNT`: Minimum wallet recharge limit in INR (defaults to 100).
+
 ---
 
 ## 5. Package: `@workspace/supabase` — Identity Helpers
@@ -240,12 +247,17 @@ Delivery tasks are processed using client-driven loops inside the frontend to av
 
 ---
 
-## 14. Cashfree Payments & Prepaid Wallet
+## 14. Cashfree Payments & Prepaid Credits Wallet
 
-Idempotent top-ups prevent double charging:
-1. **Initiate**: `POST /payments/create-order` creates an order inside D1 (`payment_orders`) and returns a session ID.
-2. **Checkout**: The browser renders the Cashfree SDK modal for checkout.
-3. **Verify**: Frontend or Webhooks trigger `POST /payments/verify`. D1 checks if `processed = 0`. If unpaid, it checks the payment gateway status. If confirmed `PAID`, it atomically updates the workspace balance in `workspaces`, logs the transaction in `ledgers`, and sets `processed = 1`.
+Cephlow uses a prepaid credits system for usage billing. Wallet balances, transactions, and rates are tracked in credits:
+1. **Recharge Flow**:
+   - The user recharges in INR. `POST /payments/create-order` validates the minimum amount `MIN_RECHARGE_AMOUNT` (defaults to 100 INR).
+   - The browser renders the Cashfree SDK modal for checkout.
+   - Upon completion, `POST /payments/verify` fetches the order status from Cashfree and credits the workspace wallet by converting the INR amount to credits (`credits = INR * CREDITS_PER_RUPEE`).
+   - Recharges are logged in the `ledgers` table.
+2. **Deductions**:
+   - **Certificate Generation**: Deduced atomically from workspace credit balance when batch generation starts. The cost is `generation_cost` credits per new certificate and `generation_cost * 0.2` (20% of standard rate) per visual regeneration.
+   - **Delivery**: Deduced atomically when sending emails (`email_cost` credits) or WhatsApp messages (`whatsapp_cost` credits). Workspace-specific rates default to system env parameters (`CREDIT_COST_EMAIL` and `CREDIT_COST_WHATSAPP`).
 
 ---
 
