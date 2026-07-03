@@ -64,4 +64,4 @@
     - [x] Document new credit system in README
     - [x] Add env variable configuration guide
     - [x] Update API documentation
-- [ ] Task: Conductor - User Manual Verification 'Integration Testing & Documentation' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Integration Testing & Documentation' (Protocol in workflow.md)
