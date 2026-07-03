@@ -49,10 +49,10 @@
     - [x] Write tests for minimum recharge validation
     - [x] Add minimum recharge amount validation to top-up form
     - [x] Display credit conversion rate
-- [ ] Task: Update batch generation UI
-    - [ ] Write tests for credit cost display
-    - [ ] Show per-action credit costs in batch generation page
-    - [ ] Add insufficient credits warning
+- [x] Task: Update batch generation UI (469b479)
+    - [x] Write tests for credit cost display
+    - [x] Show per-action credit costs in batch generation page
+    - [x] Add insufficient credits warning
 - [ ] Task: Conductor - User Manual Verification 'Frontend - Wallet UI Updates' (Protocol in workflow.md)
 
 ## Phase 5: Integration Testing & Documentation
