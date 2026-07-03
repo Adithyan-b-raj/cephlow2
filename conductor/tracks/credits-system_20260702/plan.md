@@ -1,10 +1,10 @@
 # Implementation Plan: Credits System Instead of Direct Mapping
 
 ## Phase 1: Backend - Credits Configuration & Schema
-- [ ] Task: Create credits configuration module
-    - [ ] Write tests for credits configuration loading
-    - [ ] Implement credits config module that reads env variables (CREDITS_PER_RUPEE, CREDIT_COST_GENERATION, CREDIT_COST_EMAIL, CREDIT_COST_WHATSAPP, MIN_RECHARGE_AMOUNT)
-    - [ ] Add validation for required env variables
+- [x] Task: Create credits configuration module (34e7088)
+    - [x] Write tests for credits configuration loading
+    - [x] Implement credits config module that reads env variables (CREDITS_PER_RUPEE, CREDIT_COST_GENERATION, CREDIT_COST_EMAIL, CREDIT_COST_WHATSAPP, MIN_RECHARGE_AMOUNT)
+    - [x] Add validation for required env variables
 - [ ] Task: Update database schema for credits
     - [ ] Write tests for credits schema validation
     - [ ] Add credits_cost columns to workspaces table (generation_cost, email_cost, whatsapp_cost)
