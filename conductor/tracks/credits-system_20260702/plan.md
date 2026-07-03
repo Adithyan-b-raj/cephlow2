@@ -23,7 +23,7 @@
     - [x] Write tests for credit conversion during top-up
     - [x] Modify process_payment to calculate credits using CREDITS_PER_RUPEE
     - [x] Enforce MIN_RECHARGE_AMOUNT validation
-- [ ] Task: Conductor - User Manual Verification 'Backend - Credit Consumption Logic' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Backend - Credit Consumption Logic' (Protocol in workflow.md)
 
 ## Phase 3: Backend - API Updates
 - [ ] Task: Update wallet API endpoints
