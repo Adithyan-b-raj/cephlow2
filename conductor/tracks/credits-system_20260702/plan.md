@@ -26,10 +26,10 @@
 - [x] Task: Conductor - User Manual Verification 'Backend - Credit Consumption Logic' (Protocol in workflow.md) (af73f3c)
 
 ## Phase 3: Backend - API Updates
-- [ ] Task: Update wallet API endpoints
-    - [ ] Write tests for credits balance response
-    - [ ] Modify GET /api/wallet to return credits instead of Rs.
-    - [ ] Add credits cost breakdown to response
+- [x] Task: Update wallet API endpoints (f96f356)
+    - [x] Write tests for credits balance response
+    - [x] Modify GET /api/wallet to return credits instead of Rs.
+    - [x] Add credits cost breakdown to response
 - [ ] Task: Update payment API endpoints
     - [ ] Write tests for minimum recharge validation
     - [ ] Modify POST /api/payments/create-order to validate MIN_RECHARGE_AMOUNT
