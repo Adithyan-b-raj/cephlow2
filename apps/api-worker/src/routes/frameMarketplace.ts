@@ -308,6 +308,34 @@ router.delete("/marketplace/listings/:id", async (c) => {
   }
 });
 
+// 7b. Remove a marketplace frame from workspace's owned collection
+router.delete("/marketplace/purchases/:listingId", async (c) => {
+  const workspace = c.get("workspace")!;
+  const { listingId } = c.req.param();
+  try {
+    const purchase = await c.env.DB.prepare(`
+      SELECT id FROM frame_purchases WHERE listing_id = ? AND workspace_id = ?
+    `).bind(listingId, workspace.id).first<{ id: string }>();
+
+    if (!purchase) {
+      return c.json({ error: "Purchase not found for this workspace" }, 404);
+    }
+
+    await c.env.DB.batch([
+      c.env.DB.prepare(`DELETE FROM frame_purchases WHERE id = ?`).bind(purchase.id),
+      c.env.DB.prepare(`
+        UPDATE frame_listings
+        SET purchase_count = MAX(0, purchase_count - 1), updated_at = datetime('now')
+        WHERE id = ?
+      `).bind(listingId),
+    ]);
+
+    return c.json({ success: true });
+  } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
 // 8. Purchase listing (D1 Batch transaction)
 router.post("/marketplace/listings/:id/purchase", async (c) => {
   const user = c.get("user")!;

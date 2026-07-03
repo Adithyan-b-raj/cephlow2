@@ -327,6 +327,46 @@ router.delete("/marketplace/listings/:id", async (req, res) => {
   }
 });
 
+// ─── DELETE /api/marketplace/purchases/:listingId ─────────────────────────────
+// Remove a marketplace frame from this workspace's owned collection.
+router.delete("/marketplace/purchases/:listingId", async (req, res) => {
+  try {
+    const workspaceId = req.workspace!.id;
+    const { listingId } = req.params;
+
+    const { data: purchase, error: fetchErr } = await supabaseAdmin
+      .from("frame_purchases")
+      .select("id")
+      .eq("listing_id", listingId)
+      .eq("workspace_id", workspaceId)
+      .maybeSingle();
+
+    if (fetchErr || !purchase) {
+      return res.status(404).json({ error: "Purchase not found for this workspace" });
+    }
+
+    await supabaseAdmin.from("frame_purchases").delete().eq("id", purchase.id);
+
+    // Decrement purchase_count on the listing
+    const { data: listing } = await supabaseAdmin
+      .from("frame_listings")
+      .select("purchase_count")
+      .eq("id", listingId)
+      .maybeSingle();
+
+    if (listing) {
+      await supabaseAdmin
+        .from("frame_listings")
+        .update({ purchase_count: Math.max(0, (listing.purchase_count ?? 1) - 1) })
+        .eq("id", listingId);
+    }
+
+    return res.json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // ─── POST /api/marketplace/listings/:id/purchase ─────────────────────────────
 // Atomic via purchase_marketplace_frame RPC — no partial-failure risk.
 router.post("/marketplace/listings/:id/purchase", async (req, res) => {

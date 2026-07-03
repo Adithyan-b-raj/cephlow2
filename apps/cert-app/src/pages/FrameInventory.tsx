@@ -352,10 +352,15 @@ function OwnedTab() {
   };
 
   const handleDelete = async (frame: OwnedFrameEntry) => {
-    if (!frame.frameTemplateId) return;
     setDeletingId(frame.id);
     try {
-      await customFetch('/api/frame-templates/' + frame.frameTemplateId, { method: "DELETE" });
+      if (frame.source === "designed") {
+        if (!frame.frameTemplateId) return;
+        await customFetch('/api/frame-templates/' + frame.frameTemplateId, { method: "DELETE" });
+      } else {
+        if (!frame.listingId) return;
+        await customFetch('/api/marketplace/purchases/' + frame.listingId, { method: "DELETE" });
+      }
       setFrames(prev => prev.filter(f => f.id !== frame.id));
       toast({ title: '"' + frame.name + '" deleted' });
     } catch (err: any) {
@@ -441,7 +446,17 @@ function OwnedTab() {
                 </>
               )}
               {f.source === "marketplace" && (
-                <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest px-1.5 py-0.5">From Marketplace</span>
+                <>
+                  <span className="flex-1 text-[9px] font-bold text-muted-foreground uppercase tracking-widest px-1.5 py-0.5">From Marketplace</span>
+                  <button
+                    onClick={() => handleDelete(f)}
+                    disabled={deletingId === f.id}
+                    title="Remove from owned frames"
+                    className="p-1.5 text-muted-foreground hover:text-red-500 transition-colors disabled:opacity-30"
+                  >
+                    {deletingId === f.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  </button>
+                </>
               )}
             </div>
           </div>
