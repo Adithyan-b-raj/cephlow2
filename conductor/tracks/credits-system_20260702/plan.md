@@ -55,7 +55,7 @@
     - [x] Add insufficient credits warning
 - [x] Task: Conductor - User Manual Verification 'Frontend - Wallet UI Updates' (Protocol in workflow.md) (92e3cd3)
 
-## Phase 5: Integration Testing & Documentation
+## Phase 5: Integration Testing & Documentation [checkpoint: b68ef4d]
 - [x] Task: Write integration tests (6497159)
     - [x] Test complete recharge flow with credits
     - [x] Test certificate generation with credit deduction
@@ -64,4 +64,4 @@
     - [x] Document new credit system in README
     - [x] Add env variable configuration guide
     - [x] Update API documentation
-- [~] Task: Conductor - User Manual Verification 'Integration Testing & Documentation' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Integration Testing & Documentation' (Protocol in workflow.md) (b68ef4d)
