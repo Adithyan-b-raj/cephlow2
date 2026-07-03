@@ -9,7 +9,7 @@
     - [x] Write tests for credits schema validation
     - [x] Add credits_cost columns to workspaces table (generation_cost, email_cost, whatsapp_cost)
     - [x] Update ledgers table to include action_type field (generation, email, whatsapp)
-- [ ] Task: Conductor - User Manual Verification 'Backend - Credits Configuration & Schema' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Backend - Credits Configuration & Schema' (Protocol in workflow.md)
 
 ## Phase 2: Backend - Credit Consumption Logic
 - [ ] Task: Create credit calculation service
