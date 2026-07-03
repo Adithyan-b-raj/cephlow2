@@ -1,0 +1,7 @@
+Phase Verification Report: Phase 4: Frontend - Wallet UI Updates
+Automated test command: pnpm --filter @workspace/api-server test && pnpm --filter @workspace/cert-app typecheck
+Manual verification steps:
+1. Verify wallet page display: Go to /wallet, verify balance, transactions, and transfers render in credits; check Workspace Cost Rates card displays rates.
+2. Verify top-up dialog validations: Open dialog, verify rate is displayed, and Proceed to Pay is disabled/enabled based on minimum top-up validations.
+3. Verify batch generation estimated cost: View any batch detail, select certs, verify cost calculations, rates, and insufficient credits warning banner.
+User Confirmation: Yes, this meets my expectations.
