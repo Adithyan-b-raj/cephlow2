@@ -2,6 +2,8 @@ import { Router } from "express";
 import { Cashfree, CFEnvironment } from "cashfree-pg";
 import { CreateOrderBody } from "@workspace/api-zod";
 import { supabaseAdmin } from "@workspace/supabase";
+import { getCreditsConfig } from "../lib/creditsConfig.js";
+import { calculateCreditsFromRupees } from "../lib/creditsService.js";
 
 const env = process.env.VITE_CASHFREE_ENV === "PRODUCTION" ? CFEnvironment.PRODUCTION : CFEnvironment.SANDBOX;
 
@@ -18,6 +20,14 @@ const router = Router();
 router.post("/payments/create-order", async (req, res) => {
   try {
     const result = CreateOrderBody.parse(req.body);
+
+    const config = getCreditsConfig();
+    if (result.amount < config.MIN_RECHARGE_AMOUNT) {
+      return res.status(400).json({
+        error: `Minimum recharge amount is Rs. ${config.MIN_RECHARGE_AMOUNT}`
+      });
+    }
+
     const uid = req.user!.uid;
     const phone = (req.user as any)?.phone_number || "9999999999";
     const email = req.user?.email || "sandbox@example.com";
@@ -117,10 +127,12 @@ router.post("/payments/verify", async (req, res) => {
     const amount = cfOrder.order_amount || orderRow.amount;
     const userId = orderRow.user_id;
 
+    const credits = calculateCreditsFromRupees(amount);
     const { data: rpcResult, error: rpcErr } = await supabaseAdmin.rpc("process_payment", {
       p_user_id: userId,
       p_order_id: order_id,
       p_amount: amount,
+      p_credits: credits,
       p_payment_id: null,
       p_payment_method: null,
     });

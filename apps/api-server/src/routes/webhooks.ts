@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { supabaseAdmin } from "@workspace/supabase";
 import { Cashfree, CFEnvironment } from "cashfree-pg";
+import { calculateCreditsFromRupees } from "../lib/creditsService.js";
 
 const router = Router();
 
@@ -106,10 +107,12 @@ router.post("/webhooks/cashfree", async (req, res) => {
       const amount = payment.payment_amount;
       const customerId = customer_details.customer_id;
 
+      const credits = calculateCreditsFromRupees(amount);
       const { data: rpcResult, error: rpcErr } = await supabaseAdmin.rpc("process_payment", {
         p_user_id: customerId,
         p_order_id: orderId,
         p_amount: amount,
+        p_credits: credits,
         p_payment_id: payment.cf_payment_id || null,
         p_payment_method: payment.payment_group || null,
       });
