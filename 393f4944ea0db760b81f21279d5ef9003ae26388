@@ -1,0 +1,11 @@
+Task: Update payment order processing
+Summary of changes:
+1. Created migrations/025_update_rpc_process_payment.sql updating process_payment RPC to credit workspaces in credits (instead of Rupees) and log original rupee details in description & metadata.
+2. Updated payments.ts route to validate MIN_RECHARGE_AMOUNT on create-order.
+3. Updated payments.ts verify endpoint and webhooks.ts webhook handler to calculate credits using calculateCreditsFromRupees and pass it as p_credits to the updated process_payment RPC.
+Created files:
+- migrations/025_update_rpc_process_payment.sql
+Modified files:
+- apps/api-server/src/routes/payments.ts
+- apps/api-server/src/routes/webhooks.ts
+Why: Align wallet deposits with the credits model by converting incoming Rupees to credits based on CREDITS_PER_RUPEE and enforcing the configured minimum recharge amount.
