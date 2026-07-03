@@ -40,7 +40,7 @@
     - [x] Return detailed credit cost breakdown in response
 - [x] Task: Conductor - User Manual Verification 'Backend - API Updates' (Protocol in workflow.md) (66c58bf)
 
-## Phase 4: Frontend - Wallet UI Updates
+## Phase 4: Frontend - Wallet UI Updates [checkpoint: 92e3cd3]
 - [x] Task: Update wallet page to display credits (4c32f8a)
     - [x] Write tests for credits display
     - [x] Modify Wallet.tsx to show credits balance
@@ -53,7 +53,7 @@
     - [x] Write tests for credit cost display
     - [x] Show per-action credit costs in batch generation page
     - [x] Add insufficient credits warning
-- [~] Task: Conductor - User Manual Verification 'Frontend - Wallet UI Updates' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Frontend - Wallet UI Updates' (Protocol in workflow.md) (92e3cd3)
 
 ## Phase 5: Integration Testing & Documentation
 - [ ] Task: Write integration tests
