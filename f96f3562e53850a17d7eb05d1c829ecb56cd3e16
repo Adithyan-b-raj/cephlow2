@@ -1,0 +1,9 @@
+Task: Update wallet API endpoints
+Summary of changes:
+1. Modified GET /api/wallet in wallet.ts to select generation_cost, email_cost, and whatsapp_cost from workspaces table and return them in a costs object.
+2. Created wallet.test.ts to unit test GET /api/wallet endpoint, validating it returns currentBalance, transferCode, and the correct costs breakdown.
+Created files:
+- apps/api-server/src/routes/wallet.test.ts
+Modified files:
+- apps/api-server/src/routes/wallet.ts
+Why: Allow client applications to retrieve the specific credit costs of the current workspace for client-side balance checks and UI display.
