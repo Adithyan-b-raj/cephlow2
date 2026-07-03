@@ -1,0 +1,7 @@
+Task: Update batch generation UI
+Summary of changes:
+1. Updated BatchDetail.tsx to dynamically calculate and present the estimated credit cost of triggering batch generation (differentiating between new certificates and outdated certificates requiring visual regeneration).
+2. Added an info banner displaying the estimated credits cost of the action, the individual action rates, and a warning if the workspace balance is insufficient.
+Modified files:
+- apps/cert-app/src/pages/batches/BatchDetail.tsx
+Why: Ensure users have full visibility of the credit costs associated with certificate generation actions directly in the page UI.
