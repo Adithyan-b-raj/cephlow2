@@ -1,0 +1,6 @@
+Task: Update payment API endpoints
+Summary of changes:
+1. Created payments.test.ts to unit test POST /payments/create-order and POST /payments/verify, verifying Zod schemas, MIN_RECHARGE_AMOUNT validation, and that credit conversions are accurately performed using calculateCreditsFromRupees.
+Created files:
+- apps/api-server/src/routes/payments.test.ts
+Why: Ensure robust validation of payment recharges and proper credit conversions before invoking database RPCs.
