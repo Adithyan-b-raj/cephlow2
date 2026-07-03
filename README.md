@@ -50,6 +50,15 @@ This project is structured as a **pnpm monorepo** with shared workspaces.
 
 ---
 
+## 📚 Documentation
+
+The following guides are available in the [docs/](file:///c:/Users/AKSHAY/Desktop/code/projects/fork-cephlow/adi-cephlow/cephlow2/docs/) folder:
+- **[System Architecture](file:///c:/Users/AKSHAY/Desktop/code/projects/fork-cephlow/adi-cephlow/cephlow2/docs/architecture.html)**: Interactive visual mapping of database, services, and communication flows.
+- **[Full Project Docs](file:///c:/Users/AKSHAY/Desktop/code/projects/fork-cephlow/adi-cephlow/cephlow2/docs/PROJECT_DOCS.md)**: Deep dive into modules, folder layout, data structures, and auth/sending pipelines.
+- **[Scaling & Edge Evolution](file:///c:/Users/AKSHAY/Desktop/code/projects/fork-cephlow/adi-cephlow/cephlow2/docs/SCALING.md)**: Performance milestones, edge migration history, cost breakdowns, and interview talking points.
+
+---
+
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -70,7 +79,7 @@ pnpm install
 
 ### 2. Environment Variables
 
-Create a single `.env` file in the **root** of the repository. See `PROJECT_DOCS.md` for the complete list of required environment variables for Supabase, Google OAuth, Cloudflare R2, WhatsApp, and Cashfree.
+Create a single `.env` file in the **root** of the repository. See `docs/PROJECT_DOCS.md` for the complete list of required environment variables for Supabase, Google OAuth, Cloudflare R2, WhatsApp, and Cashfree.
 
 ### 3. Running Locally
 
