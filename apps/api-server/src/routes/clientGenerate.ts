@@ -232,6 +232,13 @@ throw rpcErr;
     return res.json({
       success: true,
       isApproved: approved,
+      costBreakdown: {
+        rate: RATE,
+        regenRate: REGEN_RATE,
+        unpaidCount,
+        visualRegenCount,
+        totalCost: cost,
+      },
       batch: {
         id: batch.id,
         name: batch.name,
