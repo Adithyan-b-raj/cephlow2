@@ -7,6 +7,9 @@ CREATE TABLE IF NOT EXISTS workspaces (
   owner_id TEXT NOT NULL, -- Matches Supabase Auth UID
   current_balance REAL NOT NULL DEFAULT 0,
   transfer_code TEXT UNIQUE,
+  generation_cost REAL NOT NULL DEFAULT 1.0,
+  email_cost REAL NOT NULL DEFAULT 0.2,
+  whatsapp_cost REAL NOT NULL DEFAULT 0.5,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS workspaces_owner_id_idx ON workspaces(owner_id);
@@ -139,6 +142,7 @@ CREATE TABLE IF NOT EXISTS ledgers (
   description TEXT NOT NULL,
   metadata TEXT,                 -- Stored as JSON string
   transfer_id TEXT,
+  action_type TEXT CHECK (action_type IN ('generation', 'email', 'whatsapp')),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS ledgers_workspace_idx ON ledgers(workspace_id);
