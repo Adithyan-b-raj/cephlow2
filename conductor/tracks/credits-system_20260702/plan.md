@@ -30,10 +30,10 @@
     - [x] Write tests for credits balance response
     - [x] Modify GET /api/wallet to return credits instead of Rs.
     - [x] Add credits cost breakdown to response
-- [ ] Task: Update payment API endpoints
-    - [ ] Write tests for minimum recharge validation
-    - [ ] Modify POST /api/payments/create-order to validate MIN_RECHARGE_AMOUNT
-    - [ ] Update POST /api/payments/verify to calculate credits
+- [x] Task: Update payment API endpoints (60b9c62)
+    - [x] Write tests for minimum recharge validation
+    - [x] Modify POST /api/payments/create-order to validate MIN_RECHARGE_AMOUNT
+    - [x] Update POST /api/payments/verify to calculate credits
 - [ ] Task: Update batch generation API
     - [ ] Write tests for credit check before generation
     - [ ] Modify POST /batches/:batchId/client-generate to check credits
