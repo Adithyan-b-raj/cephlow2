@@ -38,7 +38,7 @@
     - [x] Write tests for credit check before generation
     - [x] Modify POST /batches/:batchId/client-generate to check credits
     - [x] Return detailed credit cost breakdown in response
-- [ ] Task: Conductor - User Manual Verification 'Backend - API Updates' (Protocol in workflow.md)
+- [~] Task: Conductor - User Manual Verification 'Backend - API Updates' (Protocol in workflow.md)
 
 ## Phase 4: Frontend - Wallet UI Updates
 - [ ] Task: Update wallet page to display credits
