@@ -1,6 +1,6 @@
 # Implementation Plan: Credits System Instead of Direct Mapping
 
-## Phase 1: Backend - Credits Configuration & Schema
+## Phase 1: Backend - Credits Configuration & Schema [checkpoint: bd07461]
 - [x] Task: Create credits configuration module (34e7088)
     - [x] Write tests for credits configuration loading
     - [x] Implement credits config module that reads env variables (CREDITS_PER_RUPEE, CREDIT_COST_GENERATION, CREDIT_COST_EMAIL, CREDIT_COST_WHATSAPP, MIN_RECHARGE_AMOUNT)
@@ -9,7 +9,7 @@
     - [x] Write tests for credits schema validation
     - [x] Add credits_cost columns to workspaces table (generation_cost, email_cost, whatsapp_cost)
     - [x] Update ledgers table to include action_type field (generation, email, whatsapp)
-- [~] Task: Conductor - User Manual Verification 'Backend - Credits Configuration & Schema' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Backend - Credits Configuration & Schema' (Protocol in workflow.md) (bd07461)
 
 ## Phase 2: Backend - Credit Consumption Logic
 - [ ] Task: Create credit calculation service
