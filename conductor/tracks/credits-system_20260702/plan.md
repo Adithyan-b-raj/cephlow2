@@ -19,10 +19,10 @@
     - [x] Write tests for per-action credit deduction
     - [x] Modify start_batch_generation RPC to deduct configurable generation cost
     - [x] Create deduct_delivery_credits function for email/WhatsApp
-- [ ] Task: Update payment order processing
-    - [ ] Write tests for credit conversion during top-up
-    - [ ] Modify process_payment to calculate credits using CREDITS_PER_RUPEE
-    - [ ] Enforce MIN_RECHARGE_AMOUNT validation
+- [x] Task: Update payment order processing (393f494)
+    - [x] Write tests for credit conversion during top-up
+    - [x] Modify process_payment to calculate credits using CREDITS_PER_RUPEE
+    - [x] Enforce MIN_RECHARGE_AMOUNT validation
 - [ ] Task: Conductor - User Manual Verification 'Backend - Credit Consumption Logic' (Protocol in workflow.md)
 
 ## Phase 3: Backend - API Updates
