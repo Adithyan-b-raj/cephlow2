@@ -12,9 +12,9 @@
 - [x] Task: Conductor - User Manual Verification 'Backend - Credits Configuration & Schema' (Protocol in workflow.md) (bd07461)
 
 ## Phase 2: Backend - Credit Consumption Logic
-- [ ] Task: Create credit calculation service
-    - [ ] Write tests for credit calculation (amount * credits_per_rupee)
-    - [ ] Implement credit calculation service with env-based config
+- [x] Task: Create credit calculation service (6014f9e)
+    - [x] Write tests for credit calculation (amount * credits_per_rupee)
+    - [x] Implement credit calculation service with env-based config
 - [ ] Task: Update wallet deduction logic
     - [ ] Write tests for per-action credit deduction
     - [ ] Modify start_batch_generation RPC to deduct configurable generation cost
