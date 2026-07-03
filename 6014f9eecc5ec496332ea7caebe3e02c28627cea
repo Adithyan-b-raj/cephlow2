@@ -1,0 +1,6 @@
+Task: Create credit calculation service
+Summary of changes: Created creditsService.ts with calculateCreditsFromRupees helper function. Created creditsService.test.ts to test rupee-to-credits conversion, zero amounts, and configuration missing edge cases.
+Created files:
+- apps/api-server/src/lib/creditsService.ts
+- apps/api-server/src/lib/creditsService.test.ts
+Why: Decouple credit conversion logic from route handlers and ensure correct and testable conversion values.
