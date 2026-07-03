@@ -1,0 +1,22 @@
+Task: Update wallet deduction logic
+Summary of changes:
+1. Created deduct_delivery_credits RPC in migrations/024_create_deduct_delivery_credits_rpc.sql to atomically verify balance and deduct credit cost for email/whatsapp.
+2. Created migrations/023_update_rpc_generation_cost.sql updating start_batch_generation RPC to dynamically resolve workspace-specific generation_cost from the database.
+3. Updated workspaces.ts route to initialize default credit costs (generation, email, whatsapp) from env config.
+4. Updated clientGenerate.ts to read workspace generation_cost and calculate costs.
+5. Updated sendEmail.ts and sendWhatsApp.ts processors to atomically deduct credits per delivery.
+6. Created tests in creditsService.test.ts for deductDeliveryCredits.
+7. Fixed tsconfig references to compile @workspace/supabase composite project.
+Created files:
+- migrations/023_update_rpc_generation_cost.sql
+- migrations/024_create_deduct_delivery_credits_rpc.sql
+Modified files:
+- apps/api-server/package.json
+- tsconfig.json
+- apps/api-server/src/lib/creditsService.ts
+- apps/api-server/src/lib/creditsService.test.ts
+- apps/api-server/src/processors/sendEmail.ts
+- apps/api-server/src/processors/sendWhatsApp.ts
+- apps/api-server/src/routes/clientGenerate.ts
+- apps/api-server/src/routes/workspaces.ts
+Why: Securely charge users based on actual database-defined per-action credit costs (generation, email, whatsapp) instead of client-controlled values.
