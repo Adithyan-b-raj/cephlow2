@@ -1,0 +1,8 @@
+Task: Update wallet page to display credits
+Summary of changes:
+1. Updated Wallet.tsx UI to represent balances, transactions, and transfers in credits rather than Rupees.
+2. Dynamically computed generation limit using workspace-specific generation costs fetched from the backend.
+3. Appended a Workspace Cost Rates breakdown grid displaying the current workspace generation, email, and whatsapp rates.
+Modified files:
+- apps/cert-app/src/pages/Wallet.tsx
+Why: Complete the wallet transition to the credits system in the UI, informing users of their actual credit capacity and workspace cost structures.
