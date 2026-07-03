@@ -1,0 +1,10 @@
+Task: Create credits configuration module
+Summary of changes: Created creditsConfig.ts to parse and validate environment variables CREDITS_PER_RUPEE, CREDIT_COST_GENERATION, CREDIT_COST_EMAIL, CREDIT_COST_WHATSAPP, and MIN_RECHARGE_AMOUNT. Created creditsConfig.test.ts with unit tests for config loading, default values, missing fields, and type validation. Added test scripts to package.json files.
+Created files:
+- apps/api-server/src/lib/creditsConfig.ts
+- apps/api-server/src/lib/creditsConfig.test.ts
+Modified files:
+- apps/api-server/package.json
+- package.json
+- conductor/tracks.md
+Why: Enable environment variable-driven pricing and configuration for the credits-based system.
