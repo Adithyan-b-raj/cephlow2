@@ -1,0 +1,12 @@
+Phase Verification Report: Phase 2: Backend - Credit Consumption Logic
+Automated test command: pnpm --filter @workspace/api-server test
+Manual verification steps:
+1. Apply the migration scripts on your Supabase instance:
+   - migrations/023_update_rpc_generation_cost.sql
+   - migrations/024_create_deduct_delivery_credits_rpc.sql
+   - migrations/025_update_rpc_process_payment.sql
+2. Verify minimum recharge verification: Attempt to create a payment order with an amount less than MIN_RECHARGE_AMOUNT and verify it is rejected with 400.
+3. Verify credit top-up conversion: Confirm a payment and verify workspaces.current_balance increases by amount * CREDITS_PER_RUPEE, and ledgers records a topup entry.
+4. Verify generation cost consumption: Trigger generation and verify workspace-specific generation_cost is deducted and logged with action_type='generation'.
+5. Verify delivery cost consumption: Run delivery and verify workspace-specific email_cost or whatsapp_cost is deducted per successful send and logged.
+User Confirmation: Yes, this meets my expectations.
