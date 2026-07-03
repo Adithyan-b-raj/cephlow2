@@ -9,7 +9,7 @@ router.get("/wallet", async (req, res) => {
 
     const { data, error } = await supabaseAdmin
       .from("workspaces")
-      .select("current_balance, transfer_code")
+      .select("current_balance, transfer_code, generation_cost, email_cost, whatsapp_cost")
       .eq("id", workspaceId)
       .single();
 
@@ -17,6 +17,11 @@ router.get("/wallet", async (req, res) => {
     return res.json({
       currentBalance: data?.current_balance ?? 0,
       transferCode: data?.transfer_code ?? null,
+      costs: {
+        generation: data?.generation_cost ?? 1.0,
+        email: data?.email_cost ?? 1.0,
+        whatsapp: data?.whatsapp_cost ?? 1.0,
+      }
     });
   } catch (err: any) {
     console.error("Error fetching wallet balance:", err);
