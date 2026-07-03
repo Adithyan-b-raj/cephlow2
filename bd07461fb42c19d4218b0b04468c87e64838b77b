@@ -1,0 +1,8 @@
+Phase Verification Report: Phase 1: Backend - Credits Configuration & Schema
+Automated test command: pnpm --filter @workspace/api-server test
+Manual verification steps:
+1. Apply the PostgreSQL migration script migrations/022_add_credits_schema.sql on your Supabase database instance.
+2. Verify that the database columns generation_cost, email_cost, and whatsapp_cost are created with correct defaults in the workspaces table, and action_type is added to ledgers.
+3. Verify the configuration module by setting the required environment variables in your .env file and starting the server using npm run dev.
+4. Confirm that the server starts up without errors.
+User Confirmation: Yes, this meets my expectations.
