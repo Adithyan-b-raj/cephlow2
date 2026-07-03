@@ -1,0 +1,10 @@
+Task: Update top-up dialog
+Summary of changes:
+1. Updated wallet.ts GET /wallet route response to include creditsPerRupee and minRechargeAmount values in costs.
+2. Updated wallet.test.ts to verify returned configuration values.
+3. Updated Wallet.tsx top-up dialog form to validate that topUpAmount >= minRechargeAmount, displaying warning and green success labels with credit preview, and disabling Proceed to Pay button if amount is invalid.
+Modified files:
+- apps/api-server/src/routes/wallet.ts
+- apps/api-server/src/routes/wallet.test.ts
+- apps/cert-app/src/pages/Wallet.tsx
+Why: Provide reactive client-side validation on recharges to match backend constraints and show live credit conversion preview.
