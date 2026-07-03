@@ -1,0 +1,9 @@
+Task: Update batch generation API
+Summary of changes:
+1. Updated clientGenerate.ts POST /batches/:batchId/client-generate response to include a costBreakdown object returning rate, regenRate, unpaidCount, visualRegenCount, and totalCost.
+2. Created clientGenerate.test.ts to unit test client-generate endpoint, verifying it correctly calculates costs from database workspace_cost columns, handles insufficient funds with 402, and returns the expected costBreakdown.
+Created files:
+- apps/api-server/src/routes/clientGenerate.test.ts
+Modified files:
+- apps/api-server/src/routes/clientGenerate.ts
+Why: Ensure clients receive a detailed cost breakdown before starting certificate generation to confirm billing details in the UI.
