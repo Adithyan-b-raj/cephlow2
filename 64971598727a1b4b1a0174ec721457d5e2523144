@@ -1,0 +1,9 @@
+Task: Write integration tests
+Summary of changes:
+1. Created creditsIntegration.test.ts to test the complete integration of the credits system:
+   - Recharge Flow: validates Rupee-to-credits conversion and process_payment RPC params.
+   - Generation Flow: validates start_batch_generation RPC params using custom cost rates.
+   - Delivery Flow: validates deduct_delivery_credits RPC params for email and whatsapp.
+Created files:
+- apps/api-server/src/routes/creditsIntegration.test.ts
+Why: Prevent regressions and verify the end-to-end correctness of the credits recharge and deduction loops.
