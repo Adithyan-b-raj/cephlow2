@@ -56,10 +56,10 @@
 - [x] Task: Conductor - User Manual Verification 'Frontend - Wallet UI Updates' (Protocol in workflow.md) (92e3cd3)
 
 ## Phase 5: Integration Testing & Documentation
-- [ ] Task: Write integration tests
-    - [ ] Test complete recharge flow with credits
-    - [ ] Test certificate generation with credit deduction
-    - [ ] Test email/WhatsApp delivery with credit deduction
+- [x] Task: Write integration tests (6497159)
+    - [x] Test complete recharge flow with credits
+    - [x] Test certificate generation with credit deduction
+    - [x] Test email/WhatsApp delivery with credit deduction
 - [ ] Task: Update documentation
     - [ ] Document new credit system in README
     - [ ] Add env variable configuration guide
