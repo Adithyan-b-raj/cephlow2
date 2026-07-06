@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
+import { getColumnName } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -243,7 +244,7 @@ export function SpreadsheetEditorUI({
       const startCol = anchor?.col ?? 0;
 
       while (newCols.length < startCol + maxCols) {
-        newCols.push(`Column ${newCols.length + 1}`);
+        newCols.push(getColumnName(newCols.length));
       }
 
       const newRows = rows.map((r) => ({ ...r }));
@@ -275,7 +276,7 @@ export function SpreadsheetEditorUI({
   // ── Column operations ─────────────────────────────────────────────────────
 
   const addColumn = () => {
-    const colName = `Column ${columns.length + 1}`;
+    const colName = getColumnName(columns.length);
     const newCols = [...columns, colName];
     const newRows = rows.map((r) => ({ ...r, [colName]: "" }));
     setColumns(newCols);
