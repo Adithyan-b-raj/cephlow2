@@ -17,6 +17,13 @@ router.get("/wallet", async (c) => {
     return c.json({
       currentBalance: ws?.current_balance ?? 0,
       transferCode: ws?.transfer_code ?? null,
+      costs: {
+        generation: Number(c.env.VITE_CERT_GENERATION_RATE || 1),
+        email: Number(c.env.CREDIT_COST_EMAIL || 1),
+        whatsapp: Number(c.env.CREDIT_COST_WHATSAPP || 3),
+        creditsPerRupee: Number(c.env.CREDITS_PER_RUPEE || 1),
+        minRechargeAmount: Number(c.env.MIN_RECHARGE_AMOUNT || 100),
+      },
     });
   } catch (err: any) {
     console.error("Error fetching wallet balance:", err.message);

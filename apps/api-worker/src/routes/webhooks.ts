@@ -104,6 +104,8 @@ router.post("/webhooks/cashfree", async (c) => {
       const orderId = order.order_id;
       const amount = payment.payment_amount;
       const customerId = customer_details.customer_id;
+      const creditsPerRupee = Number(c.env.CREDITS_PER_RUPEE || 1);
+      const credits = amount * creditsPerRupee;
 
       // Check if already processed
       const orderRow = await c.env.DB.prepare(`
@@ -128,7 +130,7 @@ router.post("/webhooks/cashfree", async (c) => {
         return c.json({ error: "Workspace not found" }, 404);
       }
 
-      const newBalance = ws.current_balance + amount;
+      const newBalance = ws.current_balance + credits;
 
       // Update workspace and map orders to processed
       await c.env.DB.batch([
@@ -137,9 +139,11 @@ router.post("/webhooks/cashfree", async (c) => {
           INSERT INTO ledgers (id, workspace_id, user_id, type, amount, balance_after, description, metadata)
           VALUES (?, ?, ?, 'topup', ?, ?, 'Top-up via Cashfree', ?)
         `).bind(
-          crypto.randomUUID(), orderRow.workspace_id, customerId, amount, newBalance,
+          crypto.randomUUID(), orderRow.workspace_id, customerId, credits, newBalance,
           JSON.stringify({
             order_id: orderId,
+            amount_rupees: amount,
+            credits_per_rupee: creditsPerRupee,
             payment_id: payment.cf_payment_id || null,
             payment_method: payment.payment_group || null
           })
@@ -147,7 +151,7 @@ router.post("/webhooks/cashfree", async (c) => {
         c.env.DB.prepare(`UPDATE payment_orders SET processed = 1 WHERE order_id = ?`).bind(orderId),
       ]);
 
-      console.log(`[Cashfree Webhook] Credited ₹${amount} to workspace ${orderRow.workspace_id} (Order: ${orderId})`);
+      console.log(`[Cashfree Webhook] Credited ${credits} credits (₹${amount}) to workspace ${orderRow.workspace_id} (Order: ${orderId})`);
     }
 
     return c.text("OK", 200);

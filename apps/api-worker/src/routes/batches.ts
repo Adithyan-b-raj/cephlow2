@@ -539,7 +539,28 @@ router.post("/batches/:batchId/certificates/:certId/send", async (c) => {
     const safeBatch = (batch.name || "batch").replace(/[^a-zA-Z0-9]/g, "_");
     const pdfFilename = `${safeName}_${safeBatch}.pdf`;
 
-    // C. Send email
+    // C. Deduct email delivery credits
+    const emailCost = Number(c.env.CREDIT_COST_EMAIL || 1);
+    const wsForEmail = await c.env.DB.prepare(`
+      SELECT current_balance FROM workspaces WHERE id = ?
+    `).bind(workspace.id).first<{ current_balance: number }>();
+    if (!wsForEmail || wsForEmail.current_balance < emailCost) {
+      return c.json({ error: `Insufficient credits for email delivery: need ${emailCost}, have ${wsForEmail?.current_balance ?? 0}` }, 402);
+    }
+    const newEmailBalance = wsForEmail.current_balance - emailCost;
+    await c.env.DB.batch([
+      c.env.DB.prepare(`UPDATE workspaces SET current_balance = ? WHERE id = ?`).bind(newEmailBalance, workspace.id),
+      c.env.DB.prepare(`
+        INSERT INTO ledgers (id, workspace_id, user_id, type, amount, balance_after, description, metadata)
+        VALUES (?, ?, ?, 'deduction', ?, ?, ?, ?)
+      `).bind(
+        crypto.randomUUID(), workspace.id, user.uid, -emailCost, newEmailBalance,
+        `Email delivery: ${cert.recipient_email} (${cert.recipient_name})`,
+        JSON.stringify({ certId: cert.id, batchId })
+      ),
+    ]);
+
+    // D. Send email
     await sendEmail(c.env, {
       to: cert.recipient_email,
       subject: personalizedSubject,
@@ -548,14 +569,14 @@ router.post("/batches/:batchId/certificates/:certId/send", async (c) => {
       pdfFilename,
     });
 
-    // D. Update certificate status to sent
+    // E. Update certificate status to sent
     await c.env.DB.prepare(`
       UPDATE certificates
       SET status = 'sent', sent_at = datetime('now'), error_message = NULL
       WHERE id = ?
     `).bind(certId).run();
 
-    // E. Backfill profile if approved
+    // F. Backfill profile if approved
     const approved = await isApprovedInContext(c.env.DB, user.uid, workspace.id);
     if (approved) {
       try {
@@ -637,6 +658,27 @@ router.post("/batches/:batchId/certificates/:certId/send-whatsapp", approvalMidd
     const certKey = r2Base && cert.r2_pdf_url?.startsWith(r2Base)
       ? decodeURIComponent(cert.r2_pdf_url.slice(r2Base.length + 1))
       : undefined;
+
+    // Deduct WhatsApp delivery credits
+    const whatsappCost = Number(c.env.CREDIT_COST_WHATSAPP || 3);
+    const wsForWhatsapp = await c.env.DB.prepare(`
+      SELECT current_balance FROM workspaces WHERE id = ?
+    `).bind(workspace.id).first<{ current_balance: number }>();
+    if (!wsForWhatsapp || wsForWhatsapp.current_balance < whatsappCost) {
+      return c.json({ error: `Insufficient credits for WhatsApp delivery: need ${whatsappCost}, have ${wsForWhatsapp?.current_balance ?? 0}` }, 402);
+    }
+    const newWhatsappBalance = wsForWhatsapp.current_balance - whatsappCost;
+    await c.env.DB.batch([
+      c.env.DB.prepare(`UPDATE workspaces SET current_balance = ? WHERE id = ?`).bind(newWhatsappBalance, workspace.id),
+      c.env.DB.prepare(`
+        INSERT INTO ledgers (id, workspace_id, user_id, type, amount, balance_after, description, metadata)
+        VALUES (?, ?, ?, 'deduction', ?, ?, ?, ?)
+      `).bind(
+        crypto.randomUUID(), workspace.id, user.uid, -whatsappCost, newWhatsappBalance,
+        `WhatsApp delivery: ${phone} (${cert.recipient_name})`,
+        JSON.stringify({ certId: cert.id, batchId })
+      ),
+    ]);
 
     // Send WhatsApp Document via Meta Cloud API
     const wamid = await sendWhatsAppDocument(c.env, phone, cert.r2_pdf_url, pdfFilename, var1, var2, var3, certKey);

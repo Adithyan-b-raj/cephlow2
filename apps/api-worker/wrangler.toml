@@ -30,7 +30,8 @@ R2_ACCESS_KEY_ID = "b6c41ffd415db4c2c300bf52215ad35b"
 R2_SECRET_ACCESS_KEY = "4ddc45a789e3fe5e7d526732602b0384e669a3df1cca9a19e3a3170eca6daf2a"
 R2_BUCKET_NAME = "certificates"
 SUPABASE_URL = "https://dysaoofwlhebtkzqvfnn.supabase.co"
-# Note: Secrets (SUPABASE_JWT_SECRET, ZEPTOMAIL_TOKEN, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID, etc.)
+# Note: Secrets (SUPABASE_JWT_SECRET, ZEPTOMAIL_TOKEN, WHATSAPP_ACCESS_TOKEN, WHATSAPP_PHONE_NUMBER_ID,
+# CREDITS_PER_RUPEE, CREDIT_COST_EMAIL, CREDIT_COST_WHATSAPP, MIN_RECHARGE_AMOUNT, etc.)
 # will be injected via wrangler secrets or dashboard, NOT committed to source.
 # Custom domain api.cephlow.in is configured via Cloudflare Dashboard:
 # Workers & Pages → cephlow-api → Settings → Triggers → Custom Domains

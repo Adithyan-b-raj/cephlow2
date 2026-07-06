@@ -14,6 +14,10 @@ router.post("/payments/create-order", authMiddleware, workspaceMiddleware, async
     if (!amount || typeof amount !== "number" || amount <= 0) {
       return c.json({ error: "Invalid amount" }, 400);
     }
+    const minRecharge = Number(c.env.MIN_RECHARGE_AMOUNT || 100);
+    if (amount < minRecharge) {
+      return c.json({ error: `Minimum recharge amount is Rs. ${minRecharge}` }, 400);
+    }
 
     const phone = "9999999999"; // default standard value
     const email = user.email || "sandbox@example.com";
@@ -96,6 +100,8 @@ router.post("/payments/verify", authMiddleware, async (c) => {
     const amount = cfOrder.order_amount || orderRow.amount;
     const userId = orderRow.user_id;
     const workspaceId = orderRow.workspace_id;
+    const creditsPerRupee = Number(c.env.CREDITS_PER_RUPEE || 1);
+    const credits = amount * creditsPerRupee;
 
     // Fetch workspace balance
     const ws = await c.env.DB.prepare(`
@@ -103,7 +109,7 @@ router.post("/payments/verify", authMiddleware, async (c) => {
     `).bind(workspaceId).first<{ current_balance: number }>();
     if (!ws) return c.json({ error: "Workspace not found" }, 404);
 
-    const newBalance = ws.current_balance + amount;
+    const newBalance = ws.current_balance + credits;
 
     await c.env.DB.batch([
       c.env.DB.prepare(`UPDATE workspaces SET current_balance = ? WHERE id = ?`).bind(newBalance, workspaceId),
@@ -111,13 +117,14 @@ router.post("/payments/verify", authMiddleware, async (c) => {
         INSERT INTO ledgers (id, workspace_id, user_id, type, amount, balance_after, description, metadata)
         VALUES (?, ?, ?, 'topup', ?, ?, 'Top-up via Cashfree', ?)
       `).bind(
-        crypto.randomUUID(), workspaceId, userId, amount, newBalance, JSON.stringify({ order_id, payment_source: "verify_fallback" })
+        crypto.randomUUID(), workspaceId, userId, credits, newBalance,
+        JSON.stringify({ order_id, amount_rupees: amount, credits_per_rupee: creditsPerRupee, payment_source: "verify_fallback" })
       ),
       c.env.DB.prepare(`UPDATE payment_orders SET processed = 1 WHERE order_id = ?`).bind(order_id),
     ]);
 
-    console.log(`[Payment Verify] ✅ Credited ₹${amount} to workspace ${workspaceId} (Order: ${order_id})`);
-    return c.json({ status: "PAID", credited: true, amount });
+    console.log(`[Payment Verify] ✅ Credited ${credits} credits (₹${amount}) to workspace ${workspaceId} (Order: ${order_id})`);
+    return c.json({ status: "PAID", credited: true, amount, credits });
   } catch (err: any) {
     console.error("[Payment Verify] Error:", err.message);
     return c.json({ error: "Payment verification failed" }, 500);

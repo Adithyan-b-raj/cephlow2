@@ -13,6 +13,10 @@ export interface Env {
   WHATSAPP_TEMPLATE_LANGUAGE: string;
   VITE_CERT_GENERATION_RATE: string;
   VITE_CERT_REGENERATION_RATE: string;
+  CREDITS_PER_RUPEE: string;
+  CREDIT_COST_EMAIL: string;
+  CREDIT_COST_WHATSAPP: string;
+  MIN_RECHARGE_AMOUNT: string;
   R2_ACCOUNT_ID: string;
   R2_ACCESS_KEY_ID: string;
   R2_SECRET_ACCESS_KEY: string;
