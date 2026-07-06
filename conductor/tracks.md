@@ -6,3 +6,8 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 - [x] **Track: Adding credits instead of direct mapping**
 *Link: [./tracks/credits-system_20260702/](./tracks/credits-system_20260702/)*
+
+---
+
+- [ ] **Track: Fixing bugs on the spreadsheet editor**
+*Link: [./tracks/spreadsheet-editor-fixes_20260707/](./tracks/spreadsheet-editor-fixes_20260707/)*
