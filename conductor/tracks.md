@@ -9,5 +9,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Fixing bugs on the spreadsheet editor**
+- [x] **Track: Fixing bugs on the spreadsheet editor**
 *Link: [./tracks/spreadsheet-editor-fixes_20260707/](./tracks/spreadsheet-editor-fixes_20260707/)*
