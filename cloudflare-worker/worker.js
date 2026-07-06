@@ -114,6 +114,20 @@ export default {
     const folderVariants = getFolderVariants(phone);
 
     // ── 3. Route to the right handler ───────────────────────────────
+    // Ack Meta immediately — WhatsApp retries (redelivering the same webhook,
+    // spaced out over hours) if it doesn't get a fast 200. Do the actual work
+    // (which calls out to graph.facebook.com / D1 / R2) in the background so a
+    // slow downstream call can never cause Meta to think this delivery failed.
+    ctx.waitUntil(
+      routeMessage({ phone, msg, action, value, folderVariants, env })
+        .catch((err) => console.error('Handler error:', err))
+    );
+    return new Response('OK');
+  }
+};
+
+async function routeMessage({ phone, msg, action, value, folderVariants, env }) {
+    const text = msg?.text?.body?.trim();
     try {
       const userState = await getUserState(phone, env);
       const stateVal = userState?.state || '';
@@ -126,18 +140,16 @@ export default {
         if (wantsExit) {
           await clearUserState(phone, env);
           await waPost({ to: phone, type: 'text', text: { body: '👋 You have left the chat with the developer. Send "hi" to see the menu again.' } }, env);
-          ctx.waitUntil(logInteraction(env, { phone, action: 'support_exit' }));
-          return new Response('OK');
+          await logInteraction(env, { phone, action: 'support_exit' });
+          return;
         }
 
         // Everything else (text or media) → forward to developer's Telegram topic
         const customerName = value?.contacts?.[0]?.profile?.name || phone;
-        ctx.waitUntil(
-          handleWhatsAppToTelegram(phone, customerName, msg, env)
-            .catch((err) => console.error('WA→TG forward failed:', err))
-        );
-        ctx.waitUntil(logInteraction(env, { phone, action: 'support_message' }));
-        return new Response('OK');
+        await handleWhatsAppToTelegram(phone, customerName, msg, env)
+          .catch((err) => console.error('WA→TG forward failed:', err));
+        await logInteraction(env, { phone, action: 'support_message' });
+        return;
       }
 
       // Student tapped "Report Certificate issue" on a template message that
@@ -150,29 +162,27 @@ export default {
           to: phone, type: 'text',
           text: { body: `📝 Please describe your issue with *${certName}*:\n\n(e.g. wrong name, wrong date, blurry image)` }
         }, env);
-        ctx.waitUntil(logInteraction(env, { phone, action: 'report_issue', detail: certKey }));
-        return new Response('OK');
+        await logInteraction(env, { phone, action: 'report_issue', detail: certKey });
+        return;
       }
 
       // User is describing their issue — capture the text
       if (stateVal.startsWith('report_desc:') && msg.type === 'text' && text) {
         const certKey = stateVal.slice('report_desc:'.length);
         await handleReportText(phone, certKey, text, env);
-        ctx.waitUntil(logInteraction(env, { phone, action: 'report_submitted', detail: certKey }));
+        await logInteraction(env, { phone, action: 'report_submitted', detail: certKey });
         // Notify the certifier via the api-server (email)
         if (env.API_URL && env.WORKER_TO_API_TOKEN) {
-          ctx.waitUntil(
-            fetch(`${env.API_URL}/api/internal/report-notify`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'x-worker-token': env.WORKER_TO_API_TOKEN,
-              },
-              body: JSON.stringify({ phone, cert_key: certKey, message: text }),
-            }).catch((err) => console.error('report-notify failed:', err))
-          );
+          await fetch(`${env.API_URL}/api/internal/report-notify`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'x-worker-token': env.WORKER_TO_API_TOKEN,
+            },
+            body: JSON.stringify({ phone, cert_key: certKey, message: text }),
+          }).catch((err) => console.error('report-notify failed:', err));
         }
-        return new Response('OK');
+        return;
       }
 
       // User is browsing certs to pick which one has an issue
@@ -193,57 +203,54 @@ export default {
           // Unexpected input while selecting — re-show the list
           await handleReportCertList(phone, folderVariants, 1, env);
         }
-        return new Response('OK');
+        return;
       }
 
       if (action === 'greet') {
         await handleGreet(phone, env);
-        ctx.waitUntil(logInteraction(env, { phone, action: 'greet' }));
+        await logInteraction(env, { phone, action: 'greet' });
 
       } else if (action === 'vote_scale') {
         await handleVoteScale(phone, env);
-        ctx.waitUntil(logInteraction(env, { phone, action: 'vote_scale' }));
+        await logInteraction(env, { phone, action: 'vote_scale' });
 
       } else if (action === 'talk_developer') {
         await handleTalkDeveloper(phone, value?.contacts?.[0]?.profile?.name || phone, env);
-        ctx.waitUntil(logInteraction(env, { phone, action: 'talk_developer' }));
+        await logInteraction(env, { phone, action: 'talk_developer' });
 
       } else if (action === 'report_issue') {
         await handleReportIssue(phone, folderVariants, env);
-        ctx.waitUntil(logInteraction(env, { phone, action: 'report_issue' }));
+        await logInteraction(env, { phone, action: 'report_issue' });
 
       } else if (action === 'send_all') {
         await handleSendAll(phone, folderVariants, env);
-        ctx.waitUntil(logInteraction(env, { phone, action: 'send_all' }));
+        await logInteraction(env, { phone, action: 'send_all' });
 
       } else if (action === 'search_cert' || action.startsWith('page:')) {
         const page = action.startsWith('page:')
           ? parseInt(action.split(':')[1], 10) || 1
           : 1;
         await handlePagedList(phone, folderVariants, page, env);
-        ctx.waitUntil(logInteraction(env, {
+        await logInteraction(env, {
           phone,
           action: action.startsWith('page:') ? 'page' : 'search_cert',
           detail: String(page),
-        }));
+        });
 
       } else if (action.includes('/')) {
         // User picked a specific cert from the list — action is the R2 key
         await handleSendSingle(phone, action, env);
-        ctx.waitUntil(logInteraction(env, { phone, action: 'send_single', detail: action }));
+        await logInteraction(env, { phone, action: 'send_single', detail: action });
 
       } else {
         // Unknown input — show the menu
         await handleGreet(phone, env);
-        ctx.waitUntil(logInteraction(env, { phone, action: 'greet' }));
+        await logInteraction(env, { phone, action: 'greet' });
       }
     } catch (err) {
       console.error('Handler error:', err);
     }
-
-    return new Response('OK');
-  }
-};
+}
 
 // ────────────────────────────────────────────────────────────────────
 // Handlers
