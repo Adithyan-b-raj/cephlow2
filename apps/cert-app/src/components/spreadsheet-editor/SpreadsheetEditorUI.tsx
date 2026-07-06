@@ -193,6 +193,7 @@ export function SpreadsheetEditorUI({
           toast({ title: "Please provide a name", description: "Enter a name for the spreadsheet before saving.", variant: "destructive" });
         } else {
           savedRef.current = { name: name.trim(), columns, rows };
+          setIsDirty(false);
           onSave({ name: name.trim(), data: { columns, rows } });
         }
       } else if ((e.key === "Delete" || e.key === "Backspace") && !isEditing && selection) {
@@ -480,6 +481,7 @@ export function SpreadsheetEditorUI({
       return;
     }
     savedRef.current = { name: name.trim(), columns, rows };
+    setIsDirty(false);
     onSave({ name: name.trim(), data: { columns, rows } });
   };
 
