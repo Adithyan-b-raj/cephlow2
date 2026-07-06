@@ -123,6 +123,12 @@ export function SpreadsheetEditorUI({
     setIsDirty(dirty);
   }, [name, columns, rows]);
 
+  // Sync savedRef when initialData or initialName changes from parent (e.g. on successful save)
+  useEffect(() => {
+    savedRef.current = { name: initialName, columns: initialData.columns, rows: initialData.rows };
+    setIsDirty(false);
+  }, [initialName, initialData]);
+
   const tableRef = useRef<HTMLTableElement>(null);
   const activeCellRef = useRef<HTMLInputElement>(null);
 
@@ -481,9 +487,17 @@ export function SpreadsheetEditorUI({
       toast({ title: "Please provide a name", description: "Enter a name for the spreadsheet before saving.", variant: "destructive" });
       return;
     }
-    savedRef.current = { name: name.trim(), columns, rows };
+    let currentRows = rows;
+    if (activeCell) {
+      const col_name = columns[activeCell.col];
+      currentRows = rows.map((r, i) => i === activeCell.row ? { ...r, [col_name]: editingValue } : r);
+      setRows(currentRows);
+      pushHistory(columns, currentRows);
+      setActiveCell(null);
+    }
+    savedRef.current = { name: name.trim(), columns, rows: currentRows };
     setIsDirty(false);
-    onSave({ name: name.trim(), data: { columns, rows } });
+    onSave({ name: name.trim(), data: { columns, rows: currentRows } });
   };
 
   const handleBackClick = () => {
