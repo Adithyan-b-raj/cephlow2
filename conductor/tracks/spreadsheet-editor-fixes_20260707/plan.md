@@ -1,6 +1,6 @@
 # Implementation Plan: Spreadsheet Editor Bug Fixes
 
-## Phase 1: Spreadsheet Editor Bug Fixes [checkpoint: ]
+## Phase 1: Spreadsheet Editor Bug Fixes [checkpoint: da5dbf1]
 - [x] Task: Column Naming Sequence (75a5951)
     - [x] Write unit tests for `getColumnName` utility in `apps/cert-app/src/lib/utils.test.ts`
     - [x] Implement `getColumnName` in `apps/cert-app/src/lib/utils.ts`
