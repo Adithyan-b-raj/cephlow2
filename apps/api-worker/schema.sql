@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS workspaces (
   generation_cost REAL NOT NULL DEFAULT 1.0,
   email_cost REAL NOT NULL DEFAULT 0.2,
   whatsapp_cost REAL NOT NULL DEFAULT 0.5,
+  suspended INTEGER NOT NULL DEFAULT 0,
+  suspended_reason TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS workspaces_owner_id_idx ON workspaces(owner_id);
@@ -299,5 +301,45 @@ CREATE TABLE IF NOT EXISTS builtin_templates (
 );
 CREATE INDEX IF NOT EXISTS builtin_templates_workspace_idx ON builtin_templates(workspace_id);
 CREATE INDEX IF NOT EXISTS builtin_templates_user_idx ON builtin_templates(user_id);
+
+-- 18. Workspace Features
+CREATE TABLE IF NOT EXISTS workspace_features (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL,
+  feature_key TEXT NOT NULL CHECK (feature_key IN (
+    'whatsapp_delivery', 'custom_event_banners', 'google_slides_templates', 'qr_codes'
+  )),
+  enabled INTEGER NOT NULL DEFAULT 0,
+  granted_by TEXT,
+  granted_at TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(workspace_id, feature_key)
+);
+CREATE INDEX IF NOT EXISTS workspace_features_workspace_idx ON workspace_features(workspace_id);
+
+-- 19. Platform Admins
+CREATE TABLE IF NOT EXISTS platform_admins (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL UNIQUE,
+  email TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  created_by TEXT
+);
+CREATE INDEX IF NOT EXISTS platform_admins_email_idx ON platform_admins(email);
+
+-- 20. Admin Audit Logs
+CREATE TABLE IF NOT EXISTS admin_audit_log (
+  id TEXT PRIMARY KEY,
+  admin_user_id TEXT NOT NULL,
+  admin_email TEXT,
+  action TEXT NOT NULL,
+  target_workspace_id TEXT,
+  target_user_id TEXT,
+  details TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS admin_audit_log_workspace_idx ON admin_audit_log(target_workspace_id);
+CREATE INDEX IF NOT EXISTS admin_audit_log_admin_idx ON admin_audit_log(admin_user_id);
+CREATE INDEX IF NOT EXISTS admin_audit_log_created_idx ON admin_audit_log(created_at);
 
 

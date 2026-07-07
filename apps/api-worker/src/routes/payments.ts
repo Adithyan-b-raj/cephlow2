@@ -92,7 +92,7 @@ router.post("/payments/verify", authMiddleware, async (c) => {
 
     console.log(`[Payment Verify] Cashfree status: ${cfOrder?.order_status}`);
 
-    if (cfOrder?.order_status !== "PAID" && cfOrder?.order_status !== "ACTIVE") {
+    if (cfOrder?.order_status !== "PAID") {
       return c.json({ status: cfOrder?.order_status || "UNKNOWN", credited: false });
     }
 

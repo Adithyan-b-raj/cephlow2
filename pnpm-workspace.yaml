@@ -29,3 +29,5 @@ onlyBuiltDependencies:
   - esbuild
   - msw
   - unrs-resolver
+  - workerd
+  - sharp
