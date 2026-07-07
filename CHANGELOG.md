@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **Local D1 Database Execution**: Added a `"db:init"` script to `apps/api-worker/package.json` to easily execute the database `schema.sql` file locally via Wrangler against the local emulated Cloudflare D1 instance.
 - **Git Security**: Added `.dev.vars` to the root `.gitignore` file to ensure local secrets are not tracked by version control.
+- **Google Authentication (Sign-In)**: Added a "Continue with Google" OAuth button to the authentication screen (`apps/cert-app/src/pages/Login.tsx`) and integrated `loginWithGoogle` helper flow in `useAuth` using client-side Supabase authentication.
 
 ### Changed
 - **Security Fix**: Patched a critical payment vulnerability in `/api/payments/verify` that incorrectly credited workspaces for `ACTIVE` (unpaid) Cashfree orders.

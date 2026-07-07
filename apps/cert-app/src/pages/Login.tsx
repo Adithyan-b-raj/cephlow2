@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Award } from "lucide-react";
 
 export default function Login() {
-    const { login, signup } = useAuth();
+    const { login, signup, loginWithGoogle } = useAuth();
     const [, setLocation] = useLocation();
     const [mode, setMode] = useState<"signin" | "signup">(() =>
         new URLSearchParams(window.location.search).get("mode") === "signup" ? "signup" : "signin"
@@ -110,6 +110,38 @@ export default function Login() {
                             {loading ? "Please wait..." : mode === "signin" ? "Sign In" : "Create Account"}
                         </Button>
                     </form>
+
+                    <div className="relative my-4">
+                        <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t-2 border-foreground" />
+                        </div>
+                        <div className="relative flex justify-center text-[10px] uppercase tracking-widest">
+                            <span className="bg-background px-2 text-muted-foreground font-bold">Or</span>
+                        </div>
+                    </div>
+
+                    <Button
+                        type="button"
+                        onClick={async () => {
+                            if (loading) return;
+                            setLoading(true);
+                            setError("");
+                            try {
+                                await loginWithGoogle();
+                            } catch (err: any) {
+                                setError(err.message ?? "Google Sign-In failed.");
+                                setLoading(false);
+                            }
+                        }}
+                        disabled={loading || (mode === "signup" && !termsAccepted)}
+                        variant="outline"
+                        className="w-full h-11 font-bold uppercase tracking-widest text-xs border-2 border-foreground rounded-none bg-background hover:bg-foreground hover:text-background transition-colors flex items-center justify-center gap-2"
+                    >
+                        <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                            <path d="M12.24 10.285V14.4h6.887c-.648 2.41-2.519 4.114-5.136 4.114-3.355 0-6.075-2.72-6.075-6.075s2.72-6.075 6.075-6.075c1.497 0 2.868.543 3.935 1.44l3.056-3.057C19.14 1.944 15.93 1 12.24 1c-6.075 0-11 4.925-11 11s4.925 11 11 11c5.932 0 10.875-4.285 10.875-10.285 0-.693-.06-1.37-.173-2.03H12.24z"/>
+                        </svg>
+                        Continue with Google
+                    </Button>
                     {mode === "signin" && (
                         <button
                             onClick={() => setLocation("/forgot-password")}

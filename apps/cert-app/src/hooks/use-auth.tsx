@@ -18,6 +18,7 @@ interface AuthContextType {
     googleAuthStatus: GoogleAuthStatus;
     login: (email: string, password: string) => Promise<void>;
     signup: (email: string, password: string) => Promise<void>;
+    loginWithGoogle: () => Promise<void>;
     logout: () => Promise<void>;
     connectGoogle: (scope?: GoogleScopeType) => Promise<void>;
     disconnectGoogle: (scope?: GoogleScopeType) => Promise<void>;
@@ -109,6 +110,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const login = async (email: string, password: string) => { await signInWithPassword(email, password); };
     const signup = async (email: string, password: string) => { await signUpWithPassword(email, password); };
+    const loginWithGoogle = async () => {
+        const { error } = await supabase.auth.signInWithOAuth({
+            provider: "google",
+            options: {
+                redirectTo: window.location.origin,
+            },
+        });
+        if (error) throw error;
+    };
     const logout = async () => {
         await signOut();
         setUser(null);
@@ -151,7 +161,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const hasGoogleAuth = googleAuthStatus.drive || googleAuthStatus.sheets || googleAuthStatus.slides;
 
     return (
-        <AuthContext.Provider value={{ user, loading, hasGoogleAuth, googleAuthStatus, login, signup, logout, connectGoogle, disconnectGoogle, recheckGoogleAuth: checkGoogleAuth }}>
+        <AuthContext.Provider value={{ user, loading, hasGoogleAuth, googleAuthStatus, login, signup, loginWithGoogle, logout, connectGoogle, disconnectGoogle, recheckGoogleAuth: checkGoogleAuth }}>
             {children}
         </AuthContext.Provider>
     );
