@@ -10,18 +10,17 @@ This document explains **everything** about this project: what it does, how ever
 2. [High-Level Architecture](#2-high-level-architecture)
 3. [Monorepo Structure](#3-monorepo-structure)
 4. [Environment Variables — Complete Reference](#4-environment-variables--complete-reference)
-5. [Package: `@workspace/supabase` — Identity Helpers](#5-package-workspacesubabase--identity-helpers)
-6. [Package: `@workspace/api-client-react` — Frontend API Client](#6-package-workspaceapi-client-react--frontend-api-client)
-7. [App: `api-worker` — Hono Backend on Cloudflare Workers](#7-app-api-worker--hono-backend-on-cloudflare-workers)
-8. [App: `cert-app` — React Frontend](#8-app-cert-app--react-frontend)
-9. [Data Model — Cloudflare D1 Database Schema](#9-data-model--cloudflare-d1-database-schema)
-10. [Authentication Flow — Two-Layer System](#10-authentication-flow--two-layer-system)
-11. [Certificate Generation Flow — Client-Side Generation](#11-certificate-generation-flow--client-side-generation)
-12. [Delivery Channels — Email & WhatsApp Sending](#12-delivery-channels--email--whatsapp-sending)
-13. [WhatsApp Bot & Telegram Support Bridge](#13-whatsapp-bot--telegram-support-bridge)
-14. [Cashfree Payments & Prepaid Wallet](#14-cashfree-payments--prepaid-wallet)
-15. [Deployment](#15-deployment)
-16. [Running Locally](#16-running-locally)
+5. [Package: `@workspace/api-client-react` — Frontend API Client](#5-package-workspaceapi-client-react--frontend-api-client)
+6. [App: `api-worker` — Hono Backend on Cloudflare Workers](#6-app-api-worker--hono-backend-on-cloudflare-workers)
+7. [App: `cert-app` — React Frontend](#7-app-cert-app--react-frontend)
+8. [Data Model — Cloudflare D1 Database Schema](#8-data-model--cloudflare-d1-database-schema)
+9. [Authentication Flow — Two-Layer System](#9-authentication-flow--two-layer-system)
+10. [Certificate Generation Flow — Client-Side Generation](#10-certificate-generation-flow--client-side-generation)
+11. [Delivery Channels — Email & WhatsApp Sending](#11-delivery-channels--email--whatsapp-sending)
+12. [WhatsApp Bot & Telegram Support Bridge](#12-whatsapp-bot--telegram-support-bridge)
+13. [Cashfree Payments & Prepaid Wallet](#13-cashfree-payments--prepaid-wallet)
+14. [Deployment](#14-deployment)
+15. [Running Locally](#15-running-locally)
 
 ---
 
@@ -99,7 +98,6 @@ cephlow2/
 │   └── cert-app/               ← Frontend (React + Vite)
 │
 └── packages/
-    ├── supabase/               ← Shared Supabase Auth helpers & JWT verification utilities
     ├── api-client-react/       ← Auto-generated React Query hooks (via Orval + OpenAPI)
     └── api-zod/                ← Auto-generated Zod schemas + TypeScript types
 ```
@@ -144,17 +142,7 @@ Configure user identification and sign-in.
 
 ---
 
-## 5. Package: `@workspace/supabase` — Identity Helpers
-
-**Folder:** `packages/supabase/`
-
-Provides shared client configuration and JWT decoding helpers:
-- Checks authorization signature using JWKS public keys.
-- Maps Supabase user ID and credentials to request contexts inside backend Hono middlewares.
-
----
-
-## 6. Package: `@workspace/api-client-react` — Frontend API Client
+## 5. Package: `@workspace/api-client-react` — Frontend API Client
 
 **Folder:** `packages/api-client-react/`
 
@@ -164,7 +152,7 @@ Automatically generated from the OpenAPI specifications in `packages/api-spec`.
 
 ---
 
-## 7. App: `api-worker` — Hono Backend on Cloudflare Workers
+## 6. App: `api-worker` — Hono Backend on Cloudflare Workers
 
 **Folder:** `apps/api-worker/`
 
@@ -176,7 +164,7 @@ Deployed via `npx wrangler deploy` to Cloudflare Workers. It implements all API 
 
 ---
 
-## 8. App: `cert-app` — React Frontend
+## 7. App: `cert-app` — React Frontend
 
 **Folder:** `apps/cert-app/`
 
@@ -186,7 +174,7 @@ Vite React application built using shadcn/ui and Tailwind v4. Deployed to Cloudf
 
 ---
 
-## 9. Data Model — Cloudflare D1 Database Schema
+## 8. Data Model — Cloudflare D1 Database Schema
 
 Cloudflare D1 hosts relation tables for the system:
 
@@ -198,7 +186,7 @@ Cloudflare D1 hosts relation tables for the system:
 
 ---
 
-## 10. Authentication Flow — Two-Layer System
+## 9. Authentication Flow — Two-Layer System
 
 ### Layer 1: Supabase Auth (Identity)
 - The user authenticates in the browser with Google Sign-In or email via Supabase.
@@ -212,7 +200,7 @@ Cloudflare D1 hosts relation tables for the system:
 
 ---
 
-## 11. Certificate Generation Flow — Client-Side Generation
+## 10. Certificate Generation Flow — Client-Side Generation
 
 To scale certificate generation without overloading servers, Cephlow does all generation client-side (in the browser):
 
@@ -229,7 +217,7 @@ To scale certificate generation without overloading servers, Cephlow does all ge
 
 ---
 
-## 12. Delivery Channels — Email & WhatsApp Sending
+## 11. Delivery Channels — Email & WhatsApp Sending
 
 Delivery tasks are processed using client-driven loops inside the frontend to avoid connection timeouts:
 
@@ -238,7 +226,7 @@ Delivery tasks are processed using client-driven loops inside the frontend to av
 
 ---
 
-## 13. WhatsApp Bot & Telegram Support Bridge
+## 12. WhatsApp Bot & Telegram Support Bridge
 
 - Incoming messages on the WhatsApp number trigger a webhook to `cephlow-api`.
 - The bot parses the message, queries D1 for certificate indexes, and replies with interactive buttons.
@@ -247,7 +235,7 @@ Delivery tasks are processed using client-driven loops inside the frontend to av
 
 ---
 
-## 14. Cashfree Payments & Prepaid Credits Wallet
+## 13. Cashfree Payments & Prepaid Credits Wallet
 
 Cephlow uses a prepaid credits system for usage billing. Wallet balances, transactions, and rates are tracked in credits:
 1. **Recharge Flow**:
@@ -261,7 +249,7 @@ Cephlow uses a prepaid credits system for usage billing. Wallet balances, transa
 
 ---
 
-## 15. Deployment
+## 14. Deployment
 
 - **Frontend**: Automatically deployed via Cloudflare Pages on commit to the `main` branch.
 - **Backend API**: Deployed to Cloudflare Workers with wrangler:
@@ -271,13 +259,29 @@ Cephlow uses a prepaid credits system for usage billing. Wallet balances, transa
 
 ---
 
-## 16. Running Locally
+## 15. Running Locally
 
 1. **Install dependencies**:
    ```bash
    pnpm install
    ```
-2. **Create `.env`** at the root with environment credentials.
-3. **Start services**:
-   - Frontend: `pnpm --filter @workspace/cert-app run dev`
-   - Worker API: `pnpm --filter @workspace/api-worker run dev`
+2. **Configure Environment Variables**:
+   - Create a root `.env` containing your frontend configuration (e.g. `VITE_API_URL`).
+   - Create `apps/api-worker/.dev.vars` (using `.dev.vars.example`) for backend secrets.
+3. **Initialize local database** (required for Mode A):
+   ```bash
+   pnpm --filter @workspace/api-worker db:init
+   ```
+4. **Start Development Services**:
+   - **Mode A (Fully Local)**: Concurrently runs local frontend and local simulated D1 backend:
+     ```bash
+     pnpm dev
+     ```
+   - **Mode B (Local Frontend + Remote D1 Backend)**: Runs both locally, but connects to the live remote Cloudflare D1 database:
+     ```bash
+     pnpm dev:remote
+     ```
+   - **Mode C (Local Frontend Only)**: Runs only the local frontend pointing directly to the deployed production/staging worker URL:
+     ```bash
+     pnpm dev:frontend
+     ```

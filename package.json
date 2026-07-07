@@ -7,18 +7,16 @@
     "build": "pnpm run typecheck && pnpm -r --if-present run build",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./apps/**\" --filter \"./scripts\" --if-present run typecheck",
-    "dev": "pnpm --filter @workspace/api-server dev",
-    "worker": "pnpm --filter @workspace/api-server worker",
-    "test": "pnpm --filter @workspace/api-server test"
+    "dev": "pnpm --filter @workspace/api-worker --filter @workspace/cert-app --parallel dev",
+    "dev:remote": "pnpm --filter @workspace/api-worker --filter @workspace/cert-app --parallel dev:remote",
+    "dev:frontend": "pnpm --filter @workspace/cert-app dev",
+    "worker": "pnpm --filter @workspace/api-worker dev",
+    "test": "pnpm --filter @workspace/api-worker test"
   },
   "private": true,
   "devDependencies": {
     "prettier": "^3.8.1",
     "tsx": "catalog:",
     "typescript": "~5.9.2"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.103.3",
-    "firebase-admin": "^13.7.0"
   }
 }
