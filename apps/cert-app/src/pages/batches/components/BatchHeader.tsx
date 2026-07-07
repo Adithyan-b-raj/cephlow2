@@ -221,7 +221,7 @@ export function BatchHeader({
               <Link2 className="w-4 h-4 mr-1.5" />
               Share Page
             </Button>
-            <LockedFeature feature="custom event banners" inline>
+            <LockedFeature feature="custom event banners" featureKey="custom_event_banners" inline>
               <Button variant="outline" size="sm" onClick={onBannerEdit} disabled={bannerUploading} className="hover-elevate bg-background w-full justify-start">
                 {bannerUploading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Eye className="w-4 h-4 mr-1.5" />}
                 {batch.bannerUrl ? "Edit Banner" : "Add Banner"}
@@ -234,7 +234,7 @@ export function BatchHeader({
                 Send Emails
               </Button>
             ) : (
-              <LockedFeature feature="WhatsApp delivery" inline>
+              <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>
                 <Button variant="outline" size="sm" onClick={onOpenWa} disabled={waDisabled} className="hover-elevate bg-background w-full justify-start">
                   {isSendingWhatsapp ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-1.5" />}
                   WhatsApp
@@ -267,7 +267,7 @@ export function BatchHeader({
             <Link2 className="w-3.5 h-3.5 mr-1.5" />
             Share Page
           </Button>
-          <LockedFeature feature="custom event banners" inline>
+          <LockedFeature feature="custom event banners" featureKey="custom_event_banners" inline>
             <Button variant="outline" size="sm" onClick={onBannerEdit} disabled={bannerUploading} className="hover-elevate bg-background">
               {bannerUploading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-1.5" />}
               {batch.bannerUrl ? "Edit Banner" : "Add Banner"}
@@ -299,7 +299,7 @@ export function BatchHeader({
             {isSending ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
             Send Emails
           </Button>
-          <LockedFeature feature="WhatsApp delivery" inline>
+          <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>
             <Button variant="outline" size="sm" onClick={onOpenWa} disabled={isSendingWhatsapp || batch.status === 'sending' || batch.generatedCount === 0} className="hover-elevate bg-background">
               {isSendingWhatsapp ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5 mr-1.5" />}
               WhatsApp

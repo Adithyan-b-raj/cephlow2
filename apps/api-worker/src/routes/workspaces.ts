@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
-import { isAdminOrOwner, type WorkspaceRole } from "../middleware/workspace.js";
+import { isAdminOrOwner, isWorkspaceSuspended, type WorkspaceRole } from "../middleware/workspace.js";
 import { sendEmail } from "../lib/email.js";
 
 const router = new Hono<ContextEnv>();
@@ -79,6 +79,9 @@ router.patch("/workspaces/:id", authMiddleware, async (c) => {
   try {
     const role = await getMembership(c.env.DB, id, user.uid);
     if (!role || !isAdminOrOwner(role)) return c.json({ error: "Forbidden" }, 403);
+    if (await isWorkspaceSuspended(c.env.DB, id)) {
+      return c.json({ error: "Workspace suspended", code: "WORKSPACE_SUSPENDED" }, 403);
+    }
 
     const { name } = await c.req.json().catch(() => ({}));
     const trimmedName = String(name || "").trim();
@@ -134,6 +137,9 @@ router.delete("/workspaces/:id/members/:userId", authMiddleware, async (c) => {
   try {
     const actorRole = await getMembership(c.env.DB, id, actor.uid);
     if (!actorRole || !isAdminOrOwner(actorRole)) return c.json({ error: "Forbidden" }, 403);
+    if (await isWorkspaceSuspended(c.env.DB, id)) {
+      return c.json({ error: "Workspace suspended", code: "WORKSPACE_SUSPENDED" }, 403);
+    }
 
     const targetRole = await getMembership(c.env.DB, id, targetId);
     if (targetRole === "owner") return c.json({ error: "Cannot remove owner" }, 400);
@@ -156,6 +162,9 @@ router.post("/workspaces/:id/invites", authMiddleware, async (c) => {
   try {
     const role = await getMembership(c.env.DB, id, actor.uid);
     if (!role || !isAdminOrOwner(role)) return c.json({ error: "Forbidden" }, 403);
+    if (await isWorkspaceSuspended(c.env.DB, id)) {
+      return c.json({ error: "Workspace suspended", code: "WORKSPACE_SUSPENDED" }, 403);
+    }
 
     const { email, role: inviteRoleRaw } = await c.req.json().catch(() => ({}));
     const inviteEmail = String(email || "").trim().toLowerCase();
@@ -359,6 +368,9 @@ router.put("/workspaces/:id/brand", authMiddleware, async (c) => {
   try {
     const role = await getMembership(c.env.DB, id, user.uid);
     if (!role || !isAdminOrOwner(role)) return c.json({ error: "Forbidden" }, 403);
+    if (await isWorkspaceSuspended(c.env.DB, id)) {
+      return c.json({ error: "Workspace suspended", code: "WORKSPACE_SUSPENDED" }, 403);
+    }
 
     const { logoUrl, primaryColor, secondaryColor, fontFamily } = await c.req.json().catch(() => ({}));
 
