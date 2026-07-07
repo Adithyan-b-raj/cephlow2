@@ -22,7 +22,7 @@ export const workspaceMiddleware: MiddlewareHandler<ContextEnv> = async (c, next
 
   try {
     const member = await c.env.DB.prepare(`
-      SELECT role FROM workspace_members 
+      SELECT role FROM workspace_members
       WHERE workspace_id = ? AND user_id = ?
     `).bind(workspaceId, user.uid).first<{ role: string }>();
 
@@ -38,6 +38,33 @@ export const workspaceMiddleware: MiddlewareHandler<ContextEnv> = async (c, next
     return await next();
   } catch (err: any) {
     console.error("Workspace middleware error:", err.message);
+    return c.json({ error: err.message }, 500);
+  }
+};
+
+export async function isWorkspaceSuspended(db: D1Database, workspaceId: string): Promise<boolean> {
+  const ws = await db.prepare(`SELECT suspended FROM workspaces WHERE id = ?`).bind(workspaceId).first<{ suspended: number }>();
+  return Boolean(ws?.suspended);
+}
+
+/**
+ * Blocks usage of paid features on a suspended workspace. Deliberately
+ * separate from workspaceMiddleware (which only resolves membership) and
+ * NOT applied to /api/payments/* — a suspended workspace must still be able
+ * to complete an already-charged payment, otherwise money paid to Cashfree
+ * before suspension can get stuck uncredited.
+ */
+export const requireNotSuspended: MiddlewareHandler<ContextEnv> = async (c, next) => {
+  const workspace = c.get("workspace");
+  if (!workspace) {
+    return c.json({ error: "Missing workspace context" }, 400);
+  }
+  try {
+    if (await isWorkspaceSuspended(c.env.DB, workspace.id)) {
+      return c.json({ error: "Workspace suspended", code: "WORKSPACE_SUSPENDED" }, 403);
+    }
+    return await next();
+  } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }
 };

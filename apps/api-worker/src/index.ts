@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { authMiddleware } from "./middleware/auth.js";
-import { workspaceMiddleware } from "./middleware/workspace.js";
+import { workspaceMiddleware, requireNotSuspended } from "./middleware/workspace.js";
 import { requireApproval as approvalMiddleware } from "./middleware/approval.js";
 import { getAccessToken } from "./lib/google-auth.js";
 import { googleFetch } from "./lib/google-drive.js";
@@ -29,6 +29,7 @@ import clientGenerateRouter from "./routes/clientGenerate.js";
 import builtinTemplatesRouter from "./routes/builtinTemplates.js";
 import reportsRouter from "./routes/reports.js";
 import walletRouter from "./routes/wallet.js";
+import adminRouter from "./routes/admin.js";
 
 const app = new Hono<ContextEnv>();
 
@@ -76,6 +77,8 @@ app.use("/api/reports*", authMiddleware);
 app.use("/api/reports/*", authMiddleware);
 app.use("/api/wallet*", authMiddleware);
 app.use("/api/wallet/*", authMiddleware);
+app.use("/api/admin*", authMiddleware);
+app.use("/api/admin/*", authMiddleware);
 
 app.route("/api", authRouter);
 app.route("/api", approvalRouter);
@@ -129,6 +132,26 @@ app.use("/api/slides/*", workspaceMiddleware);
 app.use("/api/wallet*", workspaceMiddleware);
 app.use("/api/wallet/*", workspaceMiddleware);
 
+// ── Suspended-workspace kill switch (usage routes only — deliberately NOT
+// applied to /api/payments/*, so a suspended workspace can still complete an
+// already-charged payment instead of leaving money stuck uncredited) ──
+app.use("/api/sheets/*", requireNotSuspended);
+app.use("/api/batches/*", requireNotSuspended);
+app.use("/api/frame-templates*", requireNotSuspended);
+app.use("/api/frame-templates/*", requireNotSuspended);
+app.use("/api/marketplace/*", requireNotSuspended);
+app.use("/api/certificates*", requireNotSuspended);
+app.use("/api/certificates/*", requireNotSuspended);
+app.use("/api/builtin-templates*", requireNotSuspended);
+app.use("/api/builtin-templates/*", requireNotSuspended);
+app.use("/api/spreadsheets*", requireNotSuspended);
+app.use("/api/spreadsheets/*", requireNotSuspended);
+app.use("/api/reports*", requireNotSuspended);
+app.use("/api/reports/*", requireNotSuspended);
+app.use("/api/slides/*", requireNotSuspended);
+app.use("/api/wallet*", requireNotSuspended);
+app.use("/api/wallet/*", requireNotSuspended);
+
 app.route("/api", sheetsRouter);
 app.route("/api", batchesRouter);
 app.route("/api", frameTemplatesRouter);
@@ -147,5 +170,8 @@ app.use("/api/wallet/*", approvalMiddleware);
 
 app.route("/api", slidesRouter);
 app.route("/api", walletRouter);
+
+// ── Platform-admin routes (cross-workspace, requirePlatformAdmin inside the router) ──
+app.route("/api", adminRouter);
 
 export default app;

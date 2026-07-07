@@ -209,7 +209,7 @@ export function EditorToolbar({
         <ToolButton onClick={addRect} icon={<Square className="w-4 h-4" />} label="Rectangle" />
         <ToolButton onClick={addEllipse} icon={<Circle className="w-4 h-4" />} label="Ellipse" />
         <ToolButton onClick={addLine} icon={<Minus className="w-4 h-4" />} label="Line" />
-        <LockedFeature feature="QR codes" inline>
+        <LockedFeature feature="QR codes" featureKey="qr_codes" inline>
           <ToolButton onClick={addQr} icon={<QrCode className="w-4 h-4" />} label="QR" />
         </LockedFeature>
       </div>

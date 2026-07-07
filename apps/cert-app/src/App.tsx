@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
 import { ApprovalProvider } from "@/hooks/use-approval";
+import { FeaturesProvider } from "@/hooks/use-features";
 import { WorkspaceProvider } from "@/hooks/use-workspace";
 import { Layout } from "@/components/layout/Layout";
 
@@ -35,7 +36,7 @@ const ForgotPassword = lazy(() => import("@/pages/ForgotPassword"));
 const ResetPassword = lazy(() => import("@/pages/ResetPassword"));
 const SettingsPage = lazy(() => import("@/pages/Settings"));
 const FrameInventory = lazy(() => import("@/pages/FrameInventory"));
-const AdminRedemptions = lazy(() => import("@/pages/AdminRedemptions"));
+const AdminLayout = lazy(() => import("@/pages/admin/AdminLayout"));
 const SpreadsheetsListPage = lazy(() => import("@/pages/spreadsheets/SpreadsheetsList"));
 const SpreadsheetEditorPage = lazy(() => import("@/pages/spreadsheets/SpreadsheetEditor"));
 
@@ -52,7 +53,10 @@ function AuthenticatedRouter() {
   // Full-screen editors render their own chrome — must NOT be wrapped in <Layout>.
   const [isBuiltinEditor] = useRoute("/templates/builtin/:id");
   const [isSpreadsheetEditor] = useRoute("/spreadsheets/:id");
-  const [isAdminRedemptions] = useRoute("/admin/redemptions");
+  const [location] = useLocation();
+  // useRoute("/admin/:rest*") doesn't match the bare "/admin" path (no
+  // trailing segment), so check the prefix directly instead.
+  const isAdminSection = location === "/admin" || location.startsWith("/admin/");
   if (isBuiltinEditor) {
     return <BuiltinTemplateEditorPage />;
   }
@@ -63,8 +67,12 @@ function AuthenticatedRouter() {
       </Suspense>
     );
   }
-  if (isAdminRedemptions) {
-    return <AdminRedemptions />;
+  if (isAdminSection) {
+    return (
+      <Suspense fallback={<PageLoader />}>
+        <AdminLayout />
+      </Suspense>
+    );
   }
 
   return (
@@ -163,16 +171,18 @@ function App() {
     <AuthProvider>
       <WorkspaceProvider>
         <ApprovalProvider>
-          <QueryClientProvider client={queryClient}>
-            <TooltipProvider delayDuration={300}>
-              <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-                <Suspense fallback={<PageLoader />}>
-                  <AppRouter />
-                </Suspense>
-              </WouterRouter>
-              <Toaster />
-            </TooltipProvider>
-          </QueryClientProvider>
+          <FeaturesProvider>
+            <QueryClientProvider client={queryClient}>
+              <TooltipProvider delayDuration={300}>
+                <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+                  <Suspense fallback={<PageLoader />}>
+                    <AppRouter />
+                  </Suspense>
+                </WouterRouter>
+                <Toaster />
+              </TooltipProvider>
+            </QueryClientProvider>
+          </FeaturesProvider>
         </ApprovalProvider>
       </WorkspaceProvider>
     </AuthProvider>

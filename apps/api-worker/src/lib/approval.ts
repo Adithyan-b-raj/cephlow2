@@ -44,6 +44,52 @@ export async function isApprovedInContext(
   }
 }
 
+export const FEATURE_KEYS = [
+  "whatsapp_delivery",
+  "custom_event_banners",
+  "google_slides_templates",
+  "qr_codes",
+] as const;
+
+export type FeatureKey = (typeof FEATURE_KEYS)[number];
+
+/**
+ * Returns true if the given workspace has been explicitly granted the given
+ * feature via workspace_features. Distinct from the coarser is_approved gate.
+ */
+export async function hasFeature(
+  db: D1Database,
+  workspaceId: string,
+  featureKey: FeatureKey
+): Promise<boolean> {
+  if (!workspaceId) return false;
+  const row = await db.prepare(`
+    SELECT enabled FROM workspace_features WHERE workspace_id = ? AND feature_key = ?
+  `).bind(workspaceId, featureKey).first<{ enabled: number }>();
+  return Boolean(row?.enabled);
+}
+
+/**
+ * Returns the enabled state of every known feature for a workspace, keyed by
+ * feature_key. Missing rows default to false.
+ */
+export async function getWorkspaceFeatures(
+  db: D1Database,
+  workspaceId: string
+): Promise<Record<FeatureKey, boolean>> {
+  const result: Record<string, boolean> = Object.fromEntries(FEATURE_KEYS.map((k) => [k, false]));
+  if (!workspaceId) return result as Record<FeatureKey, boolean>;
+
+  const { results } = await db.prepare(`
+    SELECT feature_key, enabled FROM workspace_features WHERE workspace_id = ?
+  `).bind(workspaceId).all<{ feature_key: string; enabled: number }>();
+
+  for (const row of results) {
+    result[row.feature_key] = Boolean(row.enabled);
+  }
+  return result as Record<FeatureKey, boolean>;
+}
+
 /**
  * Ensure a user_profiles row exists for the user. Idempotent — used on
  * every call to /api/me/approval so the row is auto-created on first

@@ -65,7 +65,7 @@ export function BatchCertificatesTable({
         </Button>
       )}
       {canWa(cert) && (
-        <LockedFeature feature="WhatsApp delivery" inline>
+        <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>
           <Button variant="outline" size="sm" className="hover-elevate" onClick={() => onIndivWa(cert)}>
             <MessageCircle className="w-3.5 h-3.5 mr-1.5" />WA
           </Button>
@@ -96,7 +96,7 @@ export function BatchCertificatesTable({
         </Button>
       )}
       {canWa(cert) && (
-        <LockedFeature feature="WhatsApp delivery" inline>
+        <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>
           <Button variant="outline" size="sm" className="hover-elevate w-full justify-start" onClick={() => onIndivWa(cert)}>
             <MessageCircle className="w-3.5 h-3.5 mr-1.5" />WA
           </Button>

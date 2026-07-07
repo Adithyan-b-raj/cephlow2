@@ -49,7 +49,7 @@ export default function NewTemplate() {
   const [step, setStep] = useState(0);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
-  const slidesGuard = useLockedFeatureGuard("Google Slides templates");
+  const slidesGuard = useLockedFeatureGuard("Google Slides templates", "google_slides_templates");
 
   const [templateName, setTemplateName] = useState("");
   const [multiTemplate, setMultiTemplate] = useState(false);

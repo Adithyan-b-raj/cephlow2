@@ -57,7 +57,7 @@ export default function NewBatchWizard() {
   const { recheckGoogleAuth, googleAuthStatus, connectGoogle } = useAuth();
   const hasGoogleAuth = googleAuthStatus.sheets;
   const { isApproved } = useApproval();
-  const slidesGuard = useLockedFeatureGuard("Google Slides templates");
+  const slidesGuard = useLockedFeatureGuard("Google Slides templates", "google_slides_templates");
 
   const [templateId, setTemplateId] = useState("");
   const [templateName, setTemplateName] = useState("");

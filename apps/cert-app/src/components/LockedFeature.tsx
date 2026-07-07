@@ -1,6 +1,7 @@
 import { useState, type ReactNode, type MouseEvent } from "react";
 import { Lock, MessageCircle } from "lucide-react";
 import { useApproval } from "@/hooks/use-approval";
+import { useFeatures, type FeatureKey } from "@/hooks/use-features";
 import {
   Dialog,
   DialogContent,
@@ -15,6 +16,8 @@ interface LockedFeatureProps {
   children: ReactNode;
   /** Short label used in the modal: "Send via WhatsApp", "QR codes", "Wallet" … */
   feature: string;
+  /** Per-workspace feature flag key checked via useFeatures(). */
+  featureKey: FeatureKey;
   /** Optional inline mode — wraps inline (e.g. inside a toolbar) instead of block */
   inline?: boolean;
   /** Pass-through className for the wrapper */
@@ -34,11 +37,15 @@ const APPROVAL_WA_LINK = APPROVAL_WA_NUMBER
  * element is greyed-out + locked: clicks are intercepted and a modal explains
  * how to get approved. When approved, renders children unchanged.
  */
-export function LockedFeature({ children, feature, inline, className = "" }: LockedFeatureProps) {
-  const { isApproved, loading } = useApproval();
+export function LockedFeature({ children, feature, featureKey, inline, className = "" }: LockedFeatureProps) {
+  const { isApproved, loading: approvalLoading } = useApproval();
+  const { features, loading: featuresLoading } = useFeatures();
   const [open, setOpen] = useState(false);
 
-  if (isApproved) return <>{children}</>;
+  const loading = approvalLoading || featuresLoading;
+  const unlocked = isApproved && features[featureKey];
+
+  if (unlocked) return <>{children}</>;
   if (loading) {
     return (
       <span className={inline ? "relative inline-flex" : "relative"}>
@@ -115,12 +122,15 @@ export function LockedFeature({ children, feature, inline, className = "" }: Loc
  * approval modal. Useful for buttons whose layout would break with the
  * default visual wrapper.
  */
-export function useLockedFeatureGuard(feature: string) {
-  const { isApproved, loading } = useApproval();
+export function useLockedFeatureGuard(feature: string, featureKey: FeatureKey) {
+  const { isApproved, loading: approvalLoading } = useApproval();
+  const { features, loading: featuresLoading } = useFeatures();
+  const loading = approvalLoading || featuresLoading;
+  const unlocked = isApproved && features[featureKey];
   const [open, setOpen] = useState(false);
   const guard = (fn: () => void) => () => {
     if (loading) return;
-    if (!isApproved) {
+    if (!unlocked) {
       setOpen(true);
       return;
     }
@@ -154,5 +164,5 @@ export function useLockedFeatureGuard(feature: string) {
       </DialogContent>
     </Dialog>
   );
-  return { isApproved: isApproved && !loading, guard, modal };
+  return { isApproved: unlocked && !loading, guard, modal };
 }
