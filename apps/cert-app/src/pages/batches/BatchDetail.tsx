@@ -220,7 +220,7 @@ export default function BatchDetail() {
   const pendingCount = allCerts.filter((c: any) => ["pending", "failed"].includes(c.status)).length;
   const targetCerts = selectedCertIds.length > 0 ? allCerts.filter((c: any) => selectedCertIds.includes(c.id)) : allCerts;
   const unpaidCount = targetCerts.filter((c: any) => !c.isPaid).length;
-  const rate = Number((balanceData as any)?.costs?.generation ?? 1.0);
+  const rate = isApproved ? Number((balanceData as any)?.costs?.generation ?? 1.0) : 0;
   const estimatedCost = unpaidCount * rate;
   const canResumeAll = selectedCertIds.length === 0 && pendingCount > 0;
 
@@ -373,7 +373,7 @@ export default function BatchDetail() {
       />
 
       {/* Cost calculation & balance check */}
-      {(pendingCount > 0 || selectedCertIds.length > 0) && (
+      {isApproved && (pendingCount > 0 || selectedCertIds.length > 0) && (
         <div className={`p-4 border-2 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 ${
           (balanceData?.currentBalance ?? 0) < estimatedCost
             ? "border-destructive bg-destructive/5 text-destructive"

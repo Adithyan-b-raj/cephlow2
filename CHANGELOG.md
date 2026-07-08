@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 ### Changed
 - **`apps/cert-app`**: Updated the "Edit Sheet" button in `BatchHeader.tsx` to automatically convert Google Sheet batches to built-in sheets on-the-fly and redirect to the built-in sheet editor (`/spreadsheets/:spreadsheetId`).
 - **`apps/cert-app` & `apps/api-worker`**: Added a `returnTo` query parameter to the spreadsheet editor. When coming from a batch page, saving/exiting the built-in sheet editor now correctly redirects back to the batch detail page instead of defaulting to the general `/spreadsheets` dashboard list. Also fixed batch payload responses to return `spreadsheet_id` and `data_source_kind`.
+- **`apps/cert-app`**: Fixed estimated generation cost rate to evaluate to 0 for unapproved/free tier users, and hid the estimated cost banner entirely for the free tier.
 
 ### Removed
 - **`apps/cert-app`**: Removed the Generation Limit card from the Wallet page, and corresponding limit displays in the batch detail header.
