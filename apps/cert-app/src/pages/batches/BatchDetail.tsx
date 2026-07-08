@@ -221,9 +221,7 @@ export default function BatchDetail() {
   const targetCerts = selectedCertIds.length > 0 ? allCerts.filter((c: any) => selectedCertIds.includes(c.id)) : allCerts;
   const unpaidCount = targetCerts.filter((c: any) => !c.isPaid).length;
   const rate = Number((balanceData as any)?.costs?.generation ?? 1.0);
-  const regenRate = rate * 0.2;
-  const visualRegenCount = targetCerts.filter((c: any) => c.status === "outdated").length;
-  const estimatedCost = unpaidCount * rate + visualRegenCount * regenRate;
+  const estimatedCost = unpaidCount * rate;
   const canResumeAll = selectedCertIds.length === 0 && pendingCount > 0;
 
   const generateBtnText = selectedCertIds.length > 0
@@ -386,11 +384,9 @@ export default function BatchDetail() {
               Estimated Generation Cost
             </p>
             <p className="text-xs normal-case tracking-normal">
-              Rate: <span className="font-bold font-mono">{rate} credits</span>/new cert,{" "}
-              <span className="font-bold font-mono">{regenRate.toFixed(2)} credits</span>/regen.
+              Rate: <span className="font-bold font-mono">{rate} credits</span>/new cert.
               {selectedCertIds.length > 0 ? " Selected: " : " Batch remaining: "}
-              <span className="font-bold font-mono">{unpaidCount} new</span>,{" "}
-              <span className="font-bold font-mono">{visualRegenCount} outdated</span>.
+              <span className="font-bold font-mono">{unpaidCount} new</span>.
             </p>
           </div>
           <div className="text-right shrink-0">

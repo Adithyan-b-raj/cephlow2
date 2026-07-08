@@ -79,18 +79,13 @@ router.post("/batches/:batchId/client-generate", async (c) => {
     }
 
     const unpaidCerts = targetCerts.filter((c) => !c.is_paid);
-    const visualRegenCerts = targetCerts.filter(
-      (c) => c.is_paid && c.status === "outdated" && c.requires_visual_regen
-    );
 
     const unpaidCount = unpaidCerts.length;
-    const visualRegenCount = visualRegenCerts.length;
 
     const RATE = Number(c.env.VITE_CERT_GENERATION_RATE || 1);
-    const REGEN_RATE = Number(c.env.VITE_CERT_REGENERATION_RATE || 0.2);
 
     const approved = await getCachedApproval(c.env, user.uid, workspace.id);
-    const cost = approved ? unpaidCount * RATE + visualRegenCount * REGEN_RATE : 0;
+    const cost = approved ? unpaidCount * RATE : 0;
     
     // Deduct workspace balance and update status via transaction
     const ws = await c.env.DB.prepare(`
@@ -117,9 +112,9 @@ router.post("/batches/:batchId/client-generate", async (c) => {
         JSON.stringify({
           batch_id: batchId,
           unpaid_count: unpaidCount,
-          regen_count: visualRegenCount,
+          regen_count: 0,
           rate: approved ? RATE : 0,
-          regen_rate: approved ? REGEN_RATE : 0
+          regen_rate: 0
         })
       )
     ];

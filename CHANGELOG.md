@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Removed
 - **`apps/cert-app`**: Removed the Generation Limit card from the Wallet page, and corresponding limit displays in the batch detail header.
+- **`apps/cert-app` & `apps/api-worker`**: Removed certificate regeneration cost calculations, UI displays, and transaction balance deductions, making certificate regeneration free for all users.
 
 ## [2.0.1] - 2026-07-07
 
