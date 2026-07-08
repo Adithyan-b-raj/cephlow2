@@ -2,6 +2,10 @@
 <html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8">
+<script>
+  const savedTheme = localStorage.getItem('cephlow_arch_theme') || 'dark';
+  document.documentElement.dataset.theme = savedTheme;
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CEPHLOW / SYSTEM ARCHITECTURE</title>
 <style>
@@ -568,6 +572,21 @@
     color: var(--fg);
     font-weight: 700;
   }
+
+  /* ── MERMAID ── */
+  .mermaid {
+    background: var(--code-bg) !important;
+    border: var(--border) !important;
+    padding: 1.5rem;
+    margin: 1rem 0 1.5rem;
+    display: flex;
+    justify-content: center;
+    overflow-x: auto;
+  }
+  .mermaid svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
 </style>
 </head>
 <body>
@@ -668,28 +687,27 @@
     <div class="section-label">Section 02</div>
     <h2>Infrastructure Map</h2>
 
-    <div class="diagram">
-<pre>
-  GoDaddy (Domain Registrar)
-       │
-       ▼
-  Cloudflare DNS (proxy + cache headers)
-       │
-       ├─────────────────────────────────────┐
-       │                                     │
-       ▼                                     ▼
-  Cloudflare Pages                     Cloudflare Workers (cephlow-api)
-  ─────────────────                    ────────────────────────────────
-  React SPA (Vite)                     Hono API Server (TypeScript)
-  Static build, global CDN             Edge functions, global CDNs
-  Free tier                            Free / Paid tier
-       │                                     │
-       │ fetch() API calls                   ├── Cloudflare D1 (SQLite DB at edge)
-       │ Authorization: Bearer JWT           ├── Supabase Auth (JWT verify)
-       └────────────────────────────────────►├── Cloudflare R2 (object storage)
-                                             └── Google APIs (Gmail, Sheets, Slides)
-</pre>
-    </div>
+    <pre class="mermaid">
+flowchart TD
+    GoDaddy[GoDaddy<br/>Domain Registrar] --> CFDNS[Cloudflare DNS<br/>Proxy + Cache Headers]
+    CFDNS --> CFPages[Cloudflare Pages<br/>React SPA in Vite<br/>Static Build, Global CDN]
+    CFDNS --> CFWorkers[Cloudflare Workers<br/>cephlow-api Worker<br/>Edge Functions, Hono API]
+    
+    CFPages -- "fetch() API calls<br/>Authorization: Bearer JWT" --> CFWorkers
+    CFWorkers --> CFD1[(Cloudflare D1<br/>SQLite DB at Edge)]
+    CFWorkers --> CFAuth[Supabase Auth<br/>JWT Verification]
+    CFWorkers --> CFR2[(Cloudflare R2<br/>Object Storage)]
+    CFWorkers --> GoogleAPIs[Google APIs<br/>Gmail, Sheets, Slides]
+
+    style GoDaddy fill:#ff9900,stroke:#333,stroke-width:1px,color:#000
+    style CFDNS fill:#f38020,stroke:#333,stroke-width:1px,color:#fff
+    style CFPages fill:#f38020,stroke:#333,stroke-width:1px,color:#fff
+    style CFWorkers fill:#f38020,stroke:#333,stroke-width:1px,color:#fff
+    style CFD1 fill:#2b579a,stroke:#333,stroke-width:1px,color:#fff
+    style CFR2 fill:#2b579a,stroke:#333,stroke-width:1px,color:#fff
+    style CFAuth fill:#3ecf8e,stroke:#333,stroke-width:1px,color:#fff
+    style GoogleAPIs fill:#4285f4,stroke:#333,stroke-width:1px,color:#fff
+    </pre>
 
     <div class="table-wrap">
       <table>
@@ -757,21 +775,31 @@
     <p>The project is a <strong>pnpm workspace monorepo</strong>. All apps and packages share
     dependencies and types, managed from the repo root.</p>
 
-    <div class="diagram">
-<pre>
-  cephlow2/
-  ├── apps/
-  │   ├── cert-app/           React 19 frontend (Vite + TypeScript + Tailwind v4)
-  │   ├── api-worker/         Hono API backend deployed to Cloudflare Workers
-  │   └── api-server/         Legacy Express backend (deprecated/local testing)
-  │
-  ├── packages/
-  │   ├── api-spec/           OpenAPI spec ← SOURCE OF TRUTH for all types
-  │   ├── api-zod/            Zod schemas ← codegen'd from api-spec
-  │   ├── api-client-react/   React Query hooks ← codegen'd from api-spec
-  │   └── supabase/           Shared Supabase Auth + JWT verify utility
-</pre>
-    </div>
+    <pre class="mermaid">
+flowchart TD
+    subgraph Root [cephlow2 monorepo root]
+        subgraph Apps [apps/]
+            CertApp[cert-app<br/>React 19 Frontend<br/>Vite + Tailwind v4]
+            APIWorker[api-worker<br/>Hono API Backend<br/>Cloudflare Workers]
+            APIServer[api-server<br/>Legacy Express<br/>Deprecated]
+        end
+        subgraph Packages [packages/]
+            APISpec[api-spec<br/>OpenAPI specification<br/>Source of Truth]
+            APIZod[api-zod<br/>Zod schemas<br/>Codegen'd]
+            APIClient[api-client-react<br/>React Query hooks<br/>Codegen'd]
+            Supabase[supabase<br/>Shared Auth + JWT verify]
+        end
+    end
+
+    APISpec -.-> |"Codegen"| APIZod
+    APISpec -.-> |"Codegen"| APIClient
+    APIClient --> CertApp
+    APIZod --> APIWorker
+    Supabase --> APIWorker
+
+    style APISpec fill:#ff5722,stroke:#333,stroke-width:2px,color:#fff
+    style Root fill:transparent,stroke:#555,stroke-dasharray: 5 5
+    </pre>
 
     <div class="callout">
       <div class="callout-icon">▲</div>
@@ -1004,30 +1032,24 @@ AUTH REQUIRED (Supabase JWT):
 
     <p>Incoming support requests on WhatsApp are bridged directly to Telegram group topics. Developers reply directly from Telegram; students receive responses on WhatsApp.</p>
 
-    <div class="diagram">
-<pre>
-  STUDENT (WhatsApp)                    DEVELOPER (Telegram)
-  ──────────────────                    ─────────────────────
-  Sends text message
-           │
-           ▼
-    Hono Worker: Checks user state in D1
-    Active Support State -> Forward to Telegram Topic via TG API
-                                              │
-                                              ▼
-                                   Developer receives message
-                                   in Telegram forum topic
-                                   and types reply
-                                              │
-                               ┌──────────────┘
-                               ▼ (Telegram Webhook -> Hono Worker)
-                    Worker: Checks thread mapping in D1
-                    Worker: Sends WhatsApp message to Student via Meta
-                                              │
-                                              ▼
-                            Student receives reply on WhatsApp
-</pre>
-    </div>
+    <pre class="mermaid">
+sequenceDiagram
+    autonumber
+    actor Student as Student (WhatsApp)
+    participant Worker as Hono Worker
+    participant DB as Cloudflare D1
+    actor Developer as Developer (Telegram)
+
+    Student->>Worker: Sends text message
+    Worker->>DB: Checks user state
+    DB-->>Worker: Support state active
+    Worker->>Developer: Forwards message to TG topic (Telegram API)
+    Note over Developer: Developer receives in TG topic & replies
+    Developer->>Worker: Webhook (Telegram to Worker)
+    Worker->>DB: Checks thread mapping
+    DB-->>Worker: Returns phone number
+    Worker->>Student: Sends WhatsApp message (Meta Cloud API)
+    </pre>
   </section>
 
   <!-- ═══ SECTION 10: PAYMENTS ═══ -->
@@ -1126,17 +1148,28 @@ AUTH REQUIRED (Supabase JWT):
 
 </main>
 
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+
+  const currentTheme = document.documentElement.dataset.theme || 'dark';
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: currentTheme === 'dark' ? 'dark' : 'default',
+    securityLevel: 'loose',
+    flowchart: { useMaxWidth: true, htmlLabels: true }
+  });
+
+  const btn = document.getElementById('themeToggle');
+  if (btn) btn.textContent = currentTheme === 'dark' ? 'LIGHT' : 'DARK';
+</script>
+
 <script>
   function toggleTheme() {
     const html = document.documentElement;
-    const btn  = document.getElementById('themeToggle');
-    if (html.dataset.theme === 'dark') {
-      html.dataset.theme = 'light';
-      btn.textContent = 'DARK';
-    } else {
-      html.dataset.theme = 'dark';
-      btn.textContent = 'LIGHT';
-    }
+    const newTheme = html.dataset.theme === 'dark' ? 'light' : 'dark';
+    html.dataset.theme = newTheme;
+    localStorage.setItem('cephlow_arch_theme', newTheme);
+    location.reload();
   }
 
   function toggleQA(el) {
