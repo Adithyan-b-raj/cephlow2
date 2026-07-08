@@ -232,8 +232,6 @@ export default function BatchDetail() {
       ? `Resume (${pendingCount} remaining)`
       : `Generate All (${pendingCount})`;
 
-  const generationLimit = Math.floor((balanceData?.currentBalance ?? 0) / rate);
-
   const { generate: clientGenerateFn, cancel: cancelGeneration, isGenerating, progress: genProgress } = useClientGenerate();
 
   const handleGenerate = async () => {
@@ -364,7 +362,6 @@ export default function BatchDetail() {
         generateBtnText={generateBtnText}
         canResumeAll={canResumeAll}
         selectedCertIds={selectedCertIds}
-        generationLimit={generationLimit}
         getStatusColor={getStatusColor}
         onGenerate={handleGenerate}
         onCancelGeneration={cancelGeneration}

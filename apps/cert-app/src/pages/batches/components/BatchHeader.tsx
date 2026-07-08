@@ -23,7 +23,6 @@ interface Props {
   generateBtnText: string;
   canResumeAll: boolean;
   selectedCertIds: string[];
-  generationLimit: number;
   getStatusColor: (status: string) => string;
   onGenerate: () => void;
   onCancelGeneration: () => void;
@@ -38,7 +37,7 @@ interface Props {
 
 export function BatchHeader({
   batch, batchId, isGenerating, isSyncing, isSharing, isSending, isSendingWhatsapp,
-  bannerUploading, generateBtnText, canResumeAll, selectedCertIds, generationLimit,
+  bannerUploading, generateBtnText, canResumeAll, selectedCertIds,
   getStatusColor, onGenerate, onCancelGeneration, onSync, onShare, onBannerEdit, onOpenSend, onOpenWa,
   onRename, isRenaming,
 }: Props) {
@@ -241,9 +240,6 @@ export function BatchHeader({
                 </Button>
               </LockedFeature>
             )}
-            <p className="col-span-2 text-[10px] text-muted-foreground pt-1">
-              Generation limit: {generationLimit.toLocaleString()}
-            </p>
           </div>
         )}
 
@@ -287,9 +283,6 @@ export function BatchHeader({
                 <X className="w-3.5 h-3.5" />
               </Button>
             )}
-            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-              Limit: {generationLimit.toLocaleString()}
-            </span>
           </div>
 
           <div className="w-px h-5 bg-border mx-0.5" />
