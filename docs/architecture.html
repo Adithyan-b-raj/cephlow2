@@ -942,6 +942,48 @@ AUTH REQUIRED (Supabase JWT):
     </div>
   </section>
 
+  <!-- ═══ SECTION R2: R2 STORAGE ═══ -->
+  <section class="section" id="r2">
+    <div class="section-label">Section 06b</div>
+    <h2>Object Storage — Cloudflare R2</h2>
+
+    <p>
+      Cloudflare R2 provides S3-compatible, zero-egress-fee object storage at the edge. 
+      It is used to store and serve the generated certificate PDF files securely and globally.
+    </p>
+
+    <h3>R2 Architecture & Access Control</h3>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-num">01</div>
+        <div class="flow-content">
+          <div class="flow-title">Presigned Upload URLs</div>
+          <div class="flow-desc">
+            To prevent loading large PDF buffers in Worker memory, the Hono backend generates a presigned S3 <code>PUT</code> URL. The React frontend uploads the PDF directly from the client browser to R2.
+          </div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">02</div>
+        <div class="flow-content">
+          <div class="flow-title">Public Certificate Access</div>
+          <div class="flow-desc">
+            Certificates are stored under paths matching their unique public IDs. R2 buckets are bound to a custom domain with cache headers configured to allow instant verification loading.
+          </div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">03</div>
+        <div class="flow-content">
+          <div class="flow-title">Directory Structure for WhatsApp Bot</div>
+          <div class="flow-desc">
+            Files are structured with a phone-number prefix key structure. This enables the WhatsApp chatbot to query the storage and locate previous certificates belonging to a recipient rapidly.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ═══ SECTION 7: CERT GEN ═══ -->
   <section class="section" id="certgen">
     <div class="section-label">Section 07</div>
