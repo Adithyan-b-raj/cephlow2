@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import {
   Wallet as WalletIcon, IndianRupee, History, Plus, Loader2,
-  FileBadge, Users, Coins, ArrowRightLeft, Copy, Check, ArrowUpRight, ArrowDownLeft,
+  Users, Coins, ArrowRightLeft, Copy, Check, ArrowUpRight, ArrowDownLeft,
 } from "lucide-react";
 import { Link } from "wouter";
 import {
@@ -350,7 +350,6 @@ export default function Wallet() {
   const transferCode    = (balanceData as any)?.transferCode as string | null ?? null;
   const ledgerHistory   = historyData?.ledgers || [];
   const RATE            = Number((balanceData as any)?.costs?.generation ?? 1.0);
-  const generationLimit = Math.floor(currentBalance / RATE);
 
   const minRechargeAmount = Number((balanceData as any)?.costs?.minRechargeAmount ?? 100);
   const creditsPerRupee = Number((balanceData as any)?.costs?.creditsPerRupee ?? 10);
@@ -474,8 +473,8 @@ export default function Wallet() {
       </div>
 
       {/* Balance cards */}
-      <div className="border-2 border-foreground grid grid-cols-1 md:grid-cols-2">
-        <div className="p-6 md:border-r-2 border-foreground border-b-2 md:border-b-0">
+      <div className="border-2 border-foreground">
+        <div className="p-6">
           <div className="flex items-center justify-between mb-3">
             <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Available Balance</span>
             <WalletIcon className="w-4 h-4 text-muted-foreground" />
@@ -484,16 +483,6 @@ export default function Wallet() {
             {isLoadingBalance ? "—" : `${currentBalance.toLocaleString()} credits`}
           </div>
           <p className="text-xs text-muted-foreground mt-2 normal-case tracking-normal font-normal">Used for generation and delivery fees</p>
-        </div>
-        <div className="p-6">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Generation Limit</span>
-            <FileBadge className="w-4 h-4 text-muted-foreground" />
-          </div>
-          <div className="text-4xl font-display font-black font-mono">
-            {isLoadingBalance ? "—" : generationLimit.toLocaleString()}
-          </div>
-          <p className="text-xs text-muted-foreground mt-2 normal-case tracking-normal font-normal">Info-only updates are free</p>
         </div>
       </div>
 

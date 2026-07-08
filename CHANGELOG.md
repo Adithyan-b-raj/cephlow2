@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+## [2.0.2] - 2026-07-08
+
+### Added
+- **`apps/api-worker`**: Added batch synchronization endpoint (`POST /batches/:batchId/sync`) supporting both Google Sheets and built-in spreadsheets, and conversion endpoint (`POST /batches/:batchId/convert-to-inbuilt`) to migrate Google Sheet batches to built-in spreadsheets.
+- **`apps/cert-app` & `apps/api-worker`**: Added automatic deletion of old generated certificate PDFs on Google Drive during regeneration on the free tier. This is achieved by returning the database `pdf_file_id` to the client and executing a `DELETE` call using the Google Drive API before uploading the newly rendered PDF.
+
+### Changed
+- **`apps/cert-app`**: Updated the "Edit Sheet" button in `BatchHeader.tsx` to automatically convert Google Sheet batches to built-in sheets on-the-fly and redirect to the built-in sheet editor (`/spreadsheets/:spreadsheetId`).
+- **`apps/cert-app` & `apps/api-worker`**: Added a `returnTo` query parameter to the spreadsheet editor. When coming from a batch page, saving/exiting the built-in sheet editor now correctly redirects back to the batch detail page instead of defaulting to the general `/spreadsheets` dashboard list. Also fixed batch payload responses to return `spreadsheet_id` and `data_source_kind`.
+- **`apps/cert-app`**: Fixed estimated generation cost rate to evaluate to 0 for unapproved/free tier users, and hid the estimated cost banner entirely for the free tier.
+
+### Removed
+- **`apps/cert-app`**: Removed the Generation Limit card from the Wallet page, and corresponding limit displays in the batch detail header.
+- **`apps/cert-app` & `apps/api-worker`**: Removed certificate regeneration cost calculations, UI displays, and transaction balance deductions, making certificate regeneration free for all users.
+
 ## [2.0.1] - 2026-07-07
 
 ### Removed

@@ -183,48 +183,7 @@ export function SpreadsheetEditorUI({
     return () => window.removeEventListener("mouseup", onUp);
   }, [isDragging]);
 
-  // ── Keyboard shortcuts (undo/redo/save/delete) ────────────────────────────
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      const meta = e.ctrlKey || e.metaKey;
-      const target = e.target as HTMLElement;
-      const isEditing = target.tagName === "INPUT" || target.isContentEditable;
 
-      if (meta && e.key.toLowerCase() === "z" && !e.shiftKey) {
-        e.preventDefault(); undo();
-      } else if (meta && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) {
-        e.preventDefault(); redo();
-      } else if (meta && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        if (!name.trim()) {
-          toast({ title: "Please provide a name", description: "Enter a name for the spreadsheet before saving.", variant: "destructive" });
-        } else {
-          savedRef.current = { name: name.trim(), columns, rows };
-          setIsDirty(false);
-          onSave({ name: name.trim(), data: { columns, rows } });
-        }
-      } else if ((e.key === "Delete" || e.key === "Backspace") && !isEditing && selection) {
-        // Clear all cells in the drag selection
-        e.preventDefault();
-        const { r1, r2, c1, c2 } = getSelectionBounds(selection);
-        const newRows = rows.map((r, ri) => {
-          if (ri < r1 || ri > r2) return r;
-          const copy = { ...r };
-          columns.forEach((col, ci) => {
-            if (ci >= c1 && ci <= c2) copy[col] = "";
-          });
-          return copy;
-        });
-        setRows(newRows);
-        pushHistory(columns, newRows);
-      } else if (e.key === "Escape") {
-        setActiveCell(null);
-        setSelection(null);
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [undo, redo, name, columns, rows, onSave, selection, pushHistory]);
 
   // ── Paste TSV from clipboard ──────────────────────────────────────────────
   useEffect(() => {
@@ -507,6 +466,43 @@ export function SpreadsheetEditorUI({
       onBack();
     }
   };
+
+  // ── Keyboard shortcuts (undo/redo/save/delete) ────────────────────────────
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const meta = e.ctrlKey || e.metaKey;
+      const target = e.target as HTMLElement;
+      const isEditing = target.tagName === "INPUT" || target.isContentEditable;
+
+      if (meta && e.key.toLowerCase() === "z" && !e.shiftKey) {
+        e.preventDefault(); undo();
+      } else if (meta && (e.key.toLowerCase() === "y" || (e.shiftKey && e.key.toLowerCase() === "z"))) {
+        e.preventDefault(); redo();
+      } else if (meta && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        handleSaveClick();
+      } else if ((e.key === "Delete" || e.key === "Backspace") && !isEditing && selection) {
+        // Clear all cells in the drag selection
+        e.preventDefault();
+        const { r1, r2, c1, c2 } = getSelectionBounds(selection);
+        const newRows = rows.map((r, ri) => {
+          if (ri < r1 || ri > r2) return r;
+          const copy = { ...r };
+          columns.forEach((col, ci) => {
+            if (ci >= c1 && ci <= c2) copy[col] = "";
+          });
+          return copy;
+        });
+        setRows(newRows);
+        pushHistory(columns, newRows);
+      } else if (e.key === "Escape") {
+        setActiveCell(null);
+        setSelection(null);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [undo, redo, name, columns, rows, onSave, selection, pushHistory, activeCell, editingValue, handleSaveClick]);
 
   // ── Render ────────────────────────────────────────────────────────────────
 

@@ -24,6 +24,7 @@ export interface CertData {
   status: string;
   rowData: Record<string, string>;
   slideFileId: string | null;
+  pdfFileId: string | null;
   requiresVisualRegen: boolean;
   r2PdfUrl: string | null;
 }
@@ -905,6 +906,16 @@ export async function clientGenerate(
                 r2PdfUrl = urlInfo.r2PdfUrl;
               }
             } else {
+              // Free tier: Delete the old Google Drive PDF file if it exists to prevent duplication
+              if (cert.pdfFileId) {
+                try {
+                  const tok = await ensureToken();
+                  await gFetch(`${DRIVE_API}/${cert.pdfFileId}`, tok, { method: "DELETE" });
+                } catch (e: any) {
+                  console.warn(`[CLIENT-BUILTIN] Failed to delete old Drive PDF ${cert.pdfFileId}:`, e.message);
+                }
+              }
+
               // Free tier: upload to the batch's Google Drive folder
               const safeName = (cert.recipientName || "cert").trim().replace(/[^a-zA-Z0-9]/g, "_").replace(/^_+|_+$/g, "") || "cert";
               const safeBatch = (batch.name || "batch").trim().replace(/[^a-zA-Z0-9]/g, "_").replace(/^_+|_+$/g, "") || "batch";

@@ -23,7 +23,6 @@ interface Props {
   generateBtnText: string;
   canResumeAll: boolean;
   selectedCertIds: string[];
-  generationLimit: number;
   getStatusColor: (status: string) => string;
   onGenerate: () => void;
   onCancelGeneration: () => void;
@@ -38,7 +37,7 @@ interface Props {
 
 export function BatchHeader({
   batch, batchId, isGenerating, isSyncing, isSharing, isSending, isSendingWhatsapp,
-  bannerUploading, generateBtnText, canResumeAll, selectedCertIds, generationLimit,
+  bannerUploading, generateBtnText, canResumeAll, selectedCertIds,
   getStatusColor, onGenerate, onCancelGeneration, onSync, onShare, onBannerEdit, onOpenSend, onOpenWa,
   onRename, isRenaming,
 }: Props) {
@@ -72,23 +71,54 @@ export function BatchHeader({
   };
 
   const isInbuilt = batch.dataSourceKind === "inbuilt";
+  const [convertingSheet, setConvertingSheet] = useState(false);
+
+  const handleEditSheet = async () => {
+    if (batch.spreadsheetId) {
+      setLocation(`/spreadsheets/${batch.spreadsheetId}?returnTo=/batches/${batchId}`);
+      return;
+    }
+
+    setConvertingSheet(true);
+    try {
+      const { supabase } = await import("@/lib/supabase");
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      const apiBase = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+      const wsId = localStorage.getItem("cephlow_active_workspace");
+      const res = await fetch(`${apiBase}/api/batches/${batchId}/convert-to-inbuilt`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(wsId ? { "x-workspace-id": wsId } : {}),
+        },
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || "Failed to convert sheet");
+      }
+      const data = await res.json();
+      toast({ title: "Migrated to Built-in Sheet", description: "Successfully converted Google Sheet data to built-in sheet." });
+      setLocation(`/spreadsheets/${data.spreadsheetId}?returnTo=/batches/${batchId}`);
+    } catch (err: any) {
+      toast({ title: "Conversion failed", description: err.message, variant: "destructive" });
+    } finally {
+      setConvertingSheet(false);
+    }
+  };
 
   function EditSheetButton({ className }: { className?: string }) {
-    if (isInbuilt) {
-      return (
-        <Button variant="outline" size="sm" className={`hover-elevate bg-background ${className ?? ""}`}
-          onClick={() => setLocation(`/spreadsheets/${batch.spreadsheetId}`)}>
-          <Table2 className="w-4 h-4 mr-1.5 text-blue-600" />
-          Edit Sheet
-        </Button>
-      );
-    }
     return (
-      <Button variant="outline" size="sm" asChild className={`hover-elevate bg-background ${className ?? ""}`} title="Edit Google Sheet">
-        <a href={`https://docs.google.com/spreadsheets/d/${batch.sheetId}/edit`} target="_blank" rel="noopener noreferrer">
+      <Button variant="outline" size="sm" className={`hover-elevate bg-background ${className ?? ""}`}
+        onClick={handleEditSheet} disabled={convertingSheet || isSyncing || isGenerating}>
+        {convertingSheet ? (
+          <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
+        ) : isInbuilt ? (
+          <Table2 className="w-4 h-4 mr-1.5 text-blue-600" />
+        ) : (
           <FileSpreadsheet className="w-4 h-4 mr-1.5 text-green-600" />
-          Edit Sheet
-        </a>
+        )}
+        Edit Sheet
       </Button>
     );
   }
@@ -241,9 +271,6 @@ export function BatchHeader({
                 </Button>
               </LockedFeature>
             )}
-            <p className="col-span-2 text-[10px] text-muted-foreground pt-1">
-              Generation limit: {generationLimit.toLocaleString()}
-            </p>
           </div>
         )}
 
@@ -287,9 +314,6 @@ export function BatchHeader({
                 <X className="w-3.5 h-3.5" />
               </Button>
             )}
-            <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-              Limit: {generationLimit.toLocaleString()}
-            </span>
           </div>
 
           <div className="w-px h-5 bg-border mx-0.5" />
