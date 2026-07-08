@@ -192,6 +192,7 @@ router.post("/batches/:batchId/client-generate", async (c) => {
         status: c.status,
         rowData: JSON.parse(c.row_data || "{}"),
         slideFileId: c.slide_file_id,
+        pdfFileId: c.pdf_file_id,
         requiresVisualRegen: Boolean(c.requires_visual_regen),
         r2PdfUrl: c.r2_pdf_url,
       })),

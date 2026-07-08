@@ -8,6 +8,9 @@ All notable changes to this project will be documented in this file.
 - **`apps/cert-app`**: Removed the Generation Limit card from the Wallet page, and corresponding limit displays in the batch detail header.
 - **`apps/cert-app` & `apps/api-worker`**: Removed certificate regeneration cost calculations, UI displays, and transaction balance deductions, making certificate regeneration free for all users.
 
+### Added
+- **`apps/cert-app` & `apps/api-worker`**: Added automatic deletion of old generated certificate PDFs on Google Drive during regeneration on the free tier. This is achieved by returning the database `pdf_file_id` to the client and executing a `DELETE` call using the Google Drive API before uploading the newly rendered PDF.
+
 ## [2.0.1] - 2026-07-07
 
 ### Removed
