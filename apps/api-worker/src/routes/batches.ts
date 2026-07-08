@@ -51,6 +51,8 @@ router.get("/batches", async (c) => {
       sheetId: row.sheet_id,
       sheetName: row.sheet_name,
       tabName: row.tab_name,
+      spreadsheetId: row.spreadsheet_id,
+      dataSourceKind: row.data_source_kind,
       templateId: row.template_id,
       templateName: row.template_name,
       columnMap: JSON.parse(row.column_map || "{}"),
@@ -132,6 +134,8 @@ router.get("/batches/:batchId", async (c) => {
       sheetId: batch.sheet_id,
       sheetName: batch.sheet_name,
       tabName: batch.tab_name,
+      spreadsheetId: batch.spreadsheet_id,
+      dataSourceKind: batch.data_source_kind,
       templateId: batch.template_id,
       templateName: batch.template_name,
       columnMap: JSON.parse(batch.column_map || "{}"),
@@ -849,6 +853,312 @@ router.post("/batches/:batchId/sync-profiles", async (c) => {
 
     return c.json({ synced: profiles.length });
   } catch (err: any) {
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// 11. POST /batches/:batchId/convert-to-inbuilt — Convert Google Sheet batch to inbuilt spreadsheet batch
+router.post("/batches/:batchId/convert-to-inbuilt", async (c) => {
+  const user = c.get("user")!;
+  const workspace = c.get("workspace")!;
+  const { batchId } = c.req.param();
+
+  try {
+    const batch = await c.env.DB.prepare(`
+      SELECT * FROM batches WHERE id = ?
+    `).bind(batchId).first<any>();
+
+    if (!batch) return c.json({ error: "Batch not found" }, 404);
+    if (!canAccessBatch(batch, workspace, user)) return c.json({ error: "Access denied" }, 403);
+
+    // If already converted/inbuilt, return existing spreadsheet ID
+    if (batch.spreadsheet_id && batch.data_source_kind === "inbuilt") {
+      return c.json({ success: true, spreadsheetId: batch.spreadsheet_id });
+    }
+
+    // Retrieve all certificates of this batch
+    const certsResult = await c.env.DB.prepare(`
+      SELECT row_data FROM certificates WHERE batch_id = ?
+    `).bind(batchId).all<any>();
+    const certs = certsResult.results || [];
+
+    // Extract unique header keys
+    const headerSet = new Set<string>();
+    for (const cert of certs) {
+      try {
+        const rowData = JSON.parse(cert.row_data || "{}");
+        for (const key of Object.keys(rowData)) {
+          headerSet.add(key);
+        }
+      } catch {}
+    }
+    let uniqueHeaders = Array.from(headerSet);
+    if (uniqueHeaders.length === 0) {
+      // Fallbacks
+      uniqueHeaders = ["Name", "Email"];
+    }
+
+    // Ensure Name and Email columns are mapped correctly if they were defined in batch
+    if (batch.name_column && !uniqueHeaders.includes(batch.name_column)) {
+      uniqueHeaders.push(batch.name_column);
+    }
+    if (batch.email_column && !uniqueHeaders.includes(batch.email_column)) {
+      uniqueHeaders.push(batch.email_column);
+    }
+
+    // Generate column letters (e.g. A, B, C...)
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const getLetter = (i: number): string => {
+      let letter = "";
+      while (i >= 0) {
+        letter = alphabet[i % 26] + letter;
+        i = Math.floor(i / 26) - 1;
+      }
+      return letter;
+    };
+
+    const numCols = Math.max(uniqueHeaders.length, 14);
+    const columns: string[] = [];
+    for (let i = 0; i < numCols; i++) {
+      columns.push(getLetter(i));
+    }
+
+    // First row contains the display names
+    const firstRow: Record<string, string> = {};
+    for (const col of columns) {
+      firstRow[col] = "";
+    }
+    uniqueHeaders.forEach((header, index) => {
+      firstRow[columns[index]] = header;
+    });
+
+    const rows: Record<string, string>[] = [firstRow];
+
+    // Populate rows from certificates
+    for (const cert of certs) {
+      const rowObj: Record<string, string> = {};
+      for (const col of columns) {
+        rowObj[col] = "";
+      }
+      try {
+        const rowData = JSON.parse(cert.row_data || "{}");
+        uniqueHeaders.forEach((header, index) => {
+          rowObj[columns[index]] = rowData[header] ?? "";
+        });
+      } catch {}
+      rows.push(rowObj);
+    }
+
+    // Pad to 50 rows minimum
+    const emptyRow = () => {
+      const obj: Record<string, string> = {};
+      for (const col of columns) {
+        obj[col] = "";
+      }
+      return obj;
+    };
+    while (rows.length < 50) {
+      rows.push(emptyRow());
+    }
+
+    const newSpreadsheetId = crypto.randomUUID();
+    const spreadsheetName = `${batch.name || "Batch"} – Data`;
+
+    // Perform database operations in batch transaction
+    await c.env.DB.batch([
+      c.env.DB.prepare(`
+        INSERT INTO spreadsheets (id, workspace_id, user_id, name, columns, rows)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(
+        newSpreadsheetId,
+        workspace.id,
+        user.uid,
+        spreadsheetName,
+        JSON.stringify(columns),
+        JSON.stringify(rows)
+      ),
+      c.env.DB.prepare(`
+        UPDATE batches
+        SET spreadsheet_id = ?, data_source_kind = 'inbuilt'
+        WHERE id = ?
+      `).bind(newSpreadsheetId, batchId)
+    ]);
+
+    return c.json({ success: true, spreadsheetId: newSpreadsheetId });
+  } catch (err: any) {
+    console.error("[CONVERT] failed:", err);
+    return c.json({ error: err.message }, 500);
+  }
+});
+
+// 12. POST /batches/:batchId/sync — Sync batch data from source (inbuilt or google)
+router.post("/batches/:batchId/sync", async (c) => {
+  const user = c.get("user")!;
+  const workspace = c.get("workspace")!;
+  const { batchId } = c.req.param();
+
+  try {
+    const batch = await c.env.DB.prepare(`
+      SELECT * FROM batches WHERE id = ?
+    `).bind(batchId).first<any>();
+
+    if (!batch) return c.json({ error: "Batch not found" }, 404);
+    if (!canAccessBatch(batch, workspace, user)) return c.json({ error: "Access denied" }, 403);
+
+    let headers: string[] = [];
+    let dataRows: Record<string, string>[] = [];
+
+    if (batch.data_source_kind === "inbuilt") {
+      const spreadsheet = await c.env.DB.prepare(`
+        SELECT columns, rows FROM spreadsheets WHERE id = ? AND workspace_id = ?
+      `).bind(batch.spreadsheet_id, workspace.id).first<any>();
+      if (!spreadsheet) return c.json({ error: "Inbuilt spreadsheet not found" }, 400);
+
+      const rawCols = JSON.parse(spreadsheet.columns || "[]") as string[];
+      const rawRows = JSON.parse(spreadsheet.rows || "[]") as Record<string, string>[];
+      const firstRow = rawRows[0];
+      const filledCols = rawCols.filter((c) => firstRow?.[c]?.trim());
+      if (filledCols.length > 0) {
+        headers = filledCols.map((c) => firstRow[c].trim());
+        dataRows = rawRows.slice(1).filter((r) => filledCols.some((c) => r[c]?.trim())).map((row) => {
+          const mapped: Record<string, string> = {};
+          filledCols.forEach((oldCol, i) => { mapped[headers[i]] = row[oldCol] ?? ""; });
+          return mapped;
+        });
+      } else {
+        headers = rawCols;
+        dataRows = rawRows.filter((r) => Object.values(r).some((v) => v?.trim()));
+      }
+      if (dataRows.length === 0) return c.json({ error: "Spreadsheet is empty." }, 400);
+    } else {
+      const sheetId = batch.sheet_id;
+      if (!sheetId) return c.json({ error: "sheetId is required for Google Sheets" }, 400);
+      const { accessToken } = await getAccessToken(c.env.DB, c.env, user.uid, "sheets");
+      const range = batch.tab_name ? `${batch.tab_name}!A:ZZ` : "A:ZZ";
+      const rawValues = await getSpreadsheetValues(accessToken, sheetId, range);
+      if (rawValues.length === 0) return c.json({ error: "Spreadsheet is empty." }, 400);
+      headers = rawValues[0] as string[];
+      dataRows = rawValues.slice(1).filter((r) => r.length > 0).map((row) => {
+        const obj: Record<string, string> = {};
+        headers.forEach((h, i) => { obj[h] = (row[i] as string) || ""; });
+        return obj;
+      });
+    }
+
+    const nameColumn = batch.name_column;
+    const emailColumn = batch.email_column;
+
+    const certsResult = await c.env.DB.prepare(`
+      SELECT * FROM certificates WHERE batch_id = ?
+    `).bind(batchId).all<any>();
+    const existingCerts = certsResult.results || [];
+
+    // Build lookup maps
+    const byEmailAndName = new Map<string, any>();
+    const byEmail = new Map<string, any>();
+    const byName = new Map<string, any>();
+    for (const cert of existingCerts) {
+      const email = cert.recipient_email;
+      const name = cert.recipient_name;
+      if (email && name) byEmailAndName.set(`${email}__${name}`, cert);
+      if (email) byEmail.set(email, cert);
+      if (name) byName.set(name, cert);
+    }
+    const matched = new Set<string>();
+
+    const toInsert: any[] = [];
+    const toUpdate: any[] = [];
+    const columnMap = JSON.parse(batch.column_map || "{}");
+    const visualFields = Object.values(columnMap) as string[];
+
+    for (const rowData of dataRows) {
+      const email = rowData[emailColumn] || "";
+      const name = rowData[nameColumn] || "Unknown";
+
+      let matchingCert: any = undefined;
+      const exactKey = `${email}__${name}`;
+      if (email && name && byEmailAndName.has(exactKey) && !matched.has(byEmailAndName.get(exactKey).id)) {
+        matchingCert = byEmailAndName.get(exactKey);
+      } else if (email && byEmail.has(email) && !matched.has(byEmail.get(email).id)) {
+        matchingCert = byEmail.get(email);
+      } else if (name !== "Unknown" && byName.has(name) && !matched.has(byName.get(name).id)) {
+        matchingCert = byName.get(name);
+      }
+
+      if (matchingCert) {
+        matched.add(matchingCert.id);
+        const certRowData = JSON.parse(matchingCert.row_data || "{}");
+        const hasVisualChanged = matchingCert.recipient_name !== name ||
+          visualFields.some(col => certRowData[col] !== rowData[col]);
+        const hasMetadataChanged = !hasVisualChanged && JSON.stringify(certRowData) !== JSON.stringify(rowData);
+
+        let status = matchingCert.status;
+        let requiresVisualRegen = matchingCert.requires_visual_regen;
+
+        if (hasVisualChanged && ["generated", "sent", "outdated"].includes(matchingCert.status)) {
+          status = "outdated";
+          requiresVisualRegen = 1;
+        } else if (hasMetadataChanged && ["generated", "sent", "outdated"].includes(matchingCert.status)) {
+          status = "outdated";
+          requiresVisualRegen = 0;
+        }
+
+        toUpdate.push({
+          id: matchingCert.id,
+          recipient_name: name,
+          recipient_email: email,
+          row_data: JSON.stringify(rowData),
+          status,
+          requires_visual_regen: requiresVisualRegen
+        });
+      } else {
+        toInsert.push({
+          id: crypto.randomUUID(),
+          recipient_name: name,
+          recipient_email: email,
+          row_data: JSON.stringify(rowData),
+          status: "pending"
+        });
+      }
+    }
+
+    const statements: any[] = [];
+
+    // Prepare inserts
+    for (const cert of toInsert) {
+      statements.push(c.env.DB.prepare(`
+        INSERT INTO certificates (
+          id, batch_id, recipient_name, recipient_email, status, row_data, is_paid
+        ) VALUES (?, ?, ?, ?, ?, ?, 0)
+      `).bind(cert.id, batchId, cert.recipient_name, cert.recipient_email, cert.status, cert.row_data));
+    }
+
+    // Prepare updates
+    for (const cert of toUpdate) {
+      statements.push(c.env.DB.prepare(`
+        UPDATE certificates
+        SET recipient_name = ?, recipient_email = ?, row_data = ?, status = ?, requires_visual_regen = ?, updated_at = datetime('now')
+        WHERE id = ?
+      `).bind(cert.recipient_name, cert.recipient_email, cert.row_data, cert.status, cert.requires_visual_regen, cert.id));
+    }
+
+    // Update batch total count if inserts happened
+    if (toInsert.length > 0) {
+      statements.push(c.env.DB.prepare(`
+        UPDATE batches
+        SET total_count = total_count + ?
+        WHERE id = ?
+      `).bind(toInsert.length, batchId));
+    }
+
+    if (statements.length > 0) {
+      await c.env.DB.batch(statements);
+    }
+
+    const newCount = toInsert.length;
+    return c.json({ success: true, message: `Synced successfully. Added ${newCount} new certificates.`, newCount });
+  } catch (err: any) {
+    console.error("[SYNC] failed:", err);
     return c.json({ error: err.message }, 500);
   }
 });

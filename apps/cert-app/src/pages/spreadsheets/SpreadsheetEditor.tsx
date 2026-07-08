@@ -102,6 +102,9 @@ export default function SpreadsheetEditorPage() {
     );
   }
 
+  const queryParams = new URLSearchParams(window.location.search);
+  const returnTo = queryParams.get("returnTo");
+
   if (!sheetData) return null;
 
   return (
@@ -110,7 +113,7 @@ export default function SpreadsheetEditorPage() {
       initialName={name}
       saving={saving}
       onSave={handleSave}
-      onBack={() => setLocation("/spreadsheets")}
+      onBack={() => setLocation(returnTo || "/spreadsheets")}
     />
   );
 }
