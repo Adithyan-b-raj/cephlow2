@@ -44,27 +44,10 @@ All tasks follow a strict lifecycle:
    - Add dated note explaining the change
    - Resume implementation
 
-8. **Commit Code Changes:**
-   - Stage all code changes related to the task.
-   - Propose a clear, concise commit message e.g, `feat(ui): Create basic HTML structure for calculator`.
-   - Perform the commit.
-
-9. **Attach Task Summary with Git Notes:**
-   - **Step 9.1: Get Commit Hash:** Obtain the hash of the *just-completed commit* (`git log -1 --format="%H"`).
-   - **Step 9.2: Draft Note Content:** Create a detailed summary for the completed task. This should include the task name, a summary of changes, a list of all created/modified files, and the core "why" for the change.
-   - **Step 9.3: Attach Note:** Use the `git notes` command to attach the summary to the commit.
-     ```bash
-     # The note content from the previous step is passed via the -m flag.
-     git notes add -m "<note content>" <commit_hash>
-     ```
-
-10. **Get and Record Task Commit SHA:**
-    - **Step 10.1: Update Plan:** Read `plan.md`, find the line for the completed task, update its status from `[~]` to `[x]`, and append the first 7 characters of the *just-completed commit's* commit hash.
-    - **Step 10.2: Write Plan:** Write the updated content back to `plan.md`.
-
-11. **Commit Plan Update:**
-    - **Action:** Stage the modified `plan.md` file.
-    - **Action:** Commit this change with a descriptive message (e.g., `conductor(plan): Mark task 'Create user model' as complete`).
+8. **Update Plan (No Commit):**
+   - Read `plan.md`, find the line for the completed task, and update its status from `[~]` to `[x]`.
+   - Write the updated content back to `plan.md`.
+   - **CRITICAL:** Do NOT commit your changes after individual tasks. Code changes and plan updates should be accumulated and committed together at the end of the Phase. This prevents creating excessive commits for every small change.
 
 ### Phase Completion Verification and Checkpointing Protocol
 
@@ -74,7 +57,7 @@ All tasks follow a strict lifecycle:
 
 2.  **Ensure Test Coverage for Phase Changes:**
     -   **Step 2.1: Determine Phase Scope:** To identify the files changed in this phase, you must first find the starting point. Read `plan.md` to find the Git commit SHA of the *previous* phase's checkpoint. If no previous checkpoint exists, the scope is all changes since the first commit.
-    -   **Step 2.2: List Changed Files:** Execute `git diff --name-only <previous_checkpoint_sha> HEAD` to get a precise list of all files modified during this phase.
+    -   **Step 2.2: List Changed Files:** Execute `git diff --name-only <previous_checkpoint_sha>` to get a precise list of all files modified during this phase (this compares against the working tree and includes your uncommitted task changes).
     -   **Step 2.3: Verify and Create Tests:** For each file in the list:
         -   **CRITICAL:** First, check its extension. Exclude non-code files (e.g., `.json`, `.md`, `.yaml`).
         -   For each remaining code file, verify a corresponding test file exists.
@@ -115,9 +98,9 @@ All tasks follow a strict lifecycle:
     -   After presenting the detailed plan, ask the user for confirmation: "**Does this meet your expectations? Please confirm with yes or provide feedback on what needs to be changed.**"
     -   **PAUSE** and await the user's response. Do not proceed without an explicit yes or confirmation.
 
-6.  **Create Checkpoint Commit:**
-    -   Stage all changes. If no changes occurred in this step, proceed with an empty commit.
-    -   Perform the commit with a clear and concise message (e.g., `conductor(checkpoint): Checkpoint end of Phase X`).
+6.  **Create Phase Checkpoint Commit:**
+    -   Stage all accumulated code changes from the tasks in this phase, along with the modified `plan.md`. If no changes occurred in this step, proceed with an empty commit.
+    -   Perform the commit with a clear and concise message summarizing the phase (e.g., `feat(phase): Complete Phase X - <Phase Description>`).
 
 7.  **Attach Auditable Verification Report using Git Notes:**
     -   **Step 7.1: Draft Note Content:** Create a detailed verification report including the automated test command, the manual verification steps, and the user's confirmation.
@@ -271,8 +254,7 @@ A task is complete when:
 5. Code passes all configured linting and static analysis checks
 6. Works beautifully on mobile (if applicable)
 7. Implementation notes added to `plan.md`
-8. Changes committed with proper message
-9. Git note with task summary attached to the commit
+8. Task status updated to `[x]` in `plan.md` (remember: DO NOT commit yet, accumulate until phase ends)
 
 ## Emergency Procedures
 
