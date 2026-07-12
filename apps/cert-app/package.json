@@ -8,11 +8,11 @@
     "dev:remote": "vite --config vite.config.ts --host 0.0.0.0",
     "build": "vite build --config vite.config.ts",
     "serve": "vite preview --config vite.config.ts --host 0.0.0.0",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@cashfreepayments/cashfree-js": "^1.0.7",
-    "@xyflow/react": "^12.6.4",
     "@fontsource/dancing-script": "^5.2.8",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/lora": "^5.2.8",
@@ -51,6 +51,7 @@
     "@supabase/supabase-js": "^2.50.0",
     "@tanstack/react-query": "catalog:",
     "@workspace/api-client-react": "workspace:*",
+    "@xyflow/react": "^12.6.4",
     "class-variance-authority": "catalog:",
     "clsx": "catalog:",
     "cmdk": "^1.1.1",
@@ -86,7 +87,9 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@vitejs/plugin-react": "catalog:",
+    "@vitest/coverage-v8": "^4.1.10",
     "tailwindcss": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vitest": "^4.1.10"
   }
 }
