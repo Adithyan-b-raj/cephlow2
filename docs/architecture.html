@@ -620,6 +620,9 @@
     <a class="nav-link" href="#payments">Payments</a>
     <a class="nav-link" href="#decisions">Design Decisions</a>
     <a class="nav-link" href="#interviews">Interview Q&A</a>
+
+    <div class="nav-group-label">Quality Assurance</div>
+    <a class="nav-link" href="#testing">Automated Testing</a>
   </nav>
 
   <div class="sidebar-footer">
@@ -1183,6 +1186,67 @@ sequenceDiagram
         </div>
         <div class="qa-a">
           To reduce hosting costs, eliminate server connection limits, and ensure global low latency. Express backends running on single servers require complex scaling rules and database connection pool management. Cloudflare Workers handle routing globally with zero cold starts, and D1 operates SQLite queries with minimal network overhead.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ SECTION 13: AUTOMATED TESTING ═══ -->
+  <section class="section" id="testing">
+    <div class="section-label">Section 13</div>
+    <h2>Automated Testing & Coverage</h2>
+
+    <p>
+      Cephlow uses <strong>Vitest</strong> to run unit and integration tests across the workspace. It enforces an <strong>80% code coverage threshold</strong> (for statements, branches, functions, and lines) using the <code>v8</code> coverage provider to ensure quality as the codebase grows.
+    </p>
+    <p>
+      The suite follows a <strong>mock-first approach</strong>: database queries (D1) and external APIs (Gmail, Google Drive, WhatsApp, Cashfree) are replaced with mocks during unit tests. This ensures tests remain independent, quick, and runnable in any server or CI/CD environment without credentials. Hono routes are tested directly using the Hono <code>app.request()</code> utility to simulate server-side execution.
+    </p>
+
+    <div class="cards">
+      <div class="card">
+        <div class="card-label">Test Framework</div>
+        <div class="card-value">Vitest</div>
+        <div class="card-desc">ESM-native, fast, built-in mocking and Vite compatibility</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Coverage Provider</div>
+        <div class="card-value">v8</div>
+        <div class="card-desc">Measures line, function, and branch coverage natively</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Coverage Threshold</div>
+        <div class="card-value">&ge; 80%</div>
+        <div class="card-desc">Tests fail automatically if coverage drops below the limit</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Git Commit Hook</div>
+        <div class="card-value">Pre-commit</div>
+        <div class="card-desc">Prevents commits if tests fail or threshold is not met</div>
+      </div>
+    </div>
+
+    <h3>Execution Pipeline</h3>
+    <div class="flow">
+      <div class="flow-step">
+        <div class="flow-num">01</div>
+        <div class="flow-content">
+          <div class="flow-title">Local Dev Execution</div>
+          <div class="flow-desc">Developers run <code>pnpm test</code> or <code>pnpm test --coverage</code> locally to verify code correctness and coverage metrics.</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">02</div>
+        <div class="flow-content">
+          <div class="flow-title">Pre-Commit Guard</div>
+          <div class="flow-desc">Git hooks trigger <code>pnpm test</code> before a commit is finalized to abort commits containing failing code or uncovered lines.</div>
+        </div>
+      </div>
+      <div class="flow-step">
+        <div class="flow-num">03</div>
+        <div class="flow-content">
+          <div class="flow-title">CI/CD Gates</div>
+          <div class="flow-desc">GitHub Actions (<code>test.yml</code>) automatically spins up Node, installs dependencies, and runs the coverage test suite on every push and pull request.</div>
         </div>
       </div>
     </div>

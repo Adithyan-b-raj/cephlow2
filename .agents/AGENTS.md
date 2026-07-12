@@ -6,3 +6,8 @@
 
 ## Pushing to Remote Repositories
 - **CRITICAL**: Never run `git push origin` or push code to the remote repository `origin` without explicit prior permission from the user in the chat. Pushing to other remotes (e.g., `upstream`) is permitted, but the `origin` remote must not be pushed to without permission.
+
+## Automated Testing Guidelines
+- Whenever you add new utility functions, API endpoints, or database helpers, you MUST write corresponding Vitest unit tests (e.g., `*.test.ts`) in the same directory covering their logic.
+- Avoid introducing untested code to the codebase. Ensure that any code changes do not break the existing test suites by running `pnpm test`.
+
