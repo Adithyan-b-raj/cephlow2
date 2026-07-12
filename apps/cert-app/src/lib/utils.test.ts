@@ -1,27 +1,31 @@
-import { test } from "node:test";
-import * as assert from "node:assert";
-import { getColumnName } from "./utils.js";
+import { test, expect } from "vitest";
+import { getColumnName, cn } from "./utils.js";
+
+test("cn - merges class names", () => {
+  expect(cn("a", "b")).toBe("a b");
+  expect(cn("a", false && "b")).toBe("a");
+});
 
 test("getColumnName - converts 0 to A", () => {
-  assert.strictEqual(getColumnName(0), "A");
+  expect(getColumnName(0)).toBe("A");
 });
 
 test("getColumnName - converts 2 to C", () => {
-  assert.strictEqual(getColumnName(2), "C");
+  expect(getColumnName(2)).toBe("C");
 });
 
 test("getColumnName - converts 25 to Z", () => {
-  assert.strictEqual(getColumnName(25), "Z");
+  expect(getColumnName(25)).toBe("Z");
 });
 
 test("getColumnName - converts 26 to AA", () => {
-  assert.strictEqual(getColumnName(26), "AA");
+  expect(getColumnName(26)).toBe("AA");
 });
 
 test("getColumnName - converts 27 to AB", () => {
-  assert.strictEqual(getColumnName(27), "AB");
+  expect(getColumnName(27)).toBe("AB");
 });
 
 test("getColumnName - converts 701 to ZZ", () => {
-  assert.strictEqual(getColumnName(701), "ZZ");
+  expect(getColumnName(701)).toBe("ZZ");
 });

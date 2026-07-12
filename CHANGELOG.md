@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.0.3] - 2026-07-12
+
+### Added
+- **Testing Suite**: Integrated Vitest across the monorepo workspace for automated testing.
+- **Testing Guidelines**: Appended strict automated test requirements for developers and AI agents to `CLAUDE.md` and `.agents/AGENTS.md`.
+- **Code Coverage**: Configured `@vitest/coverage-v8` in `cert-app` and `api-worker` with an 80% coverage threshold.
+- **Git Hook**: Configured a local `.git/hooks/pre-commit` script to block commits if the test suite fails.
+- **CI/CD Integration**: Added GitHub Actions workflow (`.github/workflows/test.yml`) to automatically validate tests and coverage on every push/PR.
+- **Tests & Fixes**: Added test cases for `cn` class merger and edge cases in `emailToSlug` (with minor refactor from `??` to `||` to cover the fallback branch).
+- **Documentation**: Updated `docs/PROJECT_DOCS.md` and `docs/architecture.html` to document testing suite integration, execution pipelines, and coverage requirements.
+
+
 ## [2.0.2] - 2026-07-08
 
 ### Added

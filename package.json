@@ -11,7 +11,7 @@
     "dev:remote": "pnpm --filter @workspace/api-worker --filter @workspace/cert-app --parallel dev:remote",
     "dev:frontend": "pnpm --filter @workspace/cert-app dev",
     "worker": "pnpm --filter @workspace/api-worker dev",
-    "test": "pnpm --filter @workspace/api-worker test"
+    "test": "pnpm -r --if-present test"
   },
   "private": true,
   "devDependencies": {

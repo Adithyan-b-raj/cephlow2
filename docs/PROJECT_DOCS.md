@@ -21,6 +21,7 @@ This document explains **everything** about this project: what it does, how ever
 13. [Cashfree Payments & Prepaid Wallet](#13-cashfree-payments--prepaid-wallet)
 14. [Deployment](#14-deployment)
 15. [Running Locally](#15-running-locally)
+16. [Automated Testing & Coverage](#16-automated-testing--coverage)
 
 ---
 
@@ -285,3 +286,31 @@ Cephlow uses a prepaid credits system for usage billing. Wallet balances, transa
      ```bash
      pnpm dev:frontend
      ```
+
+---
+
+## 16. Automated Testing & Coverage
+
+Cephlow uses **Vitest** for running automated tests across the monorepo. It enforces a strict **80% code coverage threshold** for statements, branches, functions, and lines.
+
+### Key Testing Principles:
+1. **Mock-First Strategy**: External integrations (D1 database, Gmail, Google Drive, WhatsApp APIs, Cashfree) are replaced with Vitest mock functions (`vi.fn()`) to ensure unit tests execute in milliseconds, are isolated, and run in any environment without credentials.
+2. **Hono Route Testing**: Utilizes Hono's native `.request()` interface to feed simulated requests into endpoint routers without spinning up worker ports.
+3. **Frontend Utility Testing**: Utilizes standard node environment configurations to test pure business and conversion logic (e.g. converting spreadsheet indexes).
+
+### Commands:
+* Run all tests recursively:
+  ```bash
+  pnpm test
+  ```
+* Run all tests with code coverage metrics:
+  ```bash
+  pnpm test --coverage
+  ```
+* Start a watch compiler to auto-run tests in a package during dev:
+  ```bash
+  pnpm --filter @workspace/api-worker exec vitest
+  ```
+
+### Git Commit Protection:
+A local pre-commit hook (`.git/hooks/pre-commit`) triggers tests prior to any commit, blocking code integration if coverage drops or any test fails.
