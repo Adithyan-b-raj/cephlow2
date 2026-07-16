@@ -1,6 +1,6 @@
 # Implementation Plan: Full-Stack Security Audit & Hardening
 
-## Phase 1: Security Audit & Discovery
+## Phase 1: Security Audit & Discovery [checkpoint: 65eb81d]
 
 - [x] Task: Audit authentication middleware (`auth.ts`) for JWT validation gaps (algorithm enforcement, expiry, claims)
     - [x] Read and analyze `apps/api-worker/src/middleware/auth.ts`
