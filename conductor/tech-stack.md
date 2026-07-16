@@ -21,9 +21,15 @@
 
 ## 5. Integrations & Pipelines
 *   **Google APIs:** Google Drive, Google Sheets, Google Slides, Gmail API
+*   **Email:** Zeptomail (transactional email fallback alongside Gmail API)
 *   **WhatsApp API:** Meta WhatsApp Business Cloud API
+*   **Telegram Bot:** WhatsApp↔Telegram support bridge via Telegram Bot webhooks
 *   **Payments:** Cashfree API (prepaid wallets & order checkout)
 
-## 6. Project & Package Management
+## 6. Testing
+*   **Framework:** Vitest (80% coverage threshold for statements, branches, functions, and lines)
+*   **Strategy:** Mock-first for external integrations; Hono `.request()` for route testing
+
+## 7. Project & Package Management
 *   **Monorepo:** pnpm workspaces
-*   **Local Packages:** `@workspace/supabase`, `@workspace/api-client-react`, `@workspace/api-zod`
+*   **Local Packages:** `@workspace/api-client-react`, `@workspace/api-zod`, `@workspace/api-spec`

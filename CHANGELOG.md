@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+- **Conductor Docs**: Synced `conductor/product.md`, `conductor/product-guidelines.md`, and `conductor/tech-stack.md` with `docs/PROJECT_DOCS.md` — fixed stale references (Firebase→Supabase, Firestore→D1), corrected credit costs, added missing integrations (Zeptomail, Telegram Bot, Vitest), and removed non-existent `@workspace/supabase` package.
+
 ## [2.0.3] - 2026-07-12
 
 ### Added
