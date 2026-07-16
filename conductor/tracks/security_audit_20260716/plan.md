@@ -2,39 +2,39 @@
 
 ## Phase 1: Security Audit & Discovery
 
-- [ ] Task: Audit authentication middleware (`auth.ts`) for JWT validation gaps (algorithm enforcement, expiry, claims)
-    - [ ] Read and analyze `apps/api-worker/src/middleware/auth.ts`
-    - [ ] Document findings: accepted algorithms, claim validation, error handling
-- [ ] Task: Audit workspace middleware (`workspace.ts`) for IDOR vectors
-    - [ ] Read and analyze `apps/api-worker/src/middleware/workspace.ts`
-    - [ ] Test if workspace ID from header can be spoofed to access other workspaces
-    - [ ] Document all IDOR vectors found
-- [ ] Task: Audit approval middleware (`approval.ts`) for whitelist bypass
-    - [ ] Read and analyze `apps/api-worker/src/middleware/approval.ts`
-    - [ ] Document bypass vectors
-- [ ] Task: Audit all API route files for missing auth middleware
-    - [ ] List all route handlers and verify middleware chain
-    - [ ] Document any unprotected endpoints
-- [ ] Task: Audit presigned URL generation for scope and expiry
-    - [ ] Analyze R2 presigned URL creation logic
-    - [ ] Verify URL paths are scoped to the requesting workspace/batch
-    - [ ] Document cross-workspace access vectors
-- [ ] Task: Audit wallet/payment logic for race conditions and integrity
-    - [ ] Analyze credit deduction SQL queries for atomicity
-    - [ ] Analyze `payment_orders` idempotency logic
-    - [ ] Analyze Cashfree webhook verification flow
-    - [ ] Document double-spend and replay vectors
-- [ ] Task: Audit Meta WhatsApp webhook for signature validation
-    - [ ] Analyze webhook handler for `X-Hub-Signature-256` verification
-    - [ ] Document missing validation
-- [ ] Task: Audit frontend for secrets exposure and XSS
-    - [ ] Search client codebase for non-`VITE_` env references
-    - [ ] Audit how user-supplied data (participant names, batch names) is rendered
-    - [ ] Check Supabase token storage mechanism
-    - [ ] Document all findings
-- [ ] Task: Produce consolidated Security Audit Report artifact
-    - [ ] Compile all findings into a prioritized report (Critical / High / Medium / Low)
-- [ ] Task: Conductor - User Manual Verification 'Security Audit & Discovery' (Protocol in workflow.md)
+- [x] Task: Audit authentication middleware (`auth.ts`) for JWT validation gaps (algorithm enforcement, expiry, claims)
+    - [x] Read and analyze `apps/api-worker/src/middleware/auth.ts`
+    - [x] Document findings: accepted algorithms, claim validation, error handling
+- [x] Task: Audit workspace middleware (`workspace.ts`) for IDOR vectors
+    - [x] Read and analyze `apps/api-worker/src/middleware/workspace.ts`
+    - [x] Test if workspace ID from header can be spoofed to access other workspaces
+    - [x] Document all IDOR vectors found
+- [x] Task: Audit approval middleware (`approval.ts`) for whitelist bypass
+    - [x] Read and analyze `apps/api-worker/src/middleware/approval.ts`
+    - [x] Document bypass vectors
+- [x] Task: Audit all API route files for missing auth middleware
+    - [x] List all route handlers and verify middleware chain
+    - [x] Document any unprotected endpoints
+- [x] Task: Audit presigned URL generation for scope and expiry
+    - [x] Analyze R2 presigned URL creation logic
+    - [x] Verify URL paths are scoped to the requesting workspace/batch
+    - [x] Document cross-workspace access vectors
+- [x] Task: Audit wallet/payment logic for race conditions and integrity
+    - [x] Analyze credit deduction SQL queries for atomicity
+    - [x] Analyze `payment_orders` idempotency logic
+    - [x] Analyze Cashfree webhook verification flow
+    - [x] Document double-spend and replay vectors
+- [x] Task: Audit Meta WhatsApp webhook for signature validation
+    - [x] Analyze webhook handler for `X-Hub-Signature-256` verification
+    - [x] Document missing validation
+- [x] Task: Audit frontend for secrets exposure and XSS
+    - [x] Search client codebase for non-`VITE_` env references
+    - [x] Audit how user-supplied data (participant names, batch names) is rendered
+    - [x] Check Supabase token storage mechanism
+    - [x] Document all findings
+- [x] Task: Produce consolidated Security Audit Report artifact
+    - [x] Compile all findings into a prioritized report (Critical / High / Medium / Low)
+- [x] Task: Conductor - User Manual Verification 'Security Audit & Discovery' (Protocol in workflow.md)
 
 ## Phase 2: Authentication & Authorization Hardening
 
