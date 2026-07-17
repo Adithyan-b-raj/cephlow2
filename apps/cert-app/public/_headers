@@ -2,6 +2,11 @@
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
-# HTML — always revalidate so users get latest app
+# HTML — always revalidate so users get latest app, and enforce security headers (M-2, M-3, M-4)
 /*
   Cache-Control: no-cache
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Content-Security-Policy: default-src 'self'; connect-src 'self' https://*.supabase.co https://api.cephlow.in https://api.cephlow.online; img-src 'self' data: https://*.r2.cloudflarestorage.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none';

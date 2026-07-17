@@ -118,25 +118,25 @@
 
 ## Phase 5: Frontend Security & HTTP Headers
 
-- [ ] Task: Write tests verifying no secrets in client bundle
-    - [ ] Test: Vite build output does not contain non-`VITE_` env values
-    - [ ] Test: no hardcoded API keys, tokens, or secrets in source files
-- [ ] Task: Fix any secrets exposure found in frontend audit
-- [ ] Task: Audit and fix XSS rendering of user-supplied data
-    - [ ] Verify React's default escaping covers all dynamic rendering
-    - [ ] Fix any `dangerouslySetInnerHTML` or unescaped injection points
-- [ ] Task: Write tests for HTTP security headers and CORS (API)
-    - [ ] Test: API responses include `Content-Security-Policy`
-    - [ ] Test: API responses include `Strict-Transport-Security`
-    - [ ] Test: API responses include `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`
-    - [ ] Test: CORS restricts access to configured frontend origins (no origin reflection) (M-2)
-- [ ] Task: Implement security headers and CORS Hono middleware
-    - [ ] Create `securityHeaders.ts` middleware
-    - [ ] Restrict CORS allowed origins to configured domains (M-2)
-    - [ ] Register in middleware chain
-- [ ] Task: Configure frontend security headers
-    - [ ] Create/update `_headers` file for Cloudflare Pages
-- [ ] Task: Conductor - User Manual Verification 'Frontend Security & HTTP Headers' (Protocol in workflow.md)
+- [x] Task: Write tests verifying no secrets in client bundle
+    - [x] Test: Vite build output does not contain non-`VITE_` env values
+    - [x] Test: no hardcoded API keys, tokens, or secrets in source files
+- [x] Task: Fix any secrets exposure found in frontend audit
+- [x] Task: Audit and fix XSS rendering of user-supplied data
+    - [x] Verify React's default escaping covers all dynamic rendering
+    - [x] Fix any `dangerouslySetInnerHTML` or unescaped injection points
+- [x] Task: Write tests for HTTP security headers and CORS (API)
+    - [x] Test: API responses include `Content-Security-Policy`
+    - [x] Test: API responses include `Strict-Transport-Security`
+    - [x] Test: API responses include `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`
+    - [x] Test: CORS restricts access to configured frontend origins (no origin reflection) (M-2)
+- [x] Task: Implement security headers and CORS Hono middleware
+    - [x] Create `securityHeaders.ts` middleware
+    - [x] Restrict CORS allowed origins to configured domains (M-2)
+    - [x] Register in middleware chain
+- [x] Task: Configure frontend security headers
+    - [x] Create/update `_headers` file for Cloudflare Pages
+- [x] Task: Conductor - User Manual Verification 'Frontend Security & HTTP Headers' (Protocol in workflow.md)
 
 ## Phase 6: Manual Pen-Test Checklist & Final Verification
 

@@ -17,6 +17,9 @@ All notable changes to this project will be documented in this file.
 - **Regeneration Cost Control**: Implemented 20% visual regeneration charge rate for already paid certificates requiring rebuild.
 - **Webhook Signature Enforcement**: Added timing-safe validation on Cashfree webhooks (H-4) and HMAC-SHA256 signature verification on WhatsApp status webhooks using `X-Hub-Signature-256` (C-1).
 - **Webhook Idempotency**: Added atomic status transitions (`UPDATE payment_orders SET processed = 1 WHERE order_id = ? AND processed = 0`) to prevent concurrent top-up race conditions (C-3).
+- **Security Headers Middleware**: Registered Hono's `secureHeaders` middleware globally on all routes to return security headers (HSTS, Content-Security-Policy, X-Frame-Options: DENY, X-Content-Type-Options: nosniff) (M-2, M-3, M-4).
+- **CORS Hardening**: Hardened CORS origin checks to restrict access to explicitly configured and trusted domains, avoiding wild origin reflection vulnerabilities (M-2).
+- **Cloudflare Pages Headers**: Configured custom `_headers` configuration on Cloudflare Pages static site bundle to return robust security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options) for served assets.
 
 ### Changed
 - **Error Standardisation**: Standardised error responses in the auth middleware to prevent token detail leakage (M-5). All JWT rejection paths now return a uniform `"Invalid or expired token"` message.

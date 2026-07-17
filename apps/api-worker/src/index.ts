@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { secureHeaders } from "hono/secure-headers";
 import { authMiddleware } from "./middleware/auth.js";
 import { workspaceMiddleware, requireNotSuspended } from "./middleware/workspace.js";
 import { requireApproval as approvalMiddleware } from "./middleware/approval.js";
@@ -34,9 +35,36 @@ import adminRouter from "./routes/admin.js";
 
 const app = new Hono<ContextEnv>();
 
-// 1. Configure CORS
+// 1. Configure Secure Headers (M-2, M-3, M-4)
+app.use("*", secureHeaders({
+  strictTransportSecurity: "max-age=31536000; includeSubDomains; preload",
+  xFrameOptions: "DENY",
+  xContentTypeOptions: "nosniff",
+  contentSecurityPolicy: {
+    defaultSrc: ["'self'"],
+    connectSrc: ["'self'", "https://*.supabase.co", "https://*.cashfree.com", "https://*.googleapis.com"],
+    scriptSrc: ["'self'", "'unsafe-inline'"],
+    styleSrc: ["'self'", "'unsafe-inline'"],
+    imgSrc: ["'self'", "data:", "https://*.r2.cloudflarestorage.com"],
+    frameAncestors: ["'none'"],
+  },
+}));
+
+// 2. Configure CORS (M-2)
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:3000",
+];
+
 app.use("*", cors({
-  origin: (origin) => origin, // Reflect origin
+  origin: (origin, c) => {
+    if (!origin) return undefined;
+    if (allowedOrigins.includes(origin)) return origin;
+    if (c.env?.FRONTEND_URL && origin === c.env.FRONTEND_URL.replace(/\/$/, "")) return origin;
+    if (c.env?.PUBLIC_BASE_URL && origin === c.env.PUBLIC_BASE_URL.replace(/\/$/, "")) return origin;
+    return undefined;
+  },
   allowHeaders: ["Authorization", "Content-Type", "X-Workspace-Id"],
   exposeHeaders: ["Content-Disposition"],
   credentials: true,
