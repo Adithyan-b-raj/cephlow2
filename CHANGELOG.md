@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Staging Environment**: Setup and configured a complete staging environment with a preview frontend on Cloudflare Pages (associated with the `staging` branch at `test.cephlow.in` and `staging.cephlow2.pages.dev`) and a dedicated staging API worker (`cephlow-api-staging` at `api-test.cephlow.in`), sharing the production D1 database.
 - **Conditional BETA Badge**: Implemented a dynamic, hostname-based `BETA` badge next to the Cephlow logo across the dashboard sidebar, landing nav, and auth pages. It automatically renders on test domains (`test.cephlow.in`, `pages.dev`, `localhost`) and resolves to hidden on production domains (`cephlow.in`, `cephlow.online`) without requiring code changes when merging branches.
 
 ### Changed
