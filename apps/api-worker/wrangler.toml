@@ -36,3 +36,34 @@ SUPABASE_URL = "https://dysaoofwlhebtkzqvfnn.supabase.co"
 # will be injected via wrangler secrets or dashboard, NOT committed to source.
 # Custom domain api.cephlow.in is configured via Cloudflare Dashboard:
 # Workers & Pages → cephlow-api → Settings → Triggers → Custom Domains
+
+[env.staging]
+name = "cephlow-api-staging"
+
+[[env.staging.r2_buckets]]
+binding = "CERTIFICATES"
+bucket_name = "certificates"
+
+[[env.staging.kv_namespaces]]
+binding = "CACHE"
+id = "13731816cfc14103b71d4ea27d941aee"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "cephlow-app-db"
+database_id = "1a89fd5a-ce1a-4af4-aaaf-1c3ebae2272b"
+
+[env.staging.vars]
+R2_PUBLIC_URL = "https://pub-3e00f49622064202a04c19fb33ee2976.r2.dev"
+PUBLIC_BASE_URL = "https://api-test.cephlow.in"
+FRONTEND_URL = "https://test.cephlow.in"
+ZEPTOMAIL_FROM_EMAIL = "certificate@cephlow.in"
+WHATSAPP_TEMPLATE_NAME = "document_senderv3"
+WHATSAPP_TEMPLATE_LANGUAGE = "en"
+VITE_CERT_GENERATION_RATE = "1"
+VITE_CERT_REGENERATION_RATE = "0.2"
+R2_ACCOUNT_ID = "5096a86bdc907570d94a855fde3a9fdd"
+R2_ACCESS_KEY_ID = "b6c41ffd415db4c2c300bf52215ad35b"
+R2_SECRET_ACCESS_KEY = "4ddc45a789e3fe5e7d526732602b0384e669a3df1cca9a19e3a3170eca6daf2a"
+R2_BUCKET_NAME = "certificates"
+SUPABASE_URL = "https://dysaoofwlhebtkzqvfnn.supabase.co"
