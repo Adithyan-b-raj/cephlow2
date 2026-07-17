@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Conditional BETA Badge**: Implemented a dynamic, hostname-based `BETA` badge next to the Cephlow logo across the dashboard sidebar, landing nav, and auth pages. It automatically renders on test domains (`test.cephlow.in`, `pages.dev`, `localhost`) and resolves to hidden on production domains (`cephlow.in`, `cephlow.online`) without requiring code changes when merging branches.
+
+### Changed
+- **Staging Content-Security-Policy**: Updated `apps/cert-app/public/_headers` to whitelist the staging API endpoint `https://api-test.cephlow.in` in the `connect-src` CSP directive, resolving connection blocks on the staging environment.
+
 ## [2.1.0] - 2026-07-17
 
 ### Added
