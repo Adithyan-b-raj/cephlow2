@@ -1,5 +1,5 @@
 import { test, expect } from "vitest";
-import { getColumnName, cn } from "./utils.js";
+import { getColumnName, cn, isStagingUrl } from "./utils.js";
 
 test("cn - merges class names", () => {
   expect(cn("a", "b")).toBe("a b");
@@ -29,3 +29,12 @@ test("getColumnName - converts 27 to AB", () => {
 test("getColumnName - converts 701 to ZZ", () => {
   expect(getColumnName(701)).toBe("ZZ");
 });
+
+test("isStagingUrl - detects staging domains", () => {
+  expect(isStagingUrl("test.cephlow.in")).toBe(true);
+  expect(isStagingUrl("staging.cephlow2.pages.dev")).toBe(true);
+  expect(isStagingUrl("localhost")).toBe(true);
+  expect(isStagingUrl("cephlow.in")).toBe(false);
+  expect(isStagingUrl("cephlow.online")).toBe(false);
+});
+

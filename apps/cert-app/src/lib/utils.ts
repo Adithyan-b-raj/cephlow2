@@ -15,9 +15,12 @@ export function getColumnName(index: number): string {
   return columnName;
 }
 
-export const isStaging = typeof window !== "undefined" && (
-  window.location.hostname.includes("test") ||
-  window.location.hostname.includes("pages.dev") ||
-  window.location.hostname.includes("localhost")
-);
+export const isStagingUrl = (hostname: string): boolean => {
+  return hostname.includes("test") ||
+         hostname.includes("pages.dev") ||
+         hostname.includes("localhost");
+};
+
+export const isStaging = typeof window !== "undefined" && isStagingUrl(window.location.hostname);
+
 
