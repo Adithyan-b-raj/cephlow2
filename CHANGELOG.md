@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Security Report**: Created a comprehensive security audit report detailing user data protection, token safety, webhook signatures, and threat mitigations at the repository root ([security_report.md](file:///c:/Users/AKSHAY/Desktop/code/projects/fork-cephlow/adi-cephlow/cephlow2/security_report.md)).
 - **Security Hardening**: Enforced JWT algorithm, issuer, and audience checks in authentication middleware (H-1, C-4).
 - **IDOR Protection**: Added order ownership validation in the payment verification endpoint (H-5).
 - **Google OAuth Protection**: Encrypted Google OAuth refresh tokens at rest in D1 database using AES-GCM (H-2).
