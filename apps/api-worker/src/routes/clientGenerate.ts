@@ -79,30 +79,42 @@ router.post("/batches/:batchId/client-generate", async (c) => {
     }
 
     const unpaidCerts = targetCerts.filter((c) => !c.is_paid);
+    const regenCerts = targetCerts.filter((c) => c.is_paid && c.requires_visual_regen);
 
     const unpaidCount = unpaidCerts.length;
+    const regenCount = regenCerts.length;
 
     const RATE = Number(c.env.VITE_CERT_GENERATION_RATE || 1);
+    const REGEN_RATE = Number(c.env.VITE_CERT_REGENERATION_RATE || (RATE * 0.20));
 
     const approved = await getCachedApproval(c.env, user.uid, workspace.id);
-    const cost = approved ? unpaidCount * RATE : 0;
+    const cost = approved ? (unpaidCount * RATE + regenCount * REGEN_RATE) : 0;
     
-    // Deduct workspace balance and update status via transaction
+    // Fetch current balance to check existence
     const ws = await c.env.DB.prepare(`
       SELECT current_balance FROM workspaces WHERE id = ?
     `).bind(workspace.id).first<{ current_balance: number }>();
     if (!ws) return c.json({ error: "Workspace not found" }, 404);
 
-    if (ws.current_balance < cost) {
-      return c.json({ error: `Insufficient funds: need ${cost}, have ${ws.current_balance}` }, 402);
+    let newWsBalance = ws.current_balance;
+    if (cost > 0) {
+      // Atomic deduction (C-2)
+      const updatedWs = await c.env.DB.prepare(`
+        UPDATE workspaces SET current_balance = current_balance - ?
+        WHERE id = ? AND current_balance >= ?
+        RETURNING current_balance
+      `).bind(cost, workspace.id, cost).first<{ current_balance: number }>();
+
+      if (!updatedWs) {
+        return c.json({ error: `Insufficient funds: need ${cost}, have ${ws.current_balance}` }, 402);
+      }
+      newWsBalance = updatedWs.current_balance;
     }
 
-    const newWsBalance = ws.current_balance - cost;
-    const unpaidCertIds = unpaidCerts.map((c) => c.id);
+    const targetCertIds = targetCerts.map((c) => c.id);
     const ledgerId = crypto.randomUUID();
 
     const stmts = [
-      c.env.DB.prepare(`UPDATE workspaces SET current_balance = ? WHERE id = ?`).bind(newWsBalance, workspace.id),
       c.env.DB.prepare(`UPDATE batches SET status = 'generating' WHERE id = ?`).bind(batchId),
       c.env.DB.prepare(`
         INSERT INTO ledgers (id, workspace_id, user_id, type, amount, balance_after, description, metadata)
@@ -112,17 +124,17 @@ router.post("/batches/:batchId/client-generate", async (c) => {
         JSON.stringify({
           batch_id: batchId,
           unpaid_count: unpaidCount,
-          regen_count: 0,
+          regen_count: regenCount,
           rate: approved ? RATE : 0,
-          regen_rate: 0
+          regen_rate: approved ? REGEN_RATE : 0
         })
       )
     ];
 
-    if (unpaidCertIds.length > 0) {
+    if (targetCertIds.length > 0) {
       stmts.push(c.env.DB.prepare(`
-        UPDATE certificates SET is_paid = 1 WHERE id IN (${unpaidCertIds.map(() => "?").join(",")})
-      `).bind(...unpaidCertIds));
+        UPDATE certificates SET is_paid = 1, requires_visual_regen = 0 WHERE id IN (${targetCertIds.map(() => "?").join(",")})
+      `).bind(...targetCertIds));
     }
 
     await c.env.DB.batch(stmts);
@@ -259,7 +271,7 @@ router.post("/batches/:batchId/presigned-urls", async (c) => {
         if (pKey) phoneNumber = String(rowData[pKey] || "").replace(/[^0-9]/g, "");
       }
       
-      const folderName = phoneNumber || safeName;
+      const folderName = `${workspace.id}/${batchId}/${phoneNumber || safeName}`;
 
       const { url, key } = await generatePresignedPutUrl(c.env, folderName, pdfName);
       const r2PdfUrl = getR2PublicUrl(c.env, key);

@@ -95,7 +95,7 @@ export async function generatePresignedPutUrl(
   expiresIn: number = 900
 ): Promise<{ url: string; key: string }> {
   const client = getS3Client(env);
-  const safeFolderName = folderName.replace(/[^a-zA-Z0-9+\-_.]/g, "_");
+  const safeFolderName = folderName.replace(/[^a-zA-Z0-9+\-_./]/g, "_");
   const safeFileName = fileName.replace(/[^a-zA-Z0-9+\-_.]/g, "_");
   const key = `${safeFolderName}/${safeFileName.endsWith(".pdf") ? safeFileName : `${safeFileName}.pdf`}`;
 

@@ -38,6 +38,8 @@ export interface Env {
   GOOGLE_REDIRECT_URI: string;
   WA_WORKER_URL: string;
   WA_ANALYTICS_TOKEN: string;
+  TOKEN_ENCRYPTION_KEY?: string;
+  WHATSAPP_APP_SECRET?: string;
 }
 
 declare global {

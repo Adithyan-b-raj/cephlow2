@@ -19,6 +19,60 @@ const SCOPE_SETS: Record<GoogleScopeType, string[]> = {
   ],
 };
 
+async function encryptToken(text: string, secretKeyStr: string): Promise<string> {
+  const encoder = new TextEncoder();
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secretKeyStr.padEnd(32, "0").slice(0, 32)),
+    { name: "AES-GCM" },
+    false,
+    ["encrypt", "decrypt"]
+  );
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt(
+    { name: "AES-GCM", iv },
+    keyMaterial,
+    encoder.encode(text)
+  );
+  
+  const combined = new Uint8Array(iv.length + encrypted.byteLength);
+  combined.set(iv, 0);
+  combined.set(new Uint8Array(encrypted), iv.length);
+  
+  let binary = "";
+  for (let i = 0; i < combined.byteLength; i++) {
+    binary += String.fromCharCode(combined[i]);
+  }
+  return btoa(binary);
+}
+
+async function decryptToken(encryptedBase64: string, secretKeyStr: string): Promise<string> {
+  const binary = atob(encryptedBase64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  
+  const iv = bytes.slice(0, 12);
+  const data = bytes.slice(12);
+  
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(secretKeyStr.padEnd(32, "0").slice(0, 32)),
+    { name: "AES-GCM" },
+    false,
+    ["encrypt", "decrypt"]
+  );
+  
+  const decrypted = await crypto.subtle.decrypt(
+    { name: "AES-GCM", iv },
+    keyMaterial,
+    data
+  );
+  
+  return new TextDecoder().decode(decrypted);
+}
+
 export async function generateAuthUrl(
   db: D1Database,
   env: Env,
@@ -94,6 +148,10 @@ export async function handleCallback(
 
   const scopeType = row.scope_type || "all";
 
+  // Encrypt the refresh token before storage (H-2)
+  const encryptionKey = env.TOKEN_ENCRYPTION_KEY || env.SUPABASE_JWT_SECRET || "default-token-encryption-key-32-characters";
+  const encryptedRefreshToken = await encryptToken(data.refresh_token, encryptionKey);
+
   // Upsert the refresh token in D1
   await db.prepare(`
     INSERT INTO user_google_tokens (user_id, scope_type, refresh_token, updated_at)
@@ -101,7 +159,7 @@ export async function handleCallback(
     ON CONFLICT(user_id, scope_type) DO UPDATE SET
       refresh_token = excluded.refresh_token,
       updated_at = datetime('now')
-  `).bind(row.uid, scopeType, data.refresh_token).run();
+  `).bind(row.uid, scopeType, encryptedRefreshToken).run();
 
   return { originUrl: row.origin_url ?? undefined };
 }
@@ -150,10 +208,14 @@ export async function getAccessToken(
   const fallback = rows.results.find((r) => r.scope_type === "all");
   const token = exact || fallback || rows.results[0];
 
-  if (!token) {
-    const err: any = new Error(`Google account not connected for ${scopeType}. Please connect via Settings.`);
-    err.code = "GOOGLE_NOT_CONNECTED";
-    throw err;
+  // Decrypt token (H-2)
+  const encryptionKey = env.TOKEN_ENCRYPTION_KEY || env.SUPABASE_JWT_SECRET || "default-token-encryption-key-32-characters";
+  let decryptedRefreshToken = "";
+  try {
+    decryptedRefreshToken = await decryptToken(token.refresh_token, encryptionKey);
+  } catch (err: any) {
+    // Fall back to raw token if decryption fails (e.g. legacy plaintext token)
+    decryptedRefreshToken = token.refresh_token;
   }
 
   // Request new access token from Google using refresh token
@@ -163,7 +225,7 @@ export async function getAccessToken(
     body: new URLSearchParams({
       client_id: env.GOOGLE_CLIENT_ID || "",
       client_secret: env.GOOGLE_CLIENT_SECRET || "",
-      refresh_token: token.refresh_token,
+      refresh_token: decryptedRefreshToken,
       grant_type: "refresh_token",
     }),
   });
@@ -199,10 +261,18 @@ export async function disconnectGoogleToken(db: D1Database, env: Env, uid: strin
 
   const { results } = await db.prepare(selectQuery).bind(...params).all<{ refresh_token: string }>();
 
+  const encryptionKey = env.TOKEN_ENCRYPTION_KEY || env.SUPABASE_JWT_SECRET || "default-token-encryption-key-32-characters";
+
   // Revoke from Google APIs (best-effort)
   for (const row of results || []) {
     try {
-      await fetch(`https://oauth2.googleapis.com/revoke?token=${row.refresh_token}`, { method: "POST" });
+      let decryptedRefreshToken = "";
+      try {
+        decryptedRefreshToken = await decryptToken(row.refresh_token, encryptionKey);
+      } catch {
+        decryptedRefreshToken = row.refresh_token;
+      }
+      await fetch(`https://oauth2.googleapis.com/revoke?token=${decryptedRefreshToken}`, { method: "POST" });
     } catch {
       /* ignore */
     }

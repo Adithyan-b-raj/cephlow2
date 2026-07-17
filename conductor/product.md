@@ -19,6 +19,7 @@ Cephlow is a high-performance, automated platform designed for organizations to 
 *   **Builtin Canvas Editor:** Design certificate templates directly in the application using the drag-and-drop template designer, allowing client-side rendering to bypass external API rate limits.
 
 ### 3.2 Automated Processing & Generation
+*   **Client-Side Generation:** All certificate generation runs entirely in the browser — the client copies Slides templates, fills placeholders via Google APIs, exports PDFs, and uploads them directly to Cloudflare R2 via presigned URLs.
 *   **Data Source Integration:** Authenticate with Google OAuth 2.0 to access files. Select Google Sheets to map recipient details (Name, Email, Phone, Certificate Type).
 *   **Smart Font Scaling:** Dynamically scales down font sizes in text boxes if a recipient's name is too long, preventing layout overflow.
 *   **QR Code Injection:** Injects a custom QR code onto each certificate linked to a unique verification URL.
@@ -28,16 +29,16 @@ Cephlow is a high-performance, automated platform designed for organizations to 
 *   **WhatsApp Engine:** Send certificates directly to WhatsApp using the Meta Graph API.
 
 ### 3.4 Prepaid Wallet System & Monetization
-*   **Credits Management:** Users top up a prepaid wallet via Cashfree Payment Gateway to generate/send certificates (e.g., 1 certificate = 1 credit).
+*   **Credits Management:** Users top up a prepaid wallet via Cashfree Payment Gateway. Default costs: 5 credits per certificate generation (20% for visual regeneration), 1 credit per email delivery, 2 credits per WhatsApp delivery.
 *   **Audit Trail:** Detailed history of transactions, credit consumption, and generation reports.
 
 ### 3.5 Public Verification Portal
-*   **Validation Page:** A simple, high-performance public page where employers or readers scan the certificate's QR code to verify its authenticity against Firestore/Supabase records.
+*   **Validation Page:** A simple, high-performance public page where employers or readers scan the certificate's QR code to verify its authenticity against Cloudflare D1 records.
 
 ---
 
 ## 4. User Journey & Core Flow
-1.  **Onboarding:** Register/Login via Firebase Auth -> Connect Google Account via OAuth.
+1.  **Onboarding:** Register/Login via Supabase Auth -> Connect Google Account via OAuth.
 2.  **Campaign Setup:** Choose template (Slides or Canvas) -> Select source data (Sheets).
 3.  **Mapping & Preview:** Map spreadsheet columns to placeholders -> Preview sample certificate.
 4.  **Wallet Check & Generation:** Ensure adequate wallet balance -> Start batch generation.
