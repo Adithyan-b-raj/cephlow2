@@ -255,8 +255,15 @@ Cephlow uses a prepaid credits system for usage billing. Wallet balances, transa
 - **Frontend**: Automatically deployed via Cloudflare Pages on commit to the `main` branch.
 - **Backend API**: Deployed to Cloudflare Workers with wrangler:
   ```bash
-  npx wrangler deploy --config=./apps/api-worker/wrangler.toml
+  pnpm --filter @workspace/api-worker run deploy
   ```
+
+### Live Production Logging & Debugging
+To inspect live production errors, request headers, API status codes, and server-side logs in real-time, you can stream Wrangler logs directly from your terminal:
+```bash
+pnpm --filter @workspace/api-worker exec wrangler tail
+```
+*(Requires wrangler to be authenticated with your Cloudflare account).*
 
 ---
 
