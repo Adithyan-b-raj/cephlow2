@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+import { isStaging } from "@/lib/utils";
 import workflowImg from "../../public/images/workflow.png";
 
 const APPROVAL_WA_NUMBER = import.meta.env.VITE_APPROVAL_WA_NUMBER || "916282572066";
@@ -452,6 +453,9 @@ export default function Landing() {
           <img src="/favicon-32x32.png" alt="Cephlow" className="w-6 h-6 shrink-0" />
           <span className="font-bold tracking-widest text-sm">CEPHLOW</span>
           <span className="hidden sm:inline text-[9px] text-gray-400 tracking-widest">AUTOMATION</span>
+          {isStaging && (
+            <span className="text-[8px] font-extrabold px-1.5 py-0.5 bg-black text-white border border-black rounded-sm tracking-wider leading-none uppercase">Beta</span>
+          )}
         </div>
         <div className="flex items-center gap-2 sm:gap-3">
           <button

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import { isStaging } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Award } from "lucide-react";
@@ -55,7 +56,12 @@ export default function ResetPassword() {
                     <div className="w-12 h-12 border-2 border-background/30 flex items-center justify-center mx-auto mb-4">
                         <Award className="w-6 h-6" />
                     </div>
-                    <h1 className="text-lg font-black uppercase tracking-widest">Cephlow</h1>
+                    <div className="flex items-center justify-center gap-1.5 mx-auto">
+                        <h1 className="text-lg font-black uppercase tracking-widest text-background">Cephlow</h1>
+                        {isStaging && (
+                            <span className="text-[8px] font-extrabold px-1.5 py-0.5 bg-background text-foreground border border-background/25 rounded-sm tracking-wider leading-none uppercase">Beta</span>
+                        )}
+                    </div>
                     <p className="text-[10px] uppercase tracking-widest text-background/50 mt-1">Certificate Automation</p>
                 </div>
 
