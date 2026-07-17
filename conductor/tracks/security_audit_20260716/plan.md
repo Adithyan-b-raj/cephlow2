@@ -68,28 +68,28 @@
 
 ## Phase 3: API Endpoint & Input Security
 
-- [ ] Task: Write tests for input validation on critical endpoints
-    - [ ] Test: batch creation rejects malicious names (SQL injection, XSS payloads)
-    - [ ] Test: sheet ID parameters reject non-alphanumeric input
-    - [ ] Test: phone number normalization rejects invalid formats
-- [ ] Task: Implement input sanitization on all user-supplied parameters
-    - [ ] Add Zod validation schemas where missing
-    - [ ] Sanitize string inputs against injection
-- [ ] Task: Write tests for presigned URL scoping
-    - [ ] Test: presigned URL path contains requesting workspace ID (H-3)
-    - [ ] Test: user cannot request presigned URL for another workspace's batch
-    - [ ] Test: presigned URLs expire within expected timeframe
-- [ ] Task: Fix presigned URL generation scoping issues
-    - [ ] Scope key prefix path to `{workspace_id}/{batch_id}/` (H-3)
-- [ ] Task: Write tests for rate limiting middleware
-    - [ ] Test: requests exceeding rate limit receive 429 response
-    - [ ] Test: requests within limit succeed normally
-- [ ] Task: Implement rate limiting middleware
-    - [ ] Create rate limiter (D1-backed sliding window or in-memory for CF Workers)
-    - [ ] Apply to auth endpoints
-    - [ ] Apply to payment creation endpoints
-    - [ ] Apply to batch generation endpoints
-- [ ] Task: Conductor - User Manual Verification 'API Endpoint & Input Security' (Protocol in workflow.md)
+- [x] Task: Write tests for input validation on critical endpoints
+    - [x] Test: batch creation rejects malicious names (SQL injection, XSS payloads)
+    - [x] Test: sheet ID parameters reject non-alphanumeric input
+    - [x] Test: phone number normalization rejects invalid formats
+- [x] Task: Implement input sanitization on all user-supplied parameters
+    - [x] Add Zod validation schemas where missing
+    - [x] Sanitize string inputs against injection
+- [x] Task: Write tests for presigned URL scoping
+    - [x] Test: presigned URL path contains requesting workspace ID (H-3)
+    - [x] Test: user cannot request presigned URL for another workspace's batch
+    - [x] Test: presigned URLs expire within expected timeframe
+- [x] Task: Fix presigned URL generation scoping issues
+    - [x] Scope key prefix path to `{workspace_id}/{batch_id}/` (H-3)
+- [x] Task: Write tests for rate limiting middleware
+    - [x] Test: requests exceeding rate limit receive 429 response
+    - [x] Test: requests within limit succeed normally
+- [x] Task: Implement rate limiting middleware
+    - [x] Create rate limiter (D1-backed sliding window or in-memory for CF Workers)
+    - [x] Apply to auth endpoints
+    - [x] Apply to payment creation endpoints
+    - [x] Apply to batch generation endpoints
+- [x] Task: Conductor - User Manual Verification 'API Endpoint & Input Security' (Protocol in workflow.md)
 
 ## Phase 4: Wallet, Payment & Webhook Security
 

@@ -16,7 +16,8 @@
     "@aws-sdk/s3-request-presigner": "^3.1039.0",
     "@supabase/supabase-js": "^2.49.1",
     "hono": "^4.6.14",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241218.0",

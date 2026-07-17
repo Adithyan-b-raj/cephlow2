@@ -9,6 +9,10 @@ All notable changes to this project will be documented in this file.
 - **IDOR Protection**: Added order ownership validation in the payment verification endpoint (H-5).
 - **Google OAuth Protection**: Encrypted Google OAuth refresh tokens at rest in D1 database using AES-GCM (H-2).
 - **Testing & Coverage**: Added unit tests for authorization middleware, payments, and google-auth, achieving >90% overall statement coverage.
+- **Input Sanitization & Validation**: Added Zod schema validation to draft batch creation, rejecting XSS/malicious payloads in batch names, and alphanumeric check for Google Sheet IDs.
+- **Phone Normalization**: Normalized recipient phone numbers to E.164 format and validated lengths (10-15 digits) before saving.
+- **Presigned URL Scoping**: Isolated direct PDF upload paths by prefixing them with `{workspace_id}/{batch_id}/` (H-3).
+- **Rate Limiting**: Implemented a KV-backed sliding window rate limiter middleware with resilient memory fallback, applying specific limits on auth, payments, and batch creation.
 
 ### Changed
 - **Error Standardisation**: Standardised error responses in the auth middleware to prevent token detail leakage (M-5). All JWT rejection paths now return a uniform `"Invalid or expired token"` message.

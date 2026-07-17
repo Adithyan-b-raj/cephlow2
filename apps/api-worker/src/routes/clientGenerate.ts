@@ -259,7 +259,7 @@ router.post("/batches/:batchId/presigned-urls", async (c) => {
         if (pKey) phoneNumber = String(rowData[pKey] || "").replace(/[^0-9]/g, "");
       }
       
-      const folderName = phoneNumber || safeName;
+      const folderName = `${workspace.id}/${batchId}/${phoneNumber || safeName}`;
 
       const { url, key } = await generatePresignedPutUrl(c.env, folderName, pdfName);
       const r2PdfUrl = getR2PublicUrl(c.env, key);

@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { authMiddleware } from "./middleware/auth.js";
 import { workspaceMiddleware, requireNotSuspended } from "./middleware/workspace.js";
 import { requireApproval as approvalMiddleware } from "./middleware/approval.js";
+import { rateLimit } from "./middleware/rateLimiter.js";
 import { getAccessToken } from "./lib/google-auth.js";
 import { googleFetch } from "./lib/google-drive.js";
 
@@ -77,8 +78,17 @@ app.use("/api/reports*", authMiddleware);
 app.use("/api/reports/*", authMiddleware);
 app.use("/api/wallet*", authMiddleware);
 app.use("/api/wallet/*", authMiddleware);
-app.use("/api/admin*", authMiddleware);
 app.use("/api/admin/*", authMiddleware);
+
+// ── Rate Limiting (Applied to critical endpoints) ──
+app.use("/api/auth/*", rateLimit({ limit: 30, windowSeconds: 60, keyPrefix: "auth" }));
+app.use("/api/payments/create-order", rateLimit({ limit: 10, windowSeconds: 60, keyPrefix: "pay" }));
+app.use("/api/batches", async (c, next) => {
+  if (c.req.method === "POST") {
+    return rateLimit({ limit: 10, windowSeconds: 60, keyPrefix: "batch-create" })(c, next);
+  }
+  return next();
+});
 
 app.route("/api", authRouter);
 app.route("/api", approvalRouter);

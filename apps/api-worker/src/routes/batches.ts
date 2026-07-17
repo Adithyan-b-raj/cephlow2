@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import { getAccessToken } from "../lib/google-auth.js";
 import { downloadDriveFile, exportSlidesToPdf } from "../lib/google-drive.js";
 import { sendEmail } from "../lib/email.js";
@@ -8,6 +9,36 @@ import { requireApproval as approvalMiddleware } from "../middleware/approval.js
 import { upsertStudentProfile, emailToSlug } from "../lib/cert-utils.js";
 import { isApprovedInContext } from "../lib/approval.js";
 import { getSpreadsheetValues } from "../lib/google-sheets.js";
+import { normalizePhoneNumber, hasXssPayload } from "../lib/security.js";
+
+const CreateBatchSchema = z.object({
+  name: z.string().min(1, "Batch name is required").max(100, "Batch name is too long").refine(
+    (val) => !hasXssPayload(val),
+    { message: "Batch name contains invalid or malicious characters" }
+  ),
+  dataSourceKind: z.enum(["google", "inbuilt"]).default("google"),
+  spreadsheetId: z.string().nullable().optional(),
+  sheetId: z.string().nullable().optional().refine(
+    (val) => {
+      if (!val) return true;
+      return /^[a-zA-Z0-9-_]+$/.test(val);
+    },
+    { message: "sheetId must be alphanumeric" }
+  ),
+  tabName: z.string().nullable().optional(),
+  templateId: z.string().nullable().optional(),
+  templateName: z.string().nullable().optional(),
+  templateKind: z.string().nullable().optional(),
+  columnMap: z.record(z.string()).optional(),
+  emailColumn: z.string().nullable().optional(),
+  nameColumn: z.string().nullable().optional(),
+  emailSubject: z.string().max(200).optional(),
+  emailBody: z.string().max(2000).optional(),
+  categoryColumn: z.string().nullable().optional(),
+  categoryTemplateMap: z.record(z.string()).optional(),
+  categorySlideMap: z.record(z.string()).optional(),
+  categorySlideIndexes: z.record(z.any()).optional(),
+});
 
 const router = new Hono<ContextEnv>();
 
@@ -172,10 +203,15 @@ router.post("/batches", async (c) => {
   const user = c.get("user")!;
   const workspace = c.get("workspace")!;
   try {
-    const body = await c.req.json().catch(() => ({}));
+    const rawBody = await c.req.json().catch(() => ({}));
+    const parseResult = CreateBatchSchema.safeParse(rawBody);
+    if (!parseResult.success) {
+      return c.json({ error: parseResult.error.errors[0].message }, 400);
+    }
+    const body = parseResult.data;
     const batchId = crypto.randomUUID();
 
-    const dataSourceKind = body.dataSourceKind || "google";
+    const dataSourceKind = body.dataSourceKind;
     const isInbuilt = dataSourceKind === "inbuilt";
     const spreadsheetId = body.spreadsheetId || null;
 
@@ -270,6 +306,16 @@ router.post("/batches", async (c) => {
       const certId = crypto.randomUUID();
       const recipientName = rowData[body.nameColumn] || "Unknown";
       const recipientEmail = rowData[body.emailColumn] || "";
+      
+      const keys = Object.keys(rowData);
+      const pKey = keys.find(k => k.toLowerCase() === "phone" || k.toLowerCase() === "whatsapp" || k.toLowerCase().includes("phone"));
+      if (pKey && rowData[pKey]) {
+        try {
+          rowData[pKey] = normalizePhoneNumber(rowData[pKey]);
+        } catch (e: any) {
+          return c.json({ error: e.message }, 400);
+        }
+      }
       
       statements.push(c.env.DB.prepare(`
         INSERT INTO certificates (
