@@ -43,9 +43,10 @@ app.use("*", secureHeaders({
   contentSecurityPolicy: {
     defaultSrc: ["'self'"],
     connectSrc: ["'self'", "https://*.supabase.co", "https://*.cashfree.com", "https://*.googleapis.com"],
-    scriptSrc: ["'self'", "'unsafe-inline'"],
+    scriptSrc: ["'self'", "'unsafe-inline'", "https://sdk.cashfree.com", "https://*.cashfree.com"],
     styleSrc: ["'self'", "'unsafe-inline'"],
     imgSrc: ["'self'", "data:", "https://*.r2.cloudflarestorage.com"],
+    frameSrc: ["'self'", "https://*.cashfree.com"],
     frameAncestors: ["'none'"],
   },
 }));

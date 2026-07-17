@@ -1,16 +1,13 @@
-name: Test Suite
+name: Deploy Worker
 
 on:
   push:
-    branches: [ main, master ]
-  pull_request:
-    branches: [ main, master ]
+    branches: [ main, staging ]
 
 jobs:
-  test:
-    name: Run Tests
+  deploy:
+    name: Deploy API Worker
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -28,5 +25,8 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Run Tests with Coverage
-        run: pnpm test --coverage
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: apps/api-worker
