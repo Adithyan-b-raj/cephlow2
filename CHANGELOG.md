@@ -4,8 +4,32 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Manual Test Checklist**: Created a comprehensive manual verification checklist for end-user features covering authentication, workspaces, templates, spreadsheets, batches, payments, email/WhatsApp delivery, and the support bridge ([manual_test_checklist.md](file:///c:/Users/AKSHAY/Desktop/code/projects/fork-cephlow/adi-cephlow/cephlow2/docs/manual_test_checklist.md)).
+- **Security Report**: Created a comprehensive security audit report detailing user data protection, token safety, webhook signatures, and threat mitigations at the repository root ([security_report.md](file:///c:/Users/AKSHAY/Desktop/code/projects/fork-cephlow/adi-cephlow/cephlow2/security_report.md)).
+- **Security Hardening**: Enforced JWT algorithm, issuer, and audience checks in authentication middleware (H-1, C-4).
+- **IDOR Protection**: Added order ownership validation in the payment verification endpoint (H-5).
+- **Google OAuth Protection**: Encrypted Google OAuth refresh tokens at rest in D1 database using AES-GCM (H-2).
+- **Testing & Coverage**: Added unit tests for authorization middleware, payments, and google-auth, achieving >90% overall statement coverage.
+- **Input Sanitization & Validation**: Added Zod schema validation to draft batch creation, rejecting XSS/malicious payloads in batch names, and alphanumeric check for Google Sheet IDs.
+- **Phone Normalization**: Normalized recipient phone numbers to E.164 format and validated lengths (10-15 digits) before saving.
+- **Presigned URL Scoping**: Isolated direct PDF upload paths by prefixing them with `{workspace_id}/{batch_id}/` (H-3).
+- **Rate Limiting**: Implemented a KV-backed sliding window rate limiter middleware with resilient memory fallback, applying specific limits on auth, payments, and batch creation.
+- **Atomic Credit Deductions**: Converted all credit deduction logic (batches, email delivery, WhatsApp delivery, and workspace transfers) to use single atomic SQLite/D1 queries with `RETURNING current_balance` to prevent concurrent double-spend race conditions (C-2).
+- **Regeneration Cost Control**: Implemented 20% visual regeneration charge rate for already paid certificates requiring rebuild.
+- **Webhook Signature Enforcement**: Added timing-safe validation on Cashfree webhooks (H-4) and HMAC-SHA256 signature verification on WhatsApp status webhooks using `X-Hub-Signature-256` (C-1).
+- **Webhook Idempotency**: Added atomic status transitions (`UPDATE payment_orders SET processed = 1 WHERE order_id = ? AND processed = 0`) to prevent concurrent top-up race conditions (C-3).
+- **Security Headers Middleware**: Registered Hono's `secureHeaders` middleware globally on all routes to return security headers (HSTS, Content-Security-Policy, X-Frame-Options: DENY, X-Content-Type-Options: nosniff) (M-2, M-3, M-4).
+- **CORS Hardening**: Hardened CORS origin checks to restrict access to explicitly configured and trusted domains, avoiding wild origin reflection vulnerabilities (M-2).
+- **Cloudflare Pages Headers**: Configured custom `_headers` configuration on Cloudflare Pages static site bundle to return robust security headers (CSP, HSTS, X-Frame-Options, X-Content-Type-Options) for served assets.
+
 ### Changed
+- **Error Standardisation**: Standardised error responses in the auth middleware to prevent token detail leakage (M-5). All JWT rejection paths now return a uniform `"Invalid or expired token"` message.
+- **Query Fallback Removal**: Disabled unsafe fallback to query-string auth tokens (M-1).
 - **Conductor Docs**: Synced `conductor/product.md`, `conductor/product-guidelines.md`, and `conductor/tech-stack.md` with `docs/PROJECT_DOCS.md` — fixed stale references (Firebase→Supabase, Firestore→D1), corrected credit costs, added missing integrations (Zeptomail, Telegram Bot, Vitest), and removed non-existent `@workspace/supabase` package.
+
+### Dependencies
+- Upgraded `wrangler` from `4.107.0` to `4.112.0` in `apps/api-worker` to resolve Windows workerd binary crash.
 
 ## [2.0.3] - 2026-07-12
 

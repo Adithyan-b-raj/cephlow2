@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { verifyWebhookSignature } from "../lib/cashfree.js";
+import { verifyWhatsAppSignature } from "../lib/security.js";
 
 const router = new Hono<ContextEnv>();
 
@@ -20,8 +21,33 @@ router.get("/webhooks/whatsapp", (c) => {
 
 // 2. POST /api/webhooks/whatsapp — Meta status updates
 router.post("/webhooks/whatsapp", async (c) => {
+  const signatureHeader = c.req.header("X-Hub-Signature-256");
+  if (!signatureHeader) {
+    return c.json({ error: "Missing X-Hub-Signature-256 header" }, 401);
+  }
+
+  const rawBody = await c.req.text();
+  const appSecret = c.env.WHATSAPP_APP_SECRET || c.env.SUPABASE_JWT_SECRET;
+  if (!appSecret) {
+    console.error("[WhatsApp Webhook] App secret not configured.");
+    return c.json({ error: "App secret not configured" }, 500);
+  }
+
+  const verified = await verifyWhatsAppSignature(signatureHeader, rawBody, appSecret);
+  if (!verified) {
+    console.error("[WhatsApp Webhook] Invalid signature verification.");
+    return c.json({ error: "Invalid signature" }, 401);
+  }
+
+  let body: any;
   try {
-    const body = await c.req.json().catch(() => ({}));
+    body = JSON.parse(rawBody);
+  } catch (err: any) {
+    console.error("[WhatsApp Webhook] Malformed payload body:", err.message);
+    return c.json({ error: "Malformed payload body" }, 400);
+  }
+
+  try {
     if (body?.object !== "whatsapp_business_account") {
       return c.text("OK", 200);
     }
@@ -122,34 +148,42 @@ router.post("/webhooks/cashfree", async (c) => {
         return c.text("OK", 200);
       }
 
-      // Fetch workspace balance
-      const ws = await c.env.DB.prepare(`
-        SELECT current_balance FROM workspaces WHERE id = ?
-      `).bind(orderRow.workspace_id).first<{ current_balance: number }>();
-      if (!ws) {
-        return c.json({ error: "Workspace not found" }, 404);
+      // Atomic state transition to prevent concurrent top-up race condition (C-3)
+      const updateResult = await c.env.DB.prepare(`
+        UPDATE payment_orders SET processed = 1 WHERE order_id = ? AND processed = 0
+      `).bind(orderId).run();
+
+      if (updateResult.meta.changes === 0) {
+        console.log(`[Cashfree Webhook] Order ${orderId} already processed concurrently.`);
+        return c.text("OK", 200);
       }
 
-      const newBalance = ws.current_balance + credits;
+      // Atomic balance update (C-2)
+      const updatedWs = await c.env.DB.prepare(`
+        UPDATE workspaces SET current_balance = current_balance + ?
+        WHERE id = ?
+        RETURNING current_balance
+      `).bind(credits, orderRow.workspace_id).first<{ current_balance: number }>();
 
-      // Update workspace and map orders to processed
-      await c.env.DB.batch([
-        c.env.DB.prepare(`UPDATE workspaces SET current_balance = ? WHERE id = ?`).bind(newBalance, orderRow.workspace_id),
-        c.env.DB.prepare(`
-          INSERT INTO ledgers (id, workspace_id, user_id, type, amount, balance_after, description, metadata)
-          VALUES (?, ?, ?, 'topup', ?, ?, 'Top-up via Cashfree', ?)
-        `).bind(
-          crypto.randomUUID(), orderRow.workspace_id, customerId, credits, newBalance,
-          JSON.stringify({
-            order_id: orderId,
-            amount_rupees: amount,
-            credits_per_rupee: creditsPerRupee,
-            payment_id: payment.cf_payment_id || null,
-            payment_method: payment.payment_group || null
-          })
-        ),
-        c.env.DB.prepare(`UPDATE payment_orders SET processed = 1 WHERE order_id = ?`).bind(orderId),
-      ]);
+      if (!updatedWs) {
+        return c.json({ error: "Workspace not found" }, 404);
+      }
+      const newBalance = updatedWs.current_balance;
+
+      // Insert ledger entry
+      await c.env.DB.prepare(`
+        INSERT INTO ledgers (id, workspace_id, user_id, type, amount, balance_after, description, metadata)
+        VALUES (?, ?, ?, 'topup', ?, ?, 'Top-up via Cashfree', ?)
+      `).bind(
+        crypto.randomUUID(), orderRow.workspace_id, customerId, credits, newBalance,
+        JSON.stringify({
+          order_id: orderId,
+          amount_rupees: amount,
+          credits_per_rupee: creditsPerRupee,
+          payment_id: payment.cf_payment_id || null,
+          payment_method: payment.payment_group || null
+        })
+      ).run();
 
       console.log(`[Cashfree Webhook] Credited ${credits} credits (₹${amount}) to workspace ${orderRow.workspace_id} (Order: ${orderId})`);
     }

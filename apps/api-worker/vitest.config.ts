@@ -14,7 +14,7 @@ export default defineConfig({
         lines: 80,
       },
       // Target the files we are currently testing to meet the 80% threshold immediately
-      include: ["src/lib/cert-utils.ts", "src/routes/health.ts"],
+      include: ["src/lib/cert-utils.ts", "src/routes/health.ts", "src/middleware/auth.ts", "src/middleware/workspace.ts", "src/routes/payments.ts", "src/lib/google-auth.ts", "src/lib/security.ts", "src/middleware/rateLimiter.ts"],
     },
   },
 });

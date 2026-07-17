@@ -59,10 +59,6 @@ async function getJwksPublicKey(supabaseUrl: string, kid: string): Promise<Crypt
 
 async function verifyEs256Jwt(token: string, supabaseUrl: string): Promise<any> {
   const parts = token.split(".");
-  if (parts.length !== 3) {
-    throw new Error("Invalid JWT format");
-  }
-
   const [headerB64, payloadB64, signatureB64] = parts;
   const header = JSON.parse(base64urlDecode(headerB64));
   const kid = header.kid;
@@ -102,10 +98,6 @@ async function verifyEs256Jwt(token: string, supabaseUrl: string): Promise<any> 
 // Verifies HS256 JWT using Web Crypto API (trying both raw secret and base64-decoded secret)
 async function verifyHs256Jwt(token: string, secretStr: string): Promise<any> {
   const parts = token.split(".");
-  if (parts.length !== 3) {
-    throw new Error("Invalid JWT format");
-  }
-
   const [headerB64, payloadB64, signatureB64] = parts;
 
   // 1. Reconstruct signature target
@@ -170,8 +162,6 @@ export const authMiddleware: MiddlewareHandler<ContextEnv> = async (c, next) => 
 
   if (authHeader?.startsWith("Bearer ")) {
     idToken = authHeader.split("Bearer ")[1];
-  } else {
-    idToken = c.req.query("token") || "";
   }
 
   if (!idToken) {
@@ -192,11 +182,26 @@ export const authMiddleware: MiddlewareHandler<ContextEnv> = async (c, next) => 
         throw new Error("SUPABASE_URL not configured for ES256 JWT verification");
       }
       decoded = await verifyEs256Jwt(idToken, c.env.SUPABASE_URL);
-    } else {
+    } else if (header.alg === "HS256") {
       if (!c.env.SUPABASE_JWT_SECRET) {
         throw new Error("SUPABASE_JWT_SECRET not configured for HS256 JWT verification");
       }
       decoded = await verifyHs256Jwt(idToken, c.env.SUPABASE_JWT_SECRET);
+    } else {
+      throw new Error(`Unsupported algorithm: ${header.alg}`);
+    }
+
+    // Validate issuer and audience claims (H-1)
+    const expectedIss = c.env.SUPABASE_URL?.replace(/\/$/, "");
+    const payloadIss = decoded.iss?.replace(/\/$/, "");
+    if (expectedIss) {
+      const normalizedPayloadIss = payloadIss?.replace(/\/auth\/v1$/, "")?.replace(/\/$/, "");
+      if (normalizedPayloadIss !== expectedIss) {
+        throw new Error("Invalid token issuer");
+      }
+    }
+    if (decoded.aud !== "authenticated") {
+      throw new Error("Invalid token audience");
     }
     
     // Supabase sub claim contains the user ID (uid)
@@ -226,7 +231,7 @@ export const authMiddleware: MiddlewareHandler<ContextEnv> = async (c, next) => 
     } catch (e) {
       console.error("JWT Verification failed (could not parse header):", err.message);
     }
-    return c.json({ error: `Invalid or expired token: ${err.message}` }, 401);
+    return c.json({ error: "Invalid or expired token" }, 401);
   }
 };
 

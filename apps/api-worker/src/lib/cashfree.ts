@@ -1,4 +1,5 @@
 import type { Env } from "../types.js";
+import { timingSafeEqual } from "./security.js";
 
 function getBaseUrl(env: Env): string {
   const isProduction = env.VITE_CASHFREE_ENV === "PRODUCTION";
@@ -118,7 +119,7 @@ export async function verifyWebhookSignature(
     }
     const computedSignature = btoa(binary);
 
-    return signature === computedSignature;
+    return timingSafeEqual(signature, computedSignature);
   } catch (err) {
     console.error("Signature verification error:", err);
     return false;
