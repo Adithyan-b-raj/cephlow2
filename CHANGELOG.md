@@ -4,6 +4,8 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-07-17
+
 ### Added
 - **Manual Test Checklist**: Created a comprehensive manual verification checklist for end-user features covering authentication, workspaces, templates, spreadsheets, batches, payments, email/WhatsApp delivery, and the support bridge ([manual_test_checklist.md](file:///c:/Users/AKSHAY/Desktop/code/projects/fork-cephlow/adi-cephlow/cephlow2/docs/manual_test_checklist.md)).
 - **Security Report**: Created a comprehensive security audit report detailing user data protection, token safety, webhook signatures, and threat mitigations at the repository root ([security_report.md](file:///c:/Users/AKSHAY/Desktop/code/projects/fork-cephlow/adi-cephlow/cephlow2/security_report.md)).
