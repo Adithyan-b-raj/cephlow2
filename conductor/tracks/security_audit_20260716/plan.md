@@ -140,12 +140,12 @@
 
 ## Phase 6: Manual Pen-Test Checklist & Final Verification
 
-- [ ] Task: Produce OWASP Top 10 penetration testing checklist
-    - [ ] Map each OWASP category to specific Cephlow endpoints and flows
-    - [ ] Include step-by-step test procedures with expected results
-    - [ ] Include tool recommendations (Burp Suite, OWASP ZAP, curl)
-- [ ] Task: Run full test suite and verify coverage
-    - [ ] Execute `pnpm test --coverage`
-    - [ ] Verify all security tests pass
-    - [ ] Verify coverage threshold (>80%) is met
-- [ ] Task: Conductor - User Manual Verification 'Manual Pen-Test Checklist & Final Verification' (Protocol in workflow.md)
+- [x] Task: Produce OWASP Top 10 penetration testing checklist
+    - [x] Map each OWASP category to specific Cephlow endpoints and flows
+    - [x] Include step-by-step test procedures with expected results
+    - [x] Include tool recommendations (Burp Suite, OWASP ZAP, curl)
+- [x] Task: Run full test suite and verify coverage
+    - [x] Execute `pnpm test --coverage`
+    - [x] Verify all security tests pass
+    - [x] Verify coverage threshold (>80%) is met
+- [x] Task: Conductor - User Manual Verification 'Manual Pen-Test Checklist & Final Verification' (Protocol in workflow.md)
