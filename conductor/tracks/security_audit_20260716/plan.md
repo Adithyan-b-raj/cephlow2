@@ -38,31 +38,33 @@
 
 ## Phase 2: Authentication & Authorization Hardening
 
-- [ ] Task: Write security tests for JWT validation in auth middleware
-    - [ ] Test: reject missing Authorization header
-    - [ ] Test: reject expired JWT
-    - [ ] Test: reject JWT with `alg: none` or unexpected algorithms (e.g. RS256) (C-4)
-    - [ ] Test: reject JWT with wrong issuer/audience (H-1)
-    - [ ] Test: reject query string token if restricted (M-1)
-    - [ ] Test: accept valid JWT and attach user context
-- [ ] Task: Implement auth middleware fixes based on audit findings
-    - [ ] Enforce ES256 and HS256 algorithms only (C-4)
-    - [ ] Validate issuer and audience claims (H-1)
-    - [ ] Remove or restrict query string token fallback (M-1)
-    - [ ] Standardize verification errors to prevent detail leakage (M-5)
-- [ ] Task: Write security tests for workspace IDOR prevention
-    - [ ] Test: user A cannot access workspace B's batches
-    - [ ] Test: user A cannot access workspace B's certificates
-    - [ ] Test: workspace ID header mismatch with membership is rejected
-    - [ ] Test: user B cannot trigger payment verification for user A's order (H-5)
-- [ ] Task: Implement workspace middleware and route authorization fixes
-    - [ ] Fix any discovered bypass paths
-    - [ ] Add workspace/user ownership check in `POST /payments/verify` (H-5)
-- [ ] Task: Write tests for Google OAuth token security
-    - [ ] Test: API responses never include raw refresh tokens
-    - [ ] Test: token encryption/decryption round-trip
-- [ ] Task: Fix any token exposure issues and encrypt refresh tokens at rest (AES-GCM) (H-2)
-- [ ] Task: Conductor - User Manual Verification 'Authentication & Authorization Hardening' (Protocol in workflow.md)
+- [x] Task: Write security tests for JWT validation in auth middleware
+    - [x] Test: reject missing Authorization header
+    - [x] Test: reject expired JWT
+    - [x] Test: reject JWT with `alg: none` or unexpected algorithms (e.g. RS256) (C-4)
+    - [x] Test: reject JWT with wrong issuer/audience (H-1)
+    - [x] Test: reject query string token if restricted (M-1)
+    - [x] Test: accept valid JWT and attach user context
+- [x] Task: Implement auth middleware fixes based on audit findings
+    - [x] Enforce ES256 and HS256 algorithms only (C-4)
+    - [x] Validate issuer and audience claims (H-1)
+    - [x] Remove or restrict query string token fallback (M-1)
+    - [x] Standardize verification errors to prevent detail leakage (M-5)
+- [x] Task: Write security tests for workspace IDOR prevention
+    - [x] Test: user A cannot access workspace B's batches
+    - [x] Test: user A cannot access workspace B's certificates
+    - [x] Test: workspace ID header mismatch with membership is rejected
+    - [x] Test: user B cannot trigger payment verification for user A's order (H-5)
+- [x] Task: Implement workspace middleware and route authorization fixes
+    - [x] Fix any discovered bypass paths
+    - [x] Add workspace/user ownership check in `POST /payments/verify` (H-5)
+- [x] Task: Write tests for Google OAuth token security
+    - [x] Test: API responses never include raw refresh tokens
+    - [x] Test: token encryption/decryption round-trip
+- [x] Task: Fix any token exposure issues and encrypt refresh tokens at rest (AES-GCM) (H-2)
+    - [x] Implement Cloudflare Workers compatible AES-GCM encryption
+    - [x] Fall back to raw values for backward compatibility and log appropriately
+- [x] Task: Conductor - User Manual Verification 'Authentication & Authorization Hardening' (Protocol in workflow.md)
 
 ## Phase 3: API Endpoint & Input Security
 

@@ -75,6 +75,12 @@ router.post("/payments/verify", authMiddleware, async (c) => {
       return c.json({ error: "Order not found" }, 404);
     }
 
+    // Verify order ownership (H-5)
+    const user = c.get("user")!;
+    if (orderRow.user_id !== user.uid) {
+      return c.json({ error: "Access denied: You do not own this payment order" }, 403);
+    }
+
     // B. Check if already processed
     if (orderRow.processed) {
       console.log(`[Payment Verify] Order ${order_id} already processed`);

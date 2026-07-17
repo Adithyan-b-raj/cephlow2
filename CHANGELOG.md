@@ -4,8 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Security Hardening**: Enforced JWT algorithm, issuer, and audience checks in authentication middleware (H-1, C-4).
+- **IDOR Protection**: Added order ownership validation in the payment verification endpoint (H-5).
+- **Google OAuth Protection**: Encrypted Google OAuth refresh tokens at rest in D1 database using AES-GCM (H-2).
+- **Testing & Coverage**: Added unit tests for authorization middleware, payments, and google-auth, achieving >90% overall statement coverage.
+
 ### Changed
+- **Error Standardisation**: Standardised error responses in the auth middleware to prevent token detail leakage (M-5). All JWT rejection paths now return a uniform `"Invalid or expired token"` message.
+- **Query Fallback Removal**: Disabled unsafe fallback to query-string auth tokens (M-1).
 - **Conductor Docs**: Synced `conductor/product.md`, `conductor/product-guidelines.md`, and `conductor/tech-stack.md` with `docs/PROJECT_DOCS.md` — fixed stale references (Firebase→Supabase, Firestore→D1), corrected credit costs, added missing integrations (Zeptomail, Telegram Bot, Vitest), and removed non-existent `@workspace/supabase` package.
+
+### Dependencies
+- Upgraded `wrangler` from `4.107.0` to `4.112.0` in `apps/api-worker` to resolve Windows workerd binary crash.
 
 ## [2.0.3] - 2026-07-12
 
