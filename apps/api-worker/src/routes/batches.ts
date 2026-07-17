@@ -25,6 +25,7 @@ const CreateBatchSchema = z.object({
     },
     { message: "sheetId must be alphanumeric" }
   ),
+  sheetName: z.string().nullable().optional(),
   tabName: z.string().nullable().optional(),
   templateId: z.string().nullable().optional(),
   templateName: z.string().nullable().optional(),
@@ -304,8 +305,8 @@ router.post("/batches", async (c) => {
     // 2. Prepare certificate inserts
     for (const rowData of dataRows) {
       const certId = crypto.randomUUID();
-      const recipientName = rowData[body.nameColumn] || "Unknown";
-      const recipientEmail = rowData[body.emailColumn] || "";
+      const recipientName = (body.nameColumn ? rowData[body.nameColumn] : null) || "Unknown";
+      const recipientEmail = (body.emailColumn ? rowData[body.emailColumn] : null) || "";
       
       const keys = Object.keys(rowData);
       const pKey = keys.find(k => k.toLowerCase() === "phone" || k.toLowerCase() === "whatsapp" || k.toLowerCase().includes("phone"));
