@@ -498,7 +498,7 @@ export default function Landing() {
               </p>
             </div>
             <p className="text-sm text-gray-600 leading-relaxed mb-8 max-w-md">
-              Merge Google Sheets data into Google Slides templates. Generate hundreds of personalised certificates and deliver them via WhatsApp or email — in minutes.
+              Merge spreadsheet data into certificate templates — use our built-in editor or connect Google Sheets and Slides. Generate hundreds of personalised certificates and deliver them via WhatsApp or email — in minutes.
             </p>
             <div className="flex flex-wrap gap-3">
               <button
@@ -546,8 +546,8 @@ export default function Landing() {
           </div>
           <div className="grid md:grid-cols-2 gap-12 items-start">
             <div className="space-y-8">
-              <StepCard num="1" title="Design your template" desc="Create or upload a Google Slides template. Add placeholders like <<Name>>, <<Email>>, <<Event>> — Cephlow detects them automatically." delay={0} />
-              <StepCard num="2" title="Connect your spreadsheet" desc="Link a Google Sheet with your recipients' data. Map columns to template placeholders in a few clicks." delay={100} />
+              <StepCard num="1" title="Design your template" desc="Design in our built-in editor, or bring your own Google Slides template with placeholders like <<Name>>, <<Email>>, <<Event>> — Cephlow detects them automatically." delay={0} />
+              <StepCard num="2" title="Connect your spreadsheet" desc="Use our built-in spreadsheet editor or link a Google Sheet with your recipients' data. Map columns to template placeholders in a few clicks." delay={100} />
               <StepCard num="3" title="Generate & deliver" desc="Hit generate. Cephlow creates personalised PDFs for every recipient and delivers them via WhatsApp, email, or both. Each certificate gets a unique verification link." delay={200} />
               <StepCard num="4" title="Recipients verify anywhere" desc="Every certificate has a public profile page and QR code. Scan to verify — no login required." delay={300} />
             </div>
@@ -634,8 +634,8 @@ export default function Landing() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-gray-700">
             {[
-              ["📊", "Google Sheets integration", "Pull recipient data directly from any Google Sheet. Map any column to any placeholder."],
-              ["🎨", "Google Slides templates", "Use your existing Slides design. Single template or multiple designs per category."],
+              ["📊", "Built-in or Google Sheets", "Use our built-in spreadsheet editor, or connect any Google Sheet. Map any column to any placeholder."],
+              ["🎨", "Built-in or Google Slides templates", "Design certificates in our built-in editor, or bring your own Google Slides design. Single template or multiple designs per category."],
               ["📱", "WhatsApp delivery", "Send personalised PDF certificates via WhatsApp Business API to each recipient."],
               ["✉️", "Email delivery", "Send via email with custom subject and body. HTML email with PDF attached."],
               ["🔒", "Tamper-proof verification", "Every certificate has a unique verification URL and QR code. Public, no login needed."],
@@ -787,9 +787,9 @@ export default function Landing() {
             <div className="p-5 sm:p-8 bg-black text-white flex flex-col">
               <div className="text-[10px] tracking-widest text-gray-400 mb-1">APPROVED ORGANISATION</div>
               <div className="text-3xl font-bold mb-1">
-                ₹0.50<span className="text-sm font-normal text-gray-400">/certificate</span>
+                ₹0.20<span className="text-sm font-normal text-gray-400">/certificate</span>
               </div>
-              <div className="text-xs text-gray-400 mb-6">Prepaid wallet. Credits never expire.</div>
+              <div className="text-xs text-gray-400 mb-6">₹1 = 5 credits. Prepaid wallet, credits never expire.</div>
               <ul className="space-y-3 text-xs flex-1">
                 {[
                   { label: "Built-in template editor" },
@@ -799,19 +799,20 @@ export default function Landing() {
                   { label: "Unique verification URL per certificate" },
                   { label: "QR code embedded on certificate" },
                   { label: "Student public profile pages" },
-                  { label: "WhatsApp Business delivery" },
-                  { label: "Email delivery" },
+                  { label: "Email delivery", note: "+1 credit" },
+                  { label: "WhatsApp Business delivery", note: "+3 credits" },
                   { label: "Personalised delivery messages" },
                   { label: "Delivery status tracking" },
                   { label: "Workspace member management" },
                   { label: "Brand kit (logo, colours)", beta: true },
                   { label: "Unlimited regeneration" },
                   { label: "Top up via UPI, cards, net banking" },
-                ].map(({ label, beta }) => (
+                ].map(({ label, beta, note }) => (
                   <li key={label} className="flex items-center gap-2">
                     <span className="text-white">✓</span>
                     {label}
                     {beta && <span className="text-[8px] border border-gray-500 text-gray-400 px-1 py-0.5 tracking-wider ml-1">BETA</span>}
+                    {note && <span className="text-[9px] text-gray-400 ml-auto">{note}</span>}
                   </li>
                 ))}
               </ul>
@@ -828,8 +829,10 @@ export default function Landing() {
 
           {/* Pricing breakdown note */}
           <div className="border border-black bg-white p-6 text-xs">
-            <div className="text-[10px] tracking-widest text-gray-500 mb-2">WHAT'S INCLUDED — ₹0.50/certificate</div>
-            <p className="text-gray-600 leading-relaxed">Each certificate charge covers PDF generation, Cloudflare R2 storage, a unique public verification URL, QR code, student profile update, and delivery via WhatsApp Business or email — everything in one flat rate.</p>
+            <div className="text-[10px] tracking-widest text-gray-500 mb-2">WHAT'S INCLUDED — 1 CREDIT (₹0.20) PER CERTIFICATE</div>
+            <p className="text-gray-600 leading-relaxed">
+              1 credit covers generation and storage of every certificate — Cloudflare R2 storage, a unique public verification URL, QR code, and a student profile update. Pushing it out costs a little more: +1 credit to email it, or +3 credits to send it via WhatsApp. Skip delivery entirely and recipients can still get their certificate for free — by opening their public profile page or simply messaging the Cephlow WhatsApp bot.
+            </p>
           </div>
           <p className="text-[10px] text-gray-400 mt-4 text-center tracking-wider">APPROVALS REVIEWED WITHIN 1 BUSINESS DAY · CREDITS NEVER EXPIRE</p>
         </div>
