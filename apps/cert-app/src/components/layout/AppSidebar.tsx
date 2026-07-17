@@ -57,6 +57,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { useWorkspace } from "@/hooks/use-workspace";
 import { useApproval } from "@/hooks/use-approval";
 import { WorkspaceSwitcher } from "./WorkspaceSwitcher";
+import { isStaging } from "@/lib/utils";
+
 
 const APPROVAL_EMAIL =
   import.meta.env.VITE_APPROVAL_CONTACT_EMAIL || "approvals@cephlow.online";
@@ -155,7 +157,12 @@ export function AppSidebar() {
               <Award className="w-5 h-5" />
             </div>
             <div className="flex flex-col">
-              <span className="font-display font-black text-base leading-tight tracking-widest uppercase">Cephlow</span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-display font-black text-base leading-tight tracking-widest uppercase">Cephlow</span>
+                {isStaging && (
+                  <span className="text-[8px] font-extrabold px-1 py-0.5 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-sm tracking-wider leading-none uppercase shrink-0">Beta</span>
+                )}
+              </div>
               <span className="text-[10px] text-muted-foreground tracking-widest uppercase">Automation</span>
             </div>
           </div>

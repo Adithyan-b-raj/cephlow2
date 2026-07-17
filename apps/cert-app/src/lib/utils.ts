@@ -14,3 +14,10 @@ export function getColumnName(index: number): string {
   }
   return columnName;
 }
+
+export const isStaging = typeof window !== "undefined" && (
+  window.location.hostname.includes("test") ||
+  window.location.hostname.includes("pages.dev") ||
+  window.location.hostname.includes("localhost")
+);
+
