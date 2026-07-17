@@ -595,21 +595,27 @@ router.post("/batches/:batchId/certificates/:certId/send", async (c) => {
     const wsForEmail = await c.env.DB.prepare(`
       SELECT current_balance FROM workspaces WHERE id = ?
     `).bind(workspace.id).first<{ current_balance: number }>();
-    if (!wsForEmail || wsForEmail.current_balance < emailCost) {
-      return c.json({ error: `Insufficient credits for email delivery: need ${emailCost}, have ${wsForEmail?.current_balance ?? 0}` }, 402);
+    if (!wsForEmail) return c.json({ error: "Workspace not found" }, 404);
+
+    // Atomic deduction (C-2)
+    const updatedWsForEmail = await c.env.DB.prepare(`
+      UPDATE workspaces SET current_balance = current_balance - ?
+      WHERE id = ? AND current_balance >= ?
+      RETURNING current_balance
+    `).bind(emailCost, workspace.id, emailCost).first<{ current_balance: number }>();
+
+    if (!updatedWsForEmail) {
+      return c.json({ error: `Insufficient credits for email delivery: need ${emailCost}, have ${wsForEmail.current_balance}` }, 402);
     }
-    const newEmailBalance = wsForEmail.current_balance - emailCost;
-    await c.env.DB.batch([
-      c.env.DB.prepare(`UPDATE workspaces SET current_balance = ? WHERE id = ?`).bind(newEmailBalance, workspace.id),
-      c.env.DB.prepare(`
-        INSERT INTO ledgers (id, workspace_id, user_id, type, amount, balance_after, description, metadata)
-        VALUES (?, ?, ?, 'deduction', ?, ?, ?, ?)
-      `).bind(
-        crypto.randomUUID(), workspace.id, user.uid, -emailCost, newEmailBalance,
-        `Email delivery: ${cert.recipient_email} (${cert.recipient_name})`,
-        JSON.stringify({ certId: cert.id, batchId })
-      ),
-    ]);
+    const newEmailBalance = updatedWsForEmail.current_balance;
+    await c.env.DB.prepare(`
+      INSERT INTO ledgers (id, workspace_id, user_id, type, amount, balance_after, description, metadata)
+      VALUES (?, ?, ?, 'deduction', ?, ?, ?, ?)
+    `).bind(
+      crypto.randomUUID(), workspace.id, user.uid, -emailCost, newEmailBalance,
+      `Email delivery: ${cert.recipient_email} (${cert.recipient_name})`,
+      JSON.stringify({ certId: cert.id, batchId })
+    ).run();
 
     // D. Send email
     await sendEmail(c.env, {
@@ -715,21 +721,27 @@ router.post("/batches/:batchId/certificates/:certId/send-whatsapp", approvalMidd
     const wsForWhatsapp = await c.env.DB.prepare(`
       SELECT current_balance FROM workspaces WHERE id = ?
     `).bind(workspace.id).first<{ current_balance: number }>();
-    if (!wsForWhatsapp || wsForWhatsapp.current_balance < whatsappCost) {
-      return c.json({ error: `Insufficient credits for WhatsApp delivery: need ${whatsappCost}, have ${wsForWhatsapp?.current_balance ?? 0}` }, 402);
+    if (!wsForWhatsapp) return c.json({ error: "Workspace not found" }, 404);
+
+    // Atomic deduction (C-2)
+    const updatedWsForWhatsapp = await c.env.DB.prepare(`
+      UPDATE workspaces SET current_balance = current_balance - ?
+      WHERE id = ? AND current_balance >= ?
+      RETURNING current_balance
+    `).bind(whatsappCost, workspace.id, whatsappCost).first<{ current_balance: number }>();
+
+    if (!updatedWsForWhatsapp) {
+      return c.json({ error: `Insufficient credits for WhatsApp delivery: need ${whatsappCost}, have ${wsForWhatsapp.current_balance}` }, 402);
     }
-    const newWhatsappBalance = wsForWhatsapp.current_balance - whatsappCost;
-    await c.env.DB.batch([
-      c.env.DB.prepare(`UPDATE workspaces SET current_balance = ? WHERE id = ?`).bind(newWhatsappBalance, workspace.id),
-      c.env.DB.prepare(`
-        INSERT INTO ledgers (id, workspace_id, user_id, type, amount, balance_after, description, metadata)
-        VALUES (?, ?, ?, 'deduction', ?, ?, ?, ?)
-      `).bind(
-        crypto.randomUUID(), workspace.id, user.uid, -whatsappCost, newWhatsappBalance,
-        `WhatsApp delivery: ${phone} (${cert.recipient_name})`,
-        JSON.stringify({ certId: cert.id, batchId })
-      ),
-    ]);
+    const newWhatsappBalance = updatedWsForWhatsapp.current_balance;
+    await c.env.DB.prepare(`
+      INSERT INTO ledgers (id, workspace_id, user_id, type, amount, balance_after, description, metadata)
+      VALUES (?, ?, ?, 'deduction', ?, ?, ?, ?)
+    `).bind(
+      crypto.randomUUID(), workspace.id, user.uid, -whatsappCost, newWhatsappBalance,
+      `WhatsApp delivery: ${phone} (${cert.recipient_name})`,
+      JSON.stringify({ certId: cert.id, batchId })
+    ).run();
 
     // Send WhatsApp Document via Meta Cloud API
     const wamid = await sendWhatsAppDocument(c.env, phone, cert.r2_pdf_url, pdfFilename, var1, var2, var3, certKey);

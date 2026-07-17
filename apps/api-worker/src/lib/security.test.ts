@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizePhoneNumber, hasXssPayload } from "./security.js";
+import { normalizePhoneNumber, hasXssPayload, timingSafeEqual, verifyWhatsAppSignature } from "./security.js";
 
 describe("security helpers", () => {
   describe("normalizePhoneNumber", () => {
@@ -48,6 +48,60 @@ describe("security helpers", () => {
     it("should allow safe strings", () => {
       expect(hasXssPayload("Simple Batch Name")).toBe(false);
       expect(hasXssPayload("Batch-123 & Co.")).toBe(false);
+    });
+  });
+
+  describe("timingSafeEqual", () => {
+    it("should return true for equal strings", () => {
+      expect(timingSafeEqual("hello", "hello")).toBe(true);
+      expect(timingSafeEqual("", "")).toBe(true);
+    });
+
+    it("should return false for unequal strings", () => {
+      expect(timingSafeEqual("hello", "world")).toBe(false);
+      expect(timingSafeEqual("hello", "hell")).toBe(false);
+      expect(timingSafeEqual("hell", "hello")).toBe(false);
+    });
+  });
+
+  describe("verifyWhatsAppSignature", () => {
+    const secret = "test-whatsapp-secret-key-12345";
+    const payload = '{"object":"whatsapp_business_account","entry":[]}';
+
+    it("should verify valid signature", async () => {
+      const encoder = new TextEncoder();
+      const cryptoKey = await crypto.subtle.importKey(
+        "raw",
+        encoder.encode(secret),
+        { name: "HMAC", hash: "SHA-256" },
+        false,
+        ["sign"]
+      );
+      const signatureBuffer = await crypto.subtle.sign(
+        "HMAC",
+        cryptoKey,
+        encoder.encode(payload)
+      );
+      const hexSignature = Array.from(new Uint8Array(signatureBuffer))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+
+      const header = `sha256=${hexSignature}`;
+      const verified = await verifyWhatsAppSignature(header, payload, secret);
+      expect(verified).toBe(true);
+    });
+
+    it("should reject tampered payload or signature", async () => {
+      const verified = await verifyWhatsAppSignature("sha256=invalidhex", payload, secret);
+      expect(verified).toBe(false);
+
+      const verified2 = await verifyWhatsAppSignature("sha256=0000000000000000000000000000000000000000000000000000000000000000", payload, secret);
+      expect(verified2).toBe(false);
+    });
+
+    it("should reject missing/invalid prefix", async () => {
+      const verified = await verifyWhatsAppSignature("someprefix=hex", payload, secret);
+      expect(verified).toBe(false);
     });
   });
 });

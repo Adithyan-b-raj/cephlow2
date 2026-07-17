@@ -44,3 +44,58 @@ export function hasXssPayload(val: string): boolean {
   const xssPattern = /<[^>]*>|javascript:|on\w+\s*=/i;
   return xssPattern.test(val);
 }
+
+/**
+ * Performs a timing-safe string comparison.
+ */
+export function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let result = 0;
+  for (let i = 0; i < a.length; i++) {
+    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return result === 0;
+}
+
+/**
+ * Verifies a WhatsApp webhook payload signature against x-hub-signature-256 header.
+ */
+export async function verifyWhatsAppSignature(
+  signatureHeader: string,
+  rawBody: string,
+  appSecret: string
+): Promise<boolean> {
+  try {
+    if (!signatureHeader.startsWith("sha256=")) return false;
+    const signature = signatureHeader.substring(7);
+
+    const encoder = new TextEncoder();
+    const keyBytes = encoder.encode(appSecret);
+    const messageBytes = encoder.encode(rawBody);
+
+    const cryptoKey = await crypto.subtle.importKey(
+      "raw",
+      keyBytes,
+      { name: "HMAC", hash: "SHA-256" },
+      false,
+      ["sign"]
+    );
+
+    const signatureBuffer = await crypto.subtle.sign(
+      "HMAC",
+      cryptoKey,
+      messageBytes
+    );
+
+    // Convert signatureBuffer to hex
+    const hashArray = Array.from(new Uint8Array(signatureBuffer));
+    const computedSignature = hashArray
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    return timingSafeEqual(signature, computedSignature);
+  } catch (err) {
+    console.error("WhatsApp signature verification error:", err);
+    return false;
+  }
+}

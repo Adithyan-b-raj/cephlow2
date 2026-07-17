@@ -120,18 +120,24 @@ router.post("/wallet/send", async (c) => {
     `).bind(workspace.id).first<{ name: string; current_balance: number; transfer_code: string | null }>();
     if (!src) return c.json({ error: "Workspace not found" }, 404);
 
-    if (src.current_balance < amount) {
+    // Atomic deduction (C-2)
+    const updatedSrc = await c.env.DB.prepare(`
+      UPDATE workspaces SET current_balance = current_balance - ?
+      WHERE id = ? AND current_balance >= ?
+      RETURNING current_balance
+    `).bind(amount, workspace.id, amount).first<{ current_balance: number }>();
+
+    if (!updatedSrc) {
       return c.json({ error: "Insufficient workspace balance", available: src.current_balance }, 400);
     }
 
-    const newSrcBalance = src.current_balance - amount;
+    const newSrcBalance = updatedSrc.current_balance;
     const newDestBalance = dest.current_balance + amount;
     const transferId = crypto.randomUUID();
 
     // C. Execute updates in a single batch
     await c.env.DB.batch([
-      c.env.DB.prepare(`UPDATE workspaces SET current_balance = ? WHERE id = ?`).bind(newSrcBalance, workspace.id),
-      c.env.DB.prepare(`UPDATE workspaces SET current_balance = ? WHERE id = ?`).bind(newDestBalance, dest.id),
+      c.env.DB.prepare(`UPDATE workspaces SET current_balance = current_balance + ? WHERE id = ?`).bind(amount, dest.id),
       
       c.env.DB.prepare(`
         INSERT INTO ledgers (id, workspace_id, user_id, type, amount, balance_after, description, metadata, transfer_id)

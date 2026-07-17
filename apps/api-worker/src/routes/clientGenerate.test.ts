@@ -71,9 +71,11 @@ describe("clientGenerateRouter - Presigned URL Security & Scoping (H-3)", () => 
           }),
         };
       }),
+      batch: vi.fn().mockResolvedValue([]),
     };
     cacheMock = {
       get: vi.fn().mockResolvedValue(JSON.stringify({ isApproved: true })),
+      put: vi.fn().mockResolvedValue(null),
     };
     executionCtxMock = {
       waitUntil: vi.fn(),
@@ -178,5 +180,144 @@ describe("clientGenerateRouter - Presigned URL Security & Scoping (H-3)", () => 
     expect(res.status).toBe(403);
     const data = await res.json() as any;
     expect(data.error).toBe("Access denied");
+  });
+
+  describe("POST /batches/:batchId/client-generate - Credit Security & Regeneration Rates", () => {
+    it("should successfully charge standard rate for unpaid certificates", async () => {
+      const token = await getAuthToken("user-123");
+
+      dbMock.prepare.mockImplementation((query: string) => {
+        return {
+          bind: vi.fn().mockReturnValue({
+            first: vi.fn().mockImplementation(async () => {
+              if (query.includes("workspace_members")) {
+                return { role: "owner" };
+              }
+              if (query.includes("workspaces")) {
+                return { current_balance: 100 }; // 100 credits available
+              }
+              if (query.includes("batches")) {
+                return { id: "batch-123", workspace_id: "ws-abc", user_id: "user-123", name: "Batch A" };
+              }
+              return null;
+            }),
+            all: vi.fn().mockImplementation(async () => {
+              if (query.includes("certificates")) {
+                return {
+                  results: [
+                    { id: "cert-1", is_paid: 0, status: "pending" }, // unpaid
+                    { id: "cert-2", is_paid: 0, status: "pending" }  // unpaid
+                  ]
+                };
+              }
+              return { results: [] };
+            }),
+            run: vi.fn().mockResolvedValue({ success: true, meta: { changes: 1 } }),
+          }),
+        };
+      });
+
+      const res = await runRoute("POST", "/api/batches/batch-123/client-generate", {
+        Authorization: `Bearer ${token}`,
+        "x-workspace-id": "ws-abc",
+      }, {});
+
+      expect(res.status).toBe(200);
+      const data = await res.json() as any;
+      expect(data.success).toBe(true);
+    });
+
+    it("should charge 20% rate for already paid certificates requiring visual regeneration", async () => {
+      const token = await getAuthToken("user-123");
+
+      let atomicUpdateMock = vi.fn().mockResolvedValue({ current_balance: 99.8 });
+      dbMock.prepare.mockImplementation((query: string) => {
+        return {
+          bind: vi.fn().mockReturnValue({
+            first: vi.fn().mockImplementation(async () => {
+              if (query.includes("workspace_members")) {
+                return { role: "owner" };
+              }
+              if (query.includes("UPDATE workspaces SET current_balance")) {
+                return await atomicUpdateMock();
+              }
+              if (query.includes("workspaces")) {
+                return { current_balance: 100 };
+              }
+              if (query.includes("batches")) {
+                return { id: "batch-123", workspace_id: "ws-abc", user_id: "user-123", name: "Batch A" };
+              }
+              return null;
+            }),
+            all: vi.fn().mockImplementation(async () => {
+              if (query.includes("certificates")) {
+                return {
+                  results: [
+                    { id: "cert-1", is_paid: 1, requires_visual_regen: 1, status: "outdated" } // paid, needs visual regen
+                  ]
+                };
+              }
+              return { results: [] };
+            }),
+            run: vi.fn().mockResolvedValue({ success: true }),
+          }),
+        };
+      });
+
+      const res = await runRoute("POST", "/api/batches/batch-123/client-generate", {
+        Authorization: `Bearer ${token}`,
+        "x-workspace-id": "ws-abc",
+      }, {});
+
+      expect(res.status).toBe(200);
+      // Cost should be 0.20 credits for 1 cert at 20% of standard 1.0 rate
+      expect(dbMock.prepare).toHaveBeenCalledWith(expect.stringContaining("UPDATE workspaces SET current_balance = current_balance - ?"));
+    });
+
+    it("should reject generation if workspace balance is insufficient (C-2)", async () => {
+      const token = await getAuthToken("user-123");
+
+      dbMock.prepare.mockImplementation((query: string) => {
+        return {
+          bind: vi.fn().mockReturnValue({
+            first: vi.fn().mockImplementation(async () => {
+              if (query.includes("workspace_members")) {
+                return { role: "owner" };
+              }
+              if (query.includes("UPDATE workspaces SET current_balance")) {
+                return null; // Atomic update fails (insufficient balance returning null)
+              }
+              if (query.includes("workspaces")) {
+                return { current_balance: 0.1 }; // only 0.1 credits
+              }
+              if (query.includes("batches")) {
+                return { id: "batch-123", workspace_id: "ws-abc", user_id: "user-123", name: "Batch A" };
+              }
+              return null;
+            }),
+            all: vi.fn().mockImplementation(async () => {
+              if (query.includes("certificates")) {
+                return {
+                  results: [
+                    { id: "cert-1", is_paid: 0, status: "pending" } // unpaid (needs 1 credit)
+                  ]
+                };
+              }
+              return { results: [] };
+            }),
+            run: vi.fn().mockResolvedValue({ success: true }),
+          }),
+        };
+      });
+
+      const res = await runRoute("POST", "/api/batches/batch-123/client-generate", {
+        Authorization: `Bearer ${token}`,
+        "x-workspace-id": "ws-abc",
+      }, {});
+
+      expect(res.status).toBe(402);
+      const data = await res.json() as any;
+      expect(data.error).toContain("Insufficient funds");
+    });
   });
 });

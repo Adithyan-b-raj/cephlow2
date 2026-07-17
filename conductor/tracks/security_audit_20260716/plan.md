@@ -93,28 +93,28 @@
 
 ## Phase 4: Wallet, Payment & Webhook Security
 
-- [ ] Task: Write tests for atomic credit deduction
-    - [ ] Test: concurrent deduction requests don't overdraw balance (C-2 TOCTOU)
-    - [ ] Test: insufficient balance is rejected before deduction
-    - [ ] Test: deduction amounts match server-side cost config (not client-supplied)
-- [ ] Task: Fix credit deduction atomicity issues
-    - [ ] Ensure atomic `UPDATE workspaces SET current_balance = current_balance - ? WHERE id = ? AND current_balance >= ?` query pattern (C-2)
-    - [ ] Verify regeneration uses 20% rate server-side
-- [ ] Task: Write tests for Cashfree webhook security
-    - [ ] Test: unsigned webhook payload is rejected
-    - [ ] Test: tampered signature is rejected (H-4)
-    - [ ] Test: duplicate order callback doesn't double-credit (idempotency & concurrent TOCTOU) (C-3)
-    - [ ] Test: valid signed payload credits wallet correctly
-- [ ] Task: Implement Cashfree webhook signature verification and idempotency fixes
-    - [ ] Enforce timing-safe signature comparison (`crypto.subtle.timingSafeEqual`) (H-4)
-    - [ ] Use atomic state transition (`UPDATE payment_orders SET processed = 1 WHERE ... AND processed = 0`) to prevent concurrent top-up race condition (C-3)
-- [ ] Task: Write tests for Meta WhatsApp webhook security
-    - [ ] Test: missing `X-Hub-Signature-256` header is rejected (C-1)
-    - [ ] Test: invalid signature is rejected
-    - [ ] Test: malformed payload body is rejected gracefully
-- [ ] Task: Implement WhatsApp webhook signature verification fixes
-    - [ ] Verify signature using `X-Hub-Signature-256` and app secret (C-1)
-- [ ] Task: Conductor - User Manual Verification 'Wallet, Payment & Webhook Security' (Protocol in workflow.md)
+- [x] Task: Write tests for atomic credit deduction
+    - [x] Test: concurrent deduction requests don't overdraw balance (C-2 TOCTOU)
+    - [x] Test: insufficient balance is rejected before deduction
+    - [x] Test: deduction amounts match server-side cost config (not client-supplied)
+- [x] Task: Fix credit deduction atomicity issues
+    - [x] Ensure atomic `UPDATE workspaces SET current_balance = current_balance - ? WHERE id = ? AND current_balance >= ?` query pattern (C-2)
+    - [x] Verify regeneration uses 20% rate server-side
+- [x] Task: Write tests for Cashfree webhook security
+    - [x] Test: unsigned webhook payload is rejected
+    - [x] Test: tampered signature is rejected (H-4)
+    - [x] Test: duplicate order callback doesn't double-credit (idempotency & concurrent TOCTOU) (C-3)
+    - [x] Test: valid signed payload credits wallet correctly
+- [x] Task: Implement Cashfree webhook signature verification and idempotency fixes
+    - [x] Enforce timing-safe signature comparison (`crypto.subtle.timingSafeEqual`) (H-4)
+    - [x] Use atomic state transition (`UPDATE payment_orders SET processed = 1 WHERE ... AND processed = 0`) to prevent concurrent top-up race condition (C-3)
+- [x] Task: Write tests for Meta WhatsApp webhook security
+    - [x] Test: missing `X-Hub-Signature-256` header is rejected (C-1)
+    - [x] Test: invalid signature is rejected
+    - [x] Test: malformed payload body is rejected gracefully
+- [x] Task: Implement WhatsApp webhook signature verification fixes
+    - [x] Verify signature using `X-Hub-Signature-256` and app secret (C-1)
+- [x] Task: Conductor - User Manual Verification 'Wallet, Payment & Webhook Security' (Protocol in workflow.md)
 
 ## Phase 5: Frontend Security & HTTP Headers
 

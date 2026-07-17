@@ -13,6 +13,10 @@ All notable changes to this project will be documented in this file.
 - **Phone Normalization**: Normalized recipient phone numbers to E.164 format and validated lengths (10-15 digits) before saving.
 - **Presigned URL Scoping**: Isolated direct PDF upload paths by prefixing them with `{workspace_id}/{batch_id}/` (H-3).
 - **Rate Limiting**: Implemented a KV-backed sliding window rate limiter middleware with resilient memory fallback, applying specific limits on auth, payments, and batch creation.
+- **Atomic Credit Deductions**: Converted all credit deduction logic (batches, email delivery, WhatsApp delivery, and workspace transfers) to use single atomic SQLite/D1 queries with `RETURNING current_balance` to prevent concurrent double-spend race conditions (C-2).
+- **Regeneration Cost Control**: Implemented 20% visual regeneration charge rate for already paid certificates requiring rebuild.
+- **Webhook Signature Enforcement**: Added timing-safe validation on Cashfree webhooks (H-4) and HMAC-SHA256 signature verification on WhatsApp status webhooks using `X-Hub-Signature-256` (C-1).
+- **Webhook Idempotency**: Added atomic status transitions (`UPDATE payment_orders SET processed = 1 WHERE order_id = ? AND processed = 0`) to prevent concurrent top-up race conditions (C-3).
 
 ### Changed
 - **Error Standardisation**: Standardised error responses in the auth middleware to prevent token detail leakage (M-5). All JWT rejection paths now return a uniform `"Invalid or expired token"` message.
