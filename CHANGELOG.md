@@ -19,6 +19,7 @@ All notable changes to this project will be documented in this file.
 - **Client-Side PDF Background Conversion**: Integrated dynamic import of `pdfjs-dist` to render the first page of PDF template uploads to a high-resolution canvas client-side, converting it to a PNG file before uploading to Cloudflare R2 storage.
 - **Generation Engine Simplification**: Rewrote `clientGenerate.ts` to remove Google Slides batch PDF generation, alt-text placeholders, and PDF splitting, while retaining the client-side built-in template renderer and free-tier Google Drive upload pathways.
 - **Spreadsheet Editor Importer**: Extended the built-in sheet editor (`SpreadsheetEditorUI.tsx`) to support importing `.csv`, `.tsv`, `.xlsx`, `.xls`, and `.ods` local spreadsheet files using SheetJS (`xlsx`).
+- **Save as Copy in Template Editor**: Added a "Save as Copy" button and callback handler in the built-in template editor (`BuiltinTemplateEditor.tsx`, `TemplateEditor.tsx`, and `EditorToolbar.tsx`) to allow cloning an existing template and saving changes under a new name without overriding the original template.
 
 ### Removed
 - **Google Sheets & Slides Routes**: Deleted backend API routes `sheets.ts` and `slides.ts`, unregistering them from the Hono API worker entrypoint in `apps/api-worker/src/index.ts`.

@@ -31,7 +31,7 @@ export default function BuiltinTemplateEditorPage() {
 
   const [docState, setDocState] = useState<CanvasDocument | null>(null);
   const [name, setName] = useState("");
-  const [pendingSave, setPendingSave] = useState<{ name: string; canvas: CanvasDocument } | null>(null);
+  const [pendingSave, setPendingSave] = useState<{ name: string; canvas: CanvasDocument; asCopy?: boolean } | null>(null);
   const { isApproved } = useApproval();
 
   useEffect(() => {
@@ -97,17 +97,50 @@ export default function BuiltinTemplateEditorPage() {
     }
   };
 
+  const doSaveAsCopy = async (n: string, canvas: CanvasDocument) => {
+    setName(n);
+    setDocState(canvas);
+    let thumbnailUrl: string | null = null;
+    try {
+      const blob = await renderThumbnail(canvas, 800);
+      const file = new File([blob], `${n.replace(/[^a-z0-9]/gi, "_") || "template"}_thumb.png`, {
+        type: "image/png",
+      });
+      thumbnailUrl = await uploadAssetToR2(file, file.name, "thumbnail");
+    } catch (err) {
+      console.warn("[TPL] thumbnail upload failed:", err);
+    }
+    createTpl({ data: { name: n, canvas, thumbnailUrl } });
+  };
+
   const handleSave = async ({ name: n, canvas }: { name: string; canvas: CanvasDocument }) => {
     if (!n || isSavingRef.current) return;
     const hasQr = canvas.elements?.some((el: any) => el.type === "qr");
     if (isApproved && !hasQr) {
-      setPendingSave({ name: n, canvas });
+      setPendingSave({ name: n, canvas, asCopy: false });
       return;
     }
     isSavingRef.current = true;
     setIsSaving(true);
     try {
       await doSave(n, canvas);
+    } finally {
+      isSavingRef.current = false;
+      setIsSaving(false);
+    }
+  };
+
+  const handleSaveAsCopy = async ({ name: n, canvas }: { name: string; canvas: CanvasDocument }) => {
+    if (!n || isSavingRef.current) return;
+    const hasQr = canvas.elements?.some((el: any) => el.type === "qr");
+    if (isApproved && !hasQr) {
+      setPendingSave({ name: n, canvas, asCopy: true });
+      return;
+    }
+    isSavingRef.current = true;
+    setIsSaving(true);
+    try {
+      await doSaveAsCopy(n, canvas);
     } finally {
       isSavingRef.current = false;
       setIsSaving(false);
@@ -131,6 +164,7 @@ export default function BuiltinTemplateEditorPage() {
         initialName={name}
         saving={saving}
         onSave={handleSave}
+        onSaveAsCopy={isNew ? undefined : handleSaveAsCopy}
         onBack={() => setLocation("/templates")}
       />
 
@@ -146,7 +180,20 @@ export default function BuiltinTemplateEditorPage() {
             <AlertDialogCancel onClick={() => setPendingSave(null)}>Go Back & Add QR</AlertDialogCancel>
             <AlertDialogAction
               onClick={async () => {
-                if (pendingSave) await doSave(pendingSave.name, pendingSave.canvas);
+                if (pendingSave) {
+                  isSavingRef.current = true;
+                  setIsSaving(true);
+                  try {
+                    if (pendingSave.asCopy) {
+                      await doSaveAsCopy(pendingSave.name, pendingSave.canvas);
+                    } else {
+                      await doSave(pendingSave.name, pendingSave.canvas);
+                    }
+                  } finally {
+                    isSavingRef.current = false;
+                    setIsSaving(false);
+                  }
+                }
                 setPendingSave(null);
               }}
             >
