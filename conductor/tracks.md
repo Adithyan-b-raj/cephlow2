@@ -9,5 +9,5 @@ This file tracks all major tracks for the project. Each track has its own detail
 
 ---
 
-- [ ] **Track: Remove Google Slides & Sheets APIs and Enhance Builtin Editor**
+- [~] **Track: Remove Google Slides & Sheets APIs and Enhance Builtin Editor**
 *Link: [./tracks/remove_google_apis_20260718/](./tracks/remove_google_apis_20260718/)*

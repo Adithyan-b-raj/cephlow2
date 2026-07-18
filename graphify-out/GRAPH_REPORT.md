@@ -1,16 +1,16 @@
 # Graph Report - cephlow2  (2026-07-18)
 
 ## Corpus Check
-- 351 files · ~157,955 words
+- 349 files · ~156,713 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 3040 nodes · 8836 edges · 356 communities (123 shown, 233 thin omitted)
+- 3040 nodes · 8836 edges · 354 communities (128 shown, 226 thin omitted)
 - Extraction: 99% EXTRACTED · 1% INFERRED · 0% AMBIGUOUS · INFERRED: 63 edges (avg confidence: 0.82)
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `28f98f45`
+- Built from commit: `3a6e8244`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
@@ -165,8 +165,8 @@
 - [[_COMMUNITY_Community 147|Community 147]]
 - [[_COMMUNITY_Community 148|Community 148]]
 - [[_COMMUNITY_Community 149|Community 149]]
-- [[_COMMUNITY_Community 150|Community 150]]
-- [[_COMMUNITY_Community 151|Community 151]]
+- [[_COMMUNITY_Community 171|Community 171]]
+- [[_COMMUNITY_Community 172|Community 172]]
 - [[_COMMUNITY_Community 173|Community 173]]
 - [[_COMMUNITY_Community 174|Community 174]]
 - [[_COMMUNITY_Community 175|Community 175]]
@@ -348,8 +348,6 @@
 - [[_COMMUNITY_Community 351|Community 351]]
 - [[_COMMUNITY_Community 352|Community 352]]
 - [[_COMMUNITY_Community 353|Community 353]]
-- [[_COMMUNITY_Community 354|Community 354]]
-- [[_COMMUNITY_Community 355|Community 355]]
 
 ## God Nodes (most connected - your core abstractions)
 1. `cn()` - 209 edges
@@ -368,12 +366,12 @@
   apps/cert-app/src/pages/History.tsx → C:/cephlow minimalist version/cephlow2/packages/api-client-react/src/generated/api.ts
 - `History()` --calls--> `useDeleteBatch()`  [INFERRED]
   apps/cert-app/src/pages/History.tsx → C:/cephloe after akshay contributuin/after changing generation to client side/cephlow2/packages/api-client-react/src/extras.ts
-- `Wallet()` --calls--> `useGetWalletBalance()`  [INFERRED]
-  apps/cert-app/src/pages/Wallet.tsx → C:/cephlow minimalist version/cephlow2/packages/api-client-react/src/generated/api.ts
-- `Wallet()` --calls--> `useGetWalletHistory()`  [INFERRED]
-  apps/cert-app/src/pages/Wallet.tsx → C:/cephlow minimalist version/cephlow2/packages/api-client-react/src/generated/api.ts
-- `Wallet()` --calls--> `useCreateOrder()`  [INFERRED]
-  apps/cert-app/src/pages/Wallet.tsx → C:/cephlow minimalist version/cephlow2/packages/api-client-react/src/generated/api.ts
+- `BatchDetail()` --calls--> `useGetWalletBalance()`  [INFERRED]
+  apps/cert-app/src/pages/batches/BatchDetail.tsx → C:/cephlow minimalist version/cephlow2/packages/api-client-react/src/generated/api.ts
+- `BatchDetail()` --calls--> `useUpdateBatchFields()`  [INFERRED]
+  apps/cert-app/src/pages/batches/BatchDetail.tsx → C:/cephloe after akshay contributuin/after changing generation to client side/cephlow2/packages/api-client-react/src/extras.ts
+- `BatchDetail()` --calls--> `useGetBatch()`  [INFERRED]
+  apps/cert-app/src/pages/batches/BatchDetail.tsx → C:/cephlow minimalist version/cephlow2/packages/api-client-react/src/generated/api.ts
 
 ## Hyperedges (group relationships)
 - **Task Processing System** — worker_polltasks, sendemail_processsendemail, sendwhatsapp_processsendwhatsapp [INFERRED 0.95]
@@ -388,435 +386,455 @@
 - **Authentication & Recovery** — login_login, resetpassword_resetpassword, inviteaccept_inviteaccept [INFERRED 0.95]
 - **Batch Management Flow** — batch_batch, batchdetail_batchdetail, createbatchrequest_createbatchrequest, batchstatus_batchstatus [INFERRED 0.85]
 
-## Communities (356 total, 233 thin omitted)
+## Communities (354 total, 226 thin omitted)
 
 ### Community 0 - "Generated API Hooks"
-Cohesion: 0.05
-Nodes (98): FEATURE_LABELS, FeatureKey, WorkspaceDetailData, FRAME_OPTIONS, Props, Props, Props, Props (+90 more)
+Cohesion: 0.03
+Nodes (154): Awaited, AwaitedInput, createBatch(), CreateBatchMutationBody, CreateBatchMutationError, CreateBatchMutationResult, createOrder(), CreateOrderMutationBody (+146 more)
 
 ### Community 1 - "Navigation & Layout Components"
-Cohesion: 0.04
-Nodes (120): Awaited, AwaitedInput, createBatch(), CreateBatchMutationBody, CreateBatchMutationError, CreateBatchMutationResult, createOrder(), CreateOrderMutationBody (+112 more)
+Cohesion: 0.05
+Nodes (85): acceptInvite(), fetchPendingInvites(), PendingInvite, PendingInviteBanner(), ApprovalContext, ApprovalProvider(), ApprovalState, fetchApproval() (+77 more)
 
 ### Community 2 - "API Request Helpers"
-Cohesion: 0.07
-Nodes (69): useIsMobile(), useWorkspace(), ADMIN_NAV_ITEMS, ADVANCED_NAV_ITEMS, AppSidebar(), NAV_ITEMS, useDarkMode(), WORKSPACE_PUBLIC_ITEMS (+61 more)
+Cohesion: 0.04
+Nodes (100): isWhatsAppConfigured(), allCerts, batch, batches, { batchId }, { batchId, certId }, buffer, byEmail (+92 more)
 
 ### Community 3 - "App Lifecycle & Entry"
-Cohesion: 0.04
-Nodes (101): isWhatsAppConfigured(), sendWhatsAppDocument(), allCerts, batch, batches, { batchId }, { batchId, certId }, buffer (+93 more)
+Cohesion: 0.08
+Nodes (65): useIsMobile(), ADMIN_NAV_ITEMS, ADVANCED_NAV_ITEMS, AppSidebar(), NAV_ITEMS, useDarkMode(), WORKSPACE_PUBLIC_ITEMS, WorkspaceSwitcher() (+57 more)
 
 ### Community 4 - "Core Entity Models"
 Cohesion: 0.05
-Nodes (93): SpreadsheetEditorPage(), AssetUploadUrlResponse, BuiltinTemplate, BuiltinTemplateSummary, createBuiltinTemplate(), CreateBuiltinTemplateBody, deleteBuiltinTemplate(), getBuiltinTemplate() (+85 more)
+Nodes (68): isAdminOrOwner(), Request, WorkspaceRole, existing, extractPlaceholders(), fields, { id }, params (+60 more)
 
 ### Community 5 - "Server-side API Types"
 Cohesion: 0.06
 Nodes (54): CreditsConfig, getCreditsConfig(), resetCreditsConfig(), config, originalEnv, calculateCreditsFromRupees(), deductDeliveryCredits(), credits (+46 more)
 
 ### Community 6 - "Workspace & Cert Routes"
-Cohesion: 0.05
-Nodes (64): isAdminOrOwner(), Request, WorkspaceRole, batch, { batches, ...cert }, batchId, cert, { certId } (+56 more)
+Cohesion: 0.12
+Nodes (39): BatchDetail(), QrCodePopover(), BatchBannerEditor(), BatchCertificatesTable(), Props, ReportDetail, BatchGenerationProgress(), GenProgress (+31 more)
 
 ### Community 7 - "Atomic UI Components"
-Cohesion: 0.07
-Nodes (20): cn(), getColumnName(), isStagingUrl(), AccordionContent, AccordionItem, AccordionTrigger, Avatar, AvatarFallback (+12 more)
+Cohesion: 0.06
+Nodes (15): cn(), BadgeProps, badgeVariants, HoverCardContent, Kbd(), KbdGroup(), RadioGroup, RadioGroupItem (+7 more)
 
 ### Community 8 - "Client-side API Schemas"
-Cohesion: 0.07
-Nodes (57): ApprovalProvider(), EMPTY_FEATURES, Features, FeaturesContext, FeaturesProvider(), FeaturesState, apiFetch(), Workspace (+49 more)
+Cohesion: 0.14
+Nodes (29): FRAME_OPTIONS, Props, Props, Props, Props, Props, Props, CustomFrameConfig (+21 more)
 
 ### Community 9 - "API Data Contracts"
-Cohesion: 0.09
-Nodes (35): Tab, TABS, ApprovalUser, AuditEntry, WorkspaceRow, Action, ActionType, actionTypes (+27 more)
-
-### Community 10 - "Batch Processing Logic"
 Cohesion: 0.07
 Nodes (16): Batch, BatchCategorySlideMap, BatchCategoryTemplateMap, BatchColumnMap, BatchDetail, BatchListResponse, BatchStatus, BatchTemplateKind (+8 more)
 
-### Community 11 - "Google Workspace Integration"
+### Community 10 - "Batch Processing Logic"
 Cohesion: 0.1
 Nodes (51): mockDb, mockPrepare, emailToSlug(), upsertStudentProfile(), generatePresignedPutUrl(), getR2PublicUrl(), isAdminOrOwner(), allCerts (+43 more)
 
+### Community 11 - "Google Workspace Integration"
+Cohesion: 0.12
+Nodes (41): CssTab(), CustomFrameDesigner(), DEFAULT_CSS, DEFAULT_GRADIENT, DEFAULT_HUD, GradientTab(), HudTab(), PreviewCard() (+33 more)
+
 ### Community 12 - "Workspace Management UI"
-Cohesion: 0.14
-Nodes (26): NewBatchWizard(), STEPS, GenProgress, Props, Props, LockedFeatureProps, useLockedFeatureGuard(), useGetSlidePlaceholders() (+18 more)
+Cohesion: 0.16
+Nodes (23): NewBatchWizard(), STEPS, Props, useLockedFeatureGuard(), useGooglePicker(), useToast(), Dashboard(), NotFound() (+15 more)
 
 ### Community 13 - "Form & Input Components"
-Cohesion: 0.11
-Nodes (27): acceptInvite(), fetchPendingInvites(), PendingInvite, PendingInviteBanner(), AuthContext, AuthContextType, AuthProvider(), getAccessToken() (+19 more)
+Cohesion: 0.12
+Nodes (35): ImageCache, Props, renderElement(), RenderHandlers, ElementIcon(), layerLabel(), LayersPanel(), Props (+27 more)
 
 ### Community 14 - "Client Certificate Engine"
-Cohesion: 0.08
-Nodes (34): addQrCodePlaceholder(), createFolder(), createSlidePresentation(), deleteFile(), downloadDriveFile(), exportSlidesToPdf(), generateCertificate(), getSlidePlaceholders() (+26 more)
+Cohesion: 0.15
+Nodes (26): Tab, TABS, AuditEntry, WorkspaceRow, Action, ActionType, actionTypes, addToRemoveQueue() (+18 more)
 
 ### Community 15 - "Community 15"
-Cohesion: 0.17
-Nodes (24): BatchDetail(), QrCodePopover(), BatchBannerEditor(), BatchCertificatesTable(), BatchGenerationProgress(), BatchHeader(), Props, BatchIndivEmailModal() (+16 more)
-
-### Community 16 - "Community 16"
 Cohesion: 0.09
 Nodes (42): Batch, BatchCategorySlideMap, BatchCategoryTemplateMap, BatchColumnMap, BatchDetail, BatchListResponse, BatchOperationResponse, BatchStatus (+34 more)
 
-### Community 17 - "Community 17"
+### Community 16 - "Community 16"
 Cohesion: 0.1
 Nodes (40): CreateBatchBody, CreateOrderBody, CreateOrderResponse, CreateSheetBody, CreateSlideTemplateBody, GenerateBatchParams, GenerateBatchResponse, GetBatchParams (+32 more)
 
+### Community 17 - "Community 17"
+Cohesion: 0.1
+Nodes (15): ApprovalUser, FEATURE_LABELS, FeatureKey, WorkspaceDetailData, useAuth(), getColumnName(), isStagingUrl(), ForgotPassword() (+7 more)
+
 ### Community 18 - "Community 18"
 Cohesion: 0.15
-Nodes (20): Props, StepEmailSettings(), Props, StepMapData(), FRAME_OPTIONS, Props, StepName(), Props (+12 more)
+Nodes (25): ButtonProps, buttonVariants, Calendar(), CalendarDayButton(), Carousel, CarouselApi, CarouselContent, CarouselContext (+17 more)
 
 ### Community 19 - "Community 19"
-Cohesion: 0.12
-Nodes (30): EditorCanvas(), ImageCache, Props, renderElement(), RenderHandlers, ElementIcon(), layerLabel(), LayersPanel() (+22 more)
+Cohesion: 0.13
+Nodes (22): isUserApproved(), bulkUpsertStudentProfiles(), emailToSlug(), extractPhoneNumber(), normalizeColumnName(), normalizePhoneNumber(), PHONE_COLUMN_NAMES, upsertStudentProfile() (+14 more)
 
 ### Community 20 - "Community 20"
-Cohesion: 0.1
-Nodes (19): ensureUserProfile(), getWorkspaceFeatures(), isApprovedInContext(), isUserApproved(), requireApproval(), requireWorkspace(), router, user (+11 more)
+Cohesion: 0.13
+Nodes (30): SpreadsheetEditorPage(), SpreadsheetsListPage(), customFetch(), ErrorType, deleteBatch(), generateSmartBatch(), shareBatchFolder(), syncBatch() (+22 more)
 
 ### Community 21 - "Community 21"
-Cohesion: 0.16
-Nodes (31): isR2Configured(), getAuthClientForUser(), addQrCodePlaceholder(), BatchCertBatchResult, BatchCertInput, BatchCertResult, createFolder(), createSlidePresentation() (+23 more)
-
-### Community 22 - "Community 22"
-Cohesion: 0.11
-Nodes (30): copyR2Object(), deleteR2Object(), deleteR2Objects(), generatePresignedAssetPutUrl(), generatePresignedPutUrl(), getConfig(), getR2Client(), getR2PublicUrl() (+22 more)
-
-### Community 23 - "Community 23"
-Cohesion: 0.19
-Nodes (18): Props, ReportDetail, QrCodePopover(), History(), CertData, InfoRow(), VerifyCertificate(), Badge() (+10 more)
-
-### Community 24 - "Community 24"
 Cohesion: 0.2
 Nodes (26): BY_FAMILY, CatalogFont, findCatalogFont(), FONT_CATALOG, FONT_CATEGORIES, FontCategory, fontFileUrl(), FontPicker() (+18 more)
 
-### Community 25 - "Community 25"
-Cohesion: 0.25
-Nodes (19): CLICK_SOUND_LABELS, ClickSound, dest(), getAudioContext(), getClickSound(), getClickSoundEnabled(), getClickVolume(), playMechanicalClick() (+11 more)
+### Community 22 - "Community 22"
+Cohesion: 0.24
+Nodes (20): CLICK_SOUND_LABELS, ClickSound, dest(), getAudioContext(), getClickSound(), getClickSoundEnabled(), getClickVolume(), playMechanicalClick() (+12 more)
 
-### Community 26 - "Community 26"
+### Community 23 - "Community 23"
 Cohesion: 0.22
 Nodes (28): notifyBatchAborted(), UseClientGenerateReturn, apiHeaders(), BatchConfig, CertData, CertReport, ChunkResult, cleanupTempFiles() (+20 more)
 
-### Community 27 - "Community 27"
+### Community 24 - "Community 24"
+Cohesion: 0.12
+Nodes (25): addQrCodePlaceholder(), createFolder(), createSlidePresentation(), deleteFile(), downloadDriveFile(), exportSlidesToPdf(), generateCertificate(), getSlidePlaceholders() (+17 more)
+
+### Community 25 - "Community 25"
 Cohesion: 0.2
 Nodes (25): creatorIds, creatorProfile, existing, fields, { id }, l, limit, listing (+17 more)
 
-### Community 28 - "Community 28"
+### Community 26 - "Community 26"
 Cohesion: 0.19
-Nodes (18): apps/mockup-sandbox/src/components/ui/button-group.tsx, apps/mockup-sandbox/src/components/ui/item.tsx, ButtonGroup(), ButtonGroupSeparator(), ButtonGroupText(), buttonGroupVariants, Field(), FieldContent() (+10 more)
+Nodes (19): apps/mockup-sandbox/src/components/ui/button-group.tsx, apps/mockup-sandbox/src/components/ui/item.tsx, ButtonGroup(), ButtonGroupSeparator(), ButtonGroupText(), buttonGroupVariants, Item(), ItemActions() (+11 more)
+
+### Community 27 - "Community 27"
+Cohesion: 0.16
+Nodes (27): ApiError, AuthTokenProvider, BodyType, buildErrorMessage(), CustomFetchOptions, getMediaType(), getStringField(), hasNoBody() (+19 more)
+
+### Community 28 - "Community 28"
+Cohesion: 0.14
+Nodes (16): ensureUserProfile(), FEATURE_KEYS, FeatureKey, getWorkspaceFeatures(), isApprovedInContext(), requireApproval(), requireWorkspace(), router (+8 more)
 
 ### Community 29 - "Community 29"
-Cohesion: 0.17
-Nodes (18): bulkUpsertStudentProfiles(), emailToSlug(), extractPhoneNumber(), normalizeColumnName(), normalizePhoneNumber(), PHONE_COLUMN_NAMES, upsertStudentProfile(), downloadDriveFile() (+10 more)
+Cohesion: 0.2
+Nodes (16): Props, StepMapData(), Props, SlideInfo, StepTemplate(), EditorToolbar(), presetForDoc(), Props (+8 more)
 
 ### Community 30 - "Community 30"
-Cohesion: 0.08
-Nodes (24): logAdminAction(), FEATURE_KEYS, FeatureKey, isPlatformAdmin(), requirePlatformAdmin(), bindArgs, conditions, entries (+16 more)
+Cohesion: 0.22
+Nodes (25): isR2Configured(), addQrCodePlaceholder(), BatchCertBatchResult, BatchCertInput, BatchCertResult, createFolder(), createSlidePresentation(), deleteFile() (+17 more)
 
 ### Community 31 - "Community 31"
 Cohesion: 0.16
 Nodes (20): Request, requireAuth(), bannerByBatchId, batchIds, BatchMeta, certificates, customFrameConfigById, customFrameIds (+12 more)
 
 ### Community 32 - "Community 32"
+Cohesion: 0.11
+Nodes (20): requireApproval(), isWorkspaceSuspended(), requireNotSuspended(), workspaceMiddleware(), WorkspaceRole, colsStr, columns, existing (+12 more)
+
+### Community 33 - "Community 33"
+Cohesion: 0.09
+Nodes (22): logAdminAction(), isPlatformAdmin(), requirePlatformAdmin(), bindArgs, conditions, entries, featureKey, grants (+14 more)
+
+### Community 34 - "Community 34"
 Cohesion: 0.08
 Nodes (26): ListBatchesResponse Schema, API Zod Library Entry, Batch Interface, BatchCategoryTemplateMap, BatchColumnMap, BatchDetail, BatchListResponse, BatchStatus (+18 more)
 
-### Community 33 - "Community 33"
+### Community 35 - "Community 35"
+Cohesion: 0.13
+Nodes (19): authMiddleware(), base64urlDecode(), getJwksPublicKey(), JwkKey, keyCache, verifyEs256Jwt(), verifyHs256Jwt(), base64urlEncode() (+11 more)
+
+### Community 36 - "Community 36"
 Cohesion: 0.13
 Nodes (21): createCashfreeOrder(), fetchCashfreeOrder(), getBaseUrl(), getHeaders(), verifyWebhookSignature(), hasXssPayload(), normalizePhoneNumber(), encoder (+13 more)
 
-### Community 34 - "Community 34"
+### Community 37 - "Community 37"
 Cohesion: 0.12
 Nodes (25): api.ts, createBatch, createSheet, createSlideTemplate, generateBatch, getBatch, getSheetData, getSlidePlaceholders (+17 more)
 
-### Community 35 - "Community 35"
-Cohesion: 0.13
-Nodes (17): isWorkspaceSuspended(), requireNotSuspended(), app, base64urlEncode(), getAuthToken(), req, signHs256Token(), workspaceMiddleware() (+9 more)
+### Community 38 - "Community 38"
+Cohesion: 0.17
+Nodes (22): AssetUploadUrlResponse, BuiltinTemplate, BuiltinTemplateSummary, createBuiltinTemplate(), CreateBuiltinTemplateBody, deleteBuiltinTemplate(), getBuiltinTemplate(), getListBuiltinTemplatesQueryKey() (+14 more)
 
-### Community 36 - "Community 36"
+### Community 39 - "Community 39"
 Cohesion: 0.17
 Nodes (19): auth, Batch, batchesCollection, Certificate, certificatesCollection(), certIndexCollection, db, filePath (+11 more)
 
-### Community 37 - "Community 37"
-Cohesion: 0.23
-Nodes (19): applyTemplateText(), BatchAssetCache, drawImage(), drawQr(), drawShape(), drawText(), ensureFont(), ensureImage() (+11 more)
-
-### Community 38 - "Community 38"
+### Community 40 - "Community 40"
 Cohesion: 0.27
 Nodes (16): createOAuth2Client(), disconnectGoogleToken(), generateAuthUrl(), GoogleScopeType, handleCallback(), handleGoogleError(), hasAnyGoogleToken(), hasGoogleToken() (+8 more)
 
-### Community 39 - "Community 39"
-Cohesion: 0.26
-Nodes (12): ButtonProps, buttonVariants, Calendar(), CalendarDayButton(), Pagination(), PaginationContent, PaginationEllipsis(), PaginationItem (+4 more)
-
-### Community 40 - "Community 40"
+### Community 41 - "Community 41"
 Cohesion: 0.17
 Nodes (18): decryptToken(), disconnectGoogleToken(), encryptToken(), generateAuthUrl(), getAccessToken(), GoogleScopeType, handleCallback(), hasAnyGoogleToken() (+10 more)
 
-### Community 41 - "Community 41"
-Cohesion: 0.25
-Nodes (14): apps/mockup-sandbox/src/components/ui/field.tsx, apps/mockup-sandbox/src/components/ui/form.tsx, FormControl, FormDescription, FormField(), FormFieldContext, FormFieldContextValue, FormItem (+6 more)
-
 ### Community 42 - "Community 42"
-Cohesion: 0.22
-Nodes (16): EditorToolbar(), presetForDoc(), Props, ToolButton(), CommonProps(), DocumentProps(), ImageProps(), NumberInput() (+8 more)
+Cohesion: 0.26
+Nodes (14): apps/mockup-sandbox/src/components/ui/field.tsx, apps/mockup-sandbox/src/components/ui/form.tsx, FormControl, FormDescription, FormField(), FormFieldContext, FormFieldContextValue, FormItem (+6 more)
 
 ### Community 43 - "Community 43"
 Cohesion: 0.34
 Nodes (16): Menubar, MenubarCheckboxItem, MenubarContent, MenubarGroup(), MenubarItem, MenubarLabel, MenubarMenu(), MenubarPortal() (+8 more)
 
 ### Community 44 - "Community 44"
-Cohesion: 0.21
-Nodes (13): ensurePickerReady(), loadScript(), MIME, PickedFile, PickerMimeType, VIEW_ID, Window, EXTRA_COL_LABELS (+5 more)
+Cohesion: 0.24
+Nodes (15): copyR2Object(), deleteR2Object(), deleteR2Objects(), generatePresignedAssetPutUrl(), generatePresignedPutUrl(), getConfig(), getR2Client(), getR2PublicUrl() (+7 more)
 
 ### Community 45 - "Community 45"
-Cohesion: 0.16
-Nodes (15): authMiddleware(), base64urlDecode(), getJwksPublicKey(), JwkKey, keyCache, verifyEs256Jwt(), verifyHs256Jwt(), base64urlEncode() (+7 more)
+Cohesion: 0.31
+Nodes (16): applyTemplateText(), BatchAssetCache, drawImage(), drawQr(), drawShape(), drawText(), ensureFont(), ensureImage() (+8 more)
 
 ### Community 46 - "Community 46"
-Cohesion: 0.29
-Nodes (8): InputGroup(), InputGroupAddon(), inputGroupAddonVariants, InputGroupButton(), inputGroupButtonVariants, InputGroupInput(), InputGroupText(), InputGroupTextarea()
+Cohesion: 0.22
+Nodes (12): canvasHasTransparency(), compressImage(), EditorCanvas(), BUNDLED_FONTS, DirBtn(), JoystickPad(), Props, PropertiesPanel() (+4 more)
 
 ### Community 47 - "Community 47"
-Cohesion: 0.38
-Nodes (13): Carousel, CarouselApi, CarouselContent, CarouselContext, CarouselContextProps, CarouselItem, CarouselNext, CarouselOptions (+5 more)
+Cohesion: 0.26
+Nodes (13): apps/mockup-sandbox/src/components/ui/button.tsx, apps/mockup-sandbox/src/components/ui/calendar.tsx, apps/mockup-sandbox/src/components/ui/carousel.tsx, apps/mockup-sandbox/src/components/ui/input-group.tsx, apps/mockup-sandbox/src/components/ui/input.tsx, InputGroup(), InputGroupAddon(), inputGroupAddonVariants (+5 more)
 
 ### Community 48 - "Community 48"
-Cohesion: 0.24
-Nodes (11): canvasHasTransparency(), compressImage(), BUNDLED_FONTS, DirBtn(), JoystickPad(), Props, PropertiesPanel(), Props (+3 more)
+Cohesion: 0.18
+Nodes (10): generateQrPng(), data, router, baseUrl, { batches, ...cert }, { batchId, certId }, cert, isBatchOwnerApproved() (+2 more)
 
 ### Community 49 - "Community 49"
-Cohesion: 0.13
-Nodes (13): sendEmail(), countRow, { id }, params, paymentInfo, profile, request, requestId (+5 more)
+Cohesion: 0.37
+Nodes (14): Advanced(), AdvancedInner(), buildColumnMap(), ConditionData, ConditionNode(), DeletableEdge(), detectCol(), edgeTypes (+6 more)
 
 ### Community 50 - "Community 50"
-Cohesion: 0.42
-Nodes (12): Item(), ItemActions(), ItemContent(), ItemDescription(), ItemFooter(), ItemGroup(), ItemHeader(), ItemMedia() (+4 more)
+Cohesion: 0.24
+Nodes (12): ensurePickerReady(), loadScript(), MIME, PickedFile, PickerMimeType, VIEW_ID, Window, EXTRA_COL_LABELS (+4 more)
 
 ### Community 51 - "Community 51"
+Cohesion: 0.22
+Nodes (15): openCertSlide(), OpenCertSlideResponse, sendBatchWhatsapp(), SendBatchWhatsappRequest, SendBatchWhatsappResponse, sendCertEmail(), SendCertEmailRequest, SendCertEmailResponse (+7 more)
+
+### Community 52 - "Community 52"
+Cohesion: 0.24
+Nodes (11): createSpreadsheetWithHeaders(), getSpreadsheetValues(), googleFetch(), getAuthClientForUser(), createSpreadsheetWithHeaders(), getSheetsClient(), dataRows, headers (+3 more)
+
+### Community 53 - "Community 53"
 Cohesion: 0.19
 Nodes (12): configErr, existing, fields, frame, frameId, frames, { id }, params (+4 more)
 
-### Community 52 - "Community 52"
+### Community 54 - "Community 54"
 Cohesion: 0.16
 Nodes (14): base64Secret, base64urlEncode(), getMockKeyPair(), globalFetchMock, jwksRes, keyBytes, parts, payload (+6 more)
 
-### Community 53 - "Community 53"
+### Community 55 - "Community 55"
+Cohesion: 0.43
+Nodes (11): Field(), FieldContent(), FieldDescription(), FieldError(), FieldGroup(), FieldLabel(), FieldLegend(), FieldSeparator() (+3 more)
+
+### Community 56 - "Community 56"
 Cohesion: 0.36
 Nodes (12): DashboardMockup(), FeatureCard(), Landing(), ProfileMockup(), StepCard(), useInView(), VerifyMockup(), WA_CERTS (+4 more)
 
-### Community 54 - "Community 54"
+### Community 57 - "Community 57"
 Cohesion: 0.19
 Nodes (15): BuiltinTemplate, BuiltinTemplateSummary, builtin-templates.ts, createBuiltinTemplate, deleteBuiltinTemplate, getBuiltinTemplate, listBuiltinTemplates, requestAssetUploadUrl (+7 more)
 
-### Community 55 - "Community 55"
-Cohesion: 0.31
-Nodes (8): getGmailClient(), sendEmail(), limit, page, query, requireAdmin(), router, yearlyUsed
+### Community 58 - "Community 58"
+Cohesion: 0.14
+Nodes (12): countRow, { id }, params, paymentInfo, profile, request, requestId, requests (+4 more)
 
-### Community 56 - "Community 56"
+### Community 59 - "Community 59"
 Cohesion: 0.44
 Nodes (10): ChartConfig, ChartContainer, ChartContext, ChartContextProps, ChartLegendContent, ChartStyle(), ChartTooltipContent, getPayloadConfigFromPayload() (+2 more)
 
-### Community 57 - "Community 57"
+### Community 60 - "Community 60"
+Cohesion: 0.23
+Nodes (9): sendEmail(), baseUrl, batch, bodyLines, cert, ownerUid, profile, provided (+1 more)
+
+### Community 61 - "Community 61"
 Cohesion: 0.26
 Nodes (10): allReports, batchIds, filtered, placeholders, r2Urls, { results: batches }, { results: certs }, router (+2 more)
 
-### Community 58 - "Community 58"
-Cohesion: 0.46
-Nodes (9): ContextMenuCheckboxItem, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuRadioItem, ContextMenuSeparator, ContextMenuShortcut(), ContextMenuSubContent (+1 more)
-
-### Community 59 - "Community 59"
-Cohesion: 0.46
-Nodes (9): DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut(), DropdownMenuSubContent (+1 more)
-
-### Community 60 - "Community 60"
+### Community 62 - "Community 62"
 Cohesion: 0.36
 Nodes (5): ToggleGroup, ToggleGroupContext, ToggleGroupItem, Toggle, toggleVariants
 
-### Community 61 - "Community 61"
+### Community 63 - "Community 63"
+Cohesion: 0.46
+Nodes (9): Command, CommandDialog(), CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator (+1 more)
+
+### Community 64 - "Community 64"
+Cohesion: 0.46
+Nodes (9): ContextMenuCheckboxItem, ContextMenuContent, ContextMenuItem, ContextMenuLabel, ContextMenuRadioItem, ContextMenuSeparator, ContextMenuShortcut(), ContextMenuSubContent (+1 more)
+
+### Community 65 - "Community 65"
+Cohesion: 0.46
+Nodes (9): DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut(), DropdownMenuSubContent (+1 more)
+
+### Community 66 - "Community 66"
 Cohesion: 0.31
 Nodes (9): Ledger, invalidLedger, invalidWorkspace, result, validLedger, validWorkspace, validateLedger(), validateWorkspace() (+1 more)
 
-### Community 62 - "Community 62"
+### Community 67 - "Community 67"
+Cohesion: 0.33
+Nodes (8): App(), Gallery(), getBasePath(), getPreviewExamplePath(), getPreviewPath(), ModuleMap, PreviewRenderer(), _resolveComponent()
+
+### Community 68 - "Community 68"
+Cohesion: 0.3
+Nodes (8): loadImage(), renderThumbnail(), CanvasDocument, buildTargets(), computeSnap(), Guide, SnapResult, Targets
+
+### Community 69 - "Community 69"
 Cohesion: 0.38
 Nodes (5): Props, StepDataSource(), TabsContent, TabsList, TabsTrigger
 
-### Community 63 - "Community 63"
+### Community 70 - "Community 70"
 Cohesion: 0.17
 Nodes (12): ApiError, Batch, Certificate, ResponseParseError, custom-fetch.ts, api.schemas.ts, index.ts, batch.ts (+4 more)
 
-### Community 64 - "Community 64"
-Cohesion: 0.27
-Nodes (8): baseUrl, batch, bodyLines, cert, ownerUid, profile, provided, router
-
-### Community 65 - "Community 65"
+### Community 71 - "Community 71"
 Cohesion: 0.53
 Nodes (7): Empty(), EmptyContent(), EmptyDescription(), EmptyHeader(), EmptyMedia(), emptyMediaVariants, EmptyTitle()
 
-### Community 66 - "Community 66"
-Cohesion: 0.51
-Nodes (7): NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuList, NavigationMenuTrigger, navigationMenuTriggerStyle, NavigationMenuViewport
-
-### Community 67 - "Community 67"
-Cohesion: 0.51
-Nodes (7): Drawer(), DrawerContent, DrawerDescription, DrawerFooter(), DrawerHeader(), DrawerOverlay, DrawerTitle
-
-### Community 68 - "Community 68"
+### Community 72 - "Community 72"
 Cohesion: 0.51
 Nodes (7): Breadcrumb, BreadcrumbEllipsis(), BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator()
 
-### Community 69 - "Community 69"
+### Community 73 - "Community 73"
+Cohesion: 0.51
+Nodes (7): NavigationMenu, NavigationMenuContent, NavigationMenuIndicator, NavigationMenuList, NavigationMenuTrigger, navigationMenuTriggerStyle, NavigationMenuViewport
+
+### Community 74 - "Community 74"
+Cohesion: 0.51
+Nodes (7): Drawer(), DrawerContent, DrawerDescription, DrawerFooter(), DrawerHeader(), DrawerOverlay, DrawerTitle
+
+### Community 75 - "Community 75"
 Cohesion: 0.44
 Nodes (8): AdminPanel(), AdminRedemptions(), BRAND_LABELS, FulfillForm(), RedemptionRequest, RejectForm(), STATUS_COLORS, StatusFilter
 
-### Community 70 - "Community 70"
+### Community 76 - "Community 76"
 Cohesion: 0.2
 Nodes (11): Advanced Workflow Builder Page, Dashboard Page, Toast Components, ToastClose, ToastDescription, ToastProvider, ToastTitle, ToastViewport (+3 more)
 
-### Community 71 - "Community 71"
+### Community 77 - "Community 77"
 Cohesion: 0.27
 Nodes (11): extras.ts, deleteBatch, generateSmartBatch, shareBatchFolder, syncBatch, updateBatchFields, useDeleteBatch, useGenerateSmartBatch (+3 more)
 
-### Community 72 - "Community 72"
+### Community 78 - "Community 78"
 Cohesion: 0.56
 Nodes (6): BulletList(), PrivacyPolicy(), SectionHead(), SECTIONS, SubSection(), useSectionObserver()
 
-### Community 73 - "Community 73"
+### Community 79 - "Community 79"
 Cohesion: 0.2
 Nodes (10): User Approval Check, Bulk Upsert Student Profiles, R2 PDF Upload, Gmail Send Email, Google Auth Client, Google Slides Certificate Generation, Email Task Processor, WhatsApp Task Processor (+2 more)
 
-### Community 74 - "Community 74"
-Cohesion: 0.28
-Nodes (4): data, router, globalLimiter, heavyLimiter
-
-### Community 75 - "Community 75"
-Cohesion: 0.53
-Nodes (6): BulletList(), SectionHead(), SECTIONS, SubSection(), TermsAndConditions(), useSectionObserver()
-
-### Community 76 - "Community 76"
+### Community 80 - "Community 80"
 Cohesion: 0.28
 Nodes (6): memoryCache, rateLimit(), RateLimitOptions, app, createApp(), req
 
-### Community 77 - "Community 77"
+### Community 81 - "Community 81"
+Cohesion: 0.25
+Nodes (3): router, globalLimiter, heavyLimiter
+
+### Community 82 - "Community 82"
+Cohesion: 0.53
+Nodes (6): BulletList(), SectionHead(), SECTIONS, SubSection(), TermsAndConditions(), useSectionObserver()
+
+### Community 83 - "Community 83"
 Cohesion: 0.22
 Nodes (9): Button, renderCanvasToPdf, PropertiesPanel, TemplateEditor, renderThumbnail, CanvasDocument, computeSnap, EditorStore (+1 more)
 
-### Community 78 - "Community 78"
+### Community 84 - "Community 84"
 Cohesion: 0.28
 Nodes (9): Client-Side Certificate Generation Engine, ForgotPassword Page, Google API CORS Strategy, Font Scaling Heuristics, Supabase Client, useApproval Hook, useAuth Hook, useWorkspace Hook (+1 more)
 
-### Community 79 - "Community 79"
+### Community 85 - "Community 85"
 Cohesion: 0.33
 Nodes (9): whatsapp.ts, openCertSlide, sendBatchWhatsapp, sendCertEmail, sendCertWhatsapp, useOpenCertSlide, useSendBatchWhatsapp, useSendCertEmail (+1 more)
 
-### Community 80 - "Community 80"
-Cohesion: 0.57
-Nodes (4): Alert, AlertDescription, AlertTitle, alertVariants
-
-### Community 81 - "Community 81"
+### Community 86 - "Community 86"
 Cohesion: 0.57
 Nodes (4): InputOTP, InputOTPGroup, InputOTPSeparator, InputOTPSlot
 
-### Community 83 - "Community 83"
+### Community 87 - "Community 87"
+Cohesion: 0.57
+Nodes (4): Alert, AlertDescription, AlertTitle, alertVariants
+
+### Community 91 - "Community 91"
 Cohesion: 0.36
 Nodes (4): LedgerEntry, LedgerEntryMetadata, LedgerEntryType, WalletHistoryResponse
 
-### Community 86 - "Community 86"
+### Community 92 - "Community 92"
 Cohesion: 0.25
 Nodes (8): Sonner Toaster, ToggleGroup Component, ToggleGroup, ToggleGroupItem, Toggle Component, Toggle Variants, Tooltip Components, Tailwind Merge Utility (cn)
 
-### Community 87 - "Community 87"
+### Community 93 - "Community 93"
 Cohesion: 0.29
 Nodes (4): base64Signature, hexSignature, payload, rawPayload
 
-### Community 88 - "Community 88"
+### Community 94 - "Community 94"
+Cohesion: 0.38
+Nodes (5): app, base64urlEncode(), getAuthToken(), req, signHs256Token()
+
+### Community 95 - "Community 95"
+Cohesion: 0.57
+Nodes (3): AccordionContent, AccordionItem, AccordionTrigger
+
+### Community 96 - "Community 96"
+Cohesion: 0.57
+Nodes (3): Avatar, AvatarFallback, AvatarImage
+
+### Community 97 - "Community 97"
 Cohesion: 0.29
 Nodes (7): Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, Sidebar, Skeleton
 
-### Community 90 - "Community 90"
+### Community 98 - "Community 98"
+Cohesion: 0.47
+Nodes (4): atomicUpdateMock, base64urlEncode(), getAuthToken(), signHs256Token()
+
+### Community 100 - "Community 100"
 Cohesion: 0.6
 Nodes (3): BatchGallery(), GalleryData, GalleryItem
 
-### Community 91 - "Community 91"
+### Community 101 - "Community 101"
+Cohesion: 0.6
+Nodes (3): CertData, InfoRow(), VerifyCertificate()
+
+### Community 102 - "Community 102"
 Cohesion: 0.4
 Nodes (5): Express Application, Main API Router, API Server Entry, Approval Middleware, Workspace Middleware
 
-### Community 92 - "Community 92"
+### Community 103 - "Community 103"
 Cohesion: 0.4
 Nodes (5): App Component, AppSidebar Component, Layout Component, Main Entry, WorkspaceSwitcher Component
 
-### Community 93 - "Community 93"
-Cohesion: 0.4
-Nodes (5): apps/mockup-sandbox/src/components/ui/button.tsx, apps/mockup-sandbox/src/components/ui/calendar.tsx, apps/mockup-sandbox/src/components/ui/carousel.tsx, apps/mockup-sandbox/src/components/ui/input-group.tsx, apps/mockup-sandbox/src/components/ui/input.tsx
-
-### Community 105 - "Community 105"
-Cohesion: 0.33
-Nodes (4): generateBatch(), getGenerateBatchUrl(), getSyncBatchMutationOptions(), useSyncBatch()
-
-### Community 106 - "Community 106"
+### Community 115 - "Community 115"
 Cohesion: 0.5
 Nodes (4): LedgerEntry, LedgerEntryMetadata, LedgerEntryType, WalletHistoryResponse
 
-### Community 107 - "Community 107"
+### Community 116 - "Community 116"
 Cohesion: 0.5
 Nodes (4): Batch (Firebase), SheetDataResponse, SheetDataResponseRowsItem, Batch (Supabase)
 
-### Community 108 - "Community 108"
+### Community 117 - "Community 117"
 Cohesion: 0.5
 Nodes (4): SheetDataResponse, SheetDataResponseRowsItem, sheetDataResponse.ts, sheetDataResponseRowsItem.ts
 
-### Community 109 - "Community 109"
+### Community 118 - "Community 118"
 Cohesion: 0.5
 Nodes (4): SheetFile, SheetListResponse, sheetFile.ts, sheetListResponse.ts
 
-### Community 110 - "Community 110"
+### Community 119 - "Community 119"
 Cohesion: 0.5
 Nodes (4): SlideTemplate, SlideTemplateListResponse, slideTemplate.ts, slideTemplateListResponse.ts
 
-### Community 111 - "Community 111"
-Cohesion: 0.67
-Nodes (3): getListSheetsQueryKey(), getListSheetsQueryOptions(), useListSheets()
-
-### Community 112 - "Community 112"
-Cohesion: 0.67
-Nodes (3): getGetWalletBalanceQueryKey(), getGetWalletBalanceQueryOptions(), useGetWalletBalance()
-
-### Community 113 - "Community 113"
-Cohesion: 0.67
-Nodes (3): getListCertificatesQueryKey(), getListCertificatesQueryOptions(), useListCertificates()
-
-### Community 114 - "Community 114"
-Cohesion: 0.67
-Nodes (3): getGetBatchQueryKey(), getGetBatchQueryOptions(), useGetBatch()
-
-### Community 115 - "Community 115"
+### Community 120 - "Community 120"
 Cohesion: 0.67
 Nodes (3): Font Catalog, FontPicker Component, Fonts Runtime
 
-### Community 116 - "Community 116"
+### Community 121 - "Community 121"
 Cohesion: 0.67
 Nodes (3): FieldLabel, FormLabel, Label
 
 ## Knowledge Gaps
 - **509 isolated node(s):** `allowedOrigins`, `ContextEnv`, `mockPrepare`, `mockDb`, `env` (+504 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **233 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **226 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `App()` connect `Client-side API Schemas` to `Community 74`?**
-  _High betweenness centrality (0.126) - this node is a cross-community bridge._
-- **Why does `cn()` connect `Atomic UI Components` to `Generated API Hooks`, `API Request Helpers`, `API Data Contracts`, `Workspace Management UI`, `Form & Input Components`, `Community 15`, `Community 18`, `Community 23`, `Community 28`, `Community 39`, `Community 41`, `Community 43`, `Community 46`, `Community 47`, `Community 50`, `Community 56`, `Community 58`, `Community 59`, `Community 60`, `Community 62`, `Community 65`, `Community 66`, `Community 67`, `Community 68`, `Community 80`, `Community 81`?**
+- **Why does `App()` connect `Community 67` to `Community 81`, `Navigation & Layout Components`?**
+  _High betweenness centrality (0.131) - this node is a cross-community bridge._
+- **Why does `cn()` connect `Atomic UI Components` to `App Lifecycle & Entry`, `Workspace & Cert Routes`, `Client-side API Schemas`, `Workspace Management UI`, `Client Certificate Engine`, `Community 17`, `Community 18`, `Community 26`, `Community 29`, `Community 42`, `Community 43`, `Community 47`, `Community 55`, `Community 59`, `Community 62`, `Community 63`, `Community 64`, `Community 65`, `Community 69`, `Community 71`, `Community 72`, `Community 73`, `Community 74`, `Community 86`, `Community 87`, `Community 95`, `Community 96`?**
   _High betweenness centrality (0.114) - this node is a cross-community bridge._
 - **What connects `allowedOrigins`, `ContextEnv`, `mockPrepare` to the rest of the system?**
   _509 weakly-connected nodes found - possible documentation gaps or missing edges._
 - **Should `Generated API Hooks` be split into smaller, more focused modules?**
-  _Cohesion score 0.05 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.03 - nodes in this community are weakly interconnected._
 - **Should `Navigation & Layout Components` be split into smaller, more focused modules?**
-  _Cohesion score 0.04 - nodes in this community are weakly interconnected._
+  _Cohesion score 0.05 - nodes in this community are weakly interconnected._
 - **Should `API Request Helpers` be split into smaller, more focused modules?**
-  _Cohesion score 0.07 - nodes in this community are weakly interconnected._
-- **Should `App Lifecycle & Entry` be split into smaller, more focused modules?**
   _Cohesion score 0.04 - nodes in this community are weakly interconnected._
+- **Should `App Lifecycle & Entry` be split into smaller, more focused modules?**
+  _Cohesion score 0.08 - nodes in this community are weakly interconnected._
