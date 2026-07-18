@@ -66,9 +66,9 @@ export default function PrivacyPolicy() {
           <div className="text-[10px] tracking-widest text-gray-500 mb-4">LEGAL DOCUMENT</div>
           <h1 className="text-4xl lg:text-6xl font-bold mb-6 leading-tight text-white">Privacy Policy</h1>
           <div className="flex flex-wrap gap-6 text-sm text-gray-400">
-            <span>Last updated: <span className="text-white font-bold">06 May 2026</span></span>
+            <span>Last updated: <span className="text-white font-bold">18 July 2026</span></span>
             <span>·</span>
-            <span>Effective: <span className="text-white font-bold">06 May 2026</span></span>
+            <span>Effective: <span className="text-white font-bold">18 July 2026</span></span>
           </div>
           <p className="mt-8 text-base text-gray-400 max-w-2xl leading-relaxed">
             This policy explains what data Cephlow collects, how it is used, and your rights. By using
@@ -120,12 +120,10 @@ export default function PrivacyPolicy() {
               Supabase Auth to identify your account and workspace.
             </SubSection>
             <SubSection title="Google Workspace Data">
-              <p>To automate certificate generation you grant Cephlow access to specific Google services:</p>
+              <p>To support saving generated certificates to Google Drive, you may grant Cephlow access to your Google Drive account:</p>
               <div className="mt-4 space-y-3">
                 {[
-                  ["Google Sheets", "Read recipient data (names, emails, event details) from spreadsheets you explicitly select via the Google Picker."],
-                  ["Google Slides", "Read certificate templates from presentations you explicitly select via the Google Picker; create and modify personalised copies."],
-                  ["Google Drive (drive.file)", "Copy templates, export certificate PDFs, delete temporary files, and store output in your Drive. Access is limited only to files you select via the Google Picker or files the app creates — we never browse or list your full Drive."],
+                  ["Google Drive (drive.file)", "Create folders and upload certificate PDF files to your Drive. Access is strictly limited to files and folders created by the Cephlow app itself — we never browse, list, or access other files in your Drive."],
                   ["Email delivery", "Send personalised emails with certificate PDFs attached via our own sending infrastructure."],
                 ].map(([svc, desc]) => (
                   <div key={svc} className="flex gap-4 items-start">
@@ -135,9 +133,7 @@ export default function PrivacyPolicy() {
                 ))}
               </div>
               <p className="mt-4 text-xs text-gray-500">
-                File selection is done exclusively through the Google Picker API — we never call drive.files.list
-                or access any file you have not explicitly selected. We do not scan, index, or retain any other
-                Drive, Sheets, or Slides content outside of the active generation session.
+                Connection is entirely optional. We request the minimal drive.file scope and do not scan, index, or retain any other Google Drive content.
               </p>
             </SubSection>
             <SubSection title="Recipient Data">
@@ -187,7 +183,7 @@ export default function PrivacyPolicy() {
                 <span>PURPOSE</span>
               </div>
               {[
-                ["Google LLC", "OAuth authentication, Sheets / Slides / Drive access"],
+                ["Google LLC", "OAuth authentication, Google Drive integration"],
                 ["Amazon Web Services (SES)", "Transactional email delivery"],
                 ["Cloudflare Inc. (R2)", "PDF storage and public CDN delivery"],
                 ["Meta Platforms (WhatsApp Business API)", "Certificate delivery via WhatsApp"],
