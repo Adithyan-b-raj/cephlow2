@@ -16,13 +16,14 @@ const BatchDetail = lazy(() => import("@/pages/batches/BatchDetail"));
 const History = lazy(() => import("@/pages/History"));
 const Wallet = lazy(() => import("@/pages/Wallet"));
 
-const RedirectToNewBuiltin = () => {
+const RedirectToNewBuiltin = (): any => {
   const [, setLocation] = useLocation();
   useEffect(() => {
     setLocation("/templates/builtin/new", { replace: true });
   }, [setLocation]);
+  return null;
 };
-const WalletGuard = () => {
+const WalletGuard = (): any => {
   const { isApproved } = useApproval();
   const [, setLocation] = useLocation();
   useEffect(() => {

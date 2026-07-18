@@ -40,7 +40,7 @@ export default function BatchDetail() {
   const { isApproved } = useApproval();
   const { data: balanceData, refetch: refetchBalance } = useGetWalletBalance({
     query: { enabled: isApproved }
-  });
+  } as any);
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
