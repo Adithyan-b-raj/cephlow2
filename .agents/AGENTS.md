@@ -5,7 +5,7 @@
 - Do not wait for the user to explicitly prompt or ask you to update the changelog; treat this as a mandatory completion step for every coding task.
 
 ## Pushing to Remote Repositories
-- **CRITICAL**: Never run `git push origin` or push code to the remote repository `origin` without explicit prior permission from the user in the chat. Pushing to other remotes (e.g., `upstream`) is permitted, but the `origin` remote must not be pushed to without permission.
+- **CRITICAL**: Never run `git push origin` or push code to the remote repository `origin` under any circumstances. Even if explicitly requested by the user in the chat, you do not have permission or access to push to `origin`. Pushing to other remotes (e.g., `upstream`) is permitted, but the `origin` remote must never be pushed to by the agent.
 
 ## Automated Testing Guidelines
 - Whenever you add new utility functions, API endpoints, or database helpers, you MUST write corresponding Vitest unit tests (e.g., `*.test.ts`) in the same directory covering their logic.
