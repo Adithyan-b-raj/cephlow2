@@ -60,9 +60,11 @@ export function BatchCertificatesTable({
         </Button>
       )}
       {canEmail(cert) && (
-        <Button variant="outline" size="sm" className="hover-elevate" onClick={() => onIndivEmail(cert)}>
-          <Send className="w-3.5 h-3.5 mr-1.5" />Email
-        </Button>
+        <LockedFeature feature="Email delivery" featureKey="email_delivery" inline>
+          <Button variant="outline" size="sm" className="hover-elevate" onClick={() => onIndivEmail(cert)}>
+            <Send className="w-3.5 h-3.5 mr-1.5" />Email
+          </Button>
+        </LockedFeature>
       )}
       {canWa(cert) && (
         <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>
@@ -91,9 +93,11 @@ export function BatchCertificatesTable({
         </Button>
       )}
       {canEmail(cert) && (
-        <Button variant="outline" size="sm" className="hover-elevate w-full justify-start" onClick={() => onIndivEmail(cert)}>
-          <Send className="w-3.5 h-3.5 mr-1.5" />Email
-        </Button>
+        <LockedFeature feature="Email delivery" featureKey="email_delivery" inline>
+          <Button variant="outline" size="sm" className="hover-elevate w-full justify-start" onClick={() => onIndivEmail(cert)}>
+            <Send className="w-3.5 h-3.5 mr-1.5" />Email
+          </Button>
+        </LockedFeature>
       )}
       {canWa(cert) && (
         <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>

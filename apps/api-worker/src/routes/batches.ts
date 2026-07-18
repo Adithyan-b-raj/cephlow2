@@ -499,7 +499,7 @@ router.delete("/batches/:batchId", async (c) => {
 });
 
 // 6. POST /batches/:batchId/certificates/:certId/send — Send single certificate via email in-line
-router.post("/batches/:batchId/certificates/:certId/send", async (c) => {
+router.post("/batches/:batchId/certificates/:certId/send", approvalMiddleware, async (c) => {
   const user = c.get("user")!;
   const workspace = c.get("workspace")!;
   const { batchId, certId } = c.req.param();

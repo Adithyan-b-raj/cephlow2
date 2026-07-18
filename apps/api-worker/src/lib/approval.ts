@@ -46,6 +46,7 @@ export async function isApprovedInContext(
 
 export const FEATURE_KEYS = [
   "whatsapp_delivery",
+  "email_delivery",
   "custom_event_banners",
   "google_slides_templates",
   "qr_codes",
