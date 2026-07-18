@@ -4,19 +4,9 @@ export type GoogleScopeType = "drive" | "sheets" | "slides" | "all";
 
 const SCOPE_SETS: Record<GoogleScopeType, string[]> = {
   drive: ["https://www.googleapis.com/auth/drive.file"],
-  sheets: [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive.file",
-  ],
-  slides: [
-    "https://www.googleapis.com/auth/presentations",
-    "https://www.googleapis.com/auth/drive.file",
-  ],
-  all: [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive.file",
-    "https://www.googleapis.com/auth/presentations",
-  ],
+  sheets: ["https://www.googleapis.com/auth/drive.file"],
+  slides: ["https://www.googleapis.com/auth/drive.file"],
+  all: ["https://www.googleapis.com/auth/drive.file"],
 };
 
 async function encryptToken(text: string, secretKeyStr: string): Promise<string> {

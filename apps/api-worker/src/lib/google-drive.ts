@@ -161,11 +161,6 @@ export async function deleteFile(accessToken: string, fileId: string): Promise<v
   }
 }
 
-export async function exportSlidesToPdf(accessToken: string, fileId: string): Promise<ArrayBuffer> {
-  const url = `https://www.googleapis.com/drive/v3/files/${fileId}/export?mimeType=application%2Fpdf`;
-  const res = await googleFetch(url, { method: "GET" }, accessToken);
-  return await res.arrayBuffer();
-}
 
 export async function downloadDriveFile(accessToken: string, fileId: string): Promise<ArrayBuffer> {
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`;

@@ -9,6 +9,9 @@ All notable changes to this project will be documented in this file.
 - **Workflow Persistence**: The Advanced Workflow Builder now saves the full React Flow graph (nodes + edges) as `workflow_json` on the batch when launched. Batches with a saved workflow display an **Edit Workflow** button in the batch header that reopens `/advanced?batchId=<id>` and restores the exact graph. This persists server-side across devices and sessions.
 
 ### Changed
+- **Visual Hierarchy & Header Decluttering**: Redesigned the Batch Detail page's action buttons to improve visual hierarchy and usability. Set the primary action, **Generate All**, as the only solid filled button. Repositioned and demoted delivery buttons (**Send Emails** and **WhatsApp**) to outlined styles, and styled the WhatsApp icon with its brand-specific green color (`#25D366`).
+- **More Action Dropdown**: Consolidated secondary actions (**Edit Sheet**, **Edit Workflow**, **Share PDFs**, **Share Page**, and **Add/Edit Banner**) into a unified **More** dropdown menu (`DropdownMenu`) to declutter the batch header interface.
+- **Google OAuth Scope Streamlining**: Updated the Google authentication helper (`google-auth.ts`) to request only the minimal `drive.file` scope, completely removing `sheets` and `slides` permissions from Google OAuth scopes.
 - **Contact Emails**: Updated default fallback support and approval contact emails across the Privacy Policy, Terms & Conditions, Locked Feature wrapper, App Sidebar, and Landing pages to transition from `cephlow.online` / `approvals@cephlow.online` to `cephlow.in` / `contact@cephlow.in` / `approvals@cephlow.in`.
 - **Deployment Workflow**: Split the Cloudflare wrangler deployment step in the GitHub Actions workflow ([deploy.yml](file:///c:/Users/AKSHAY/Desktop/code/projects/fork-cephlow/adi-cephlow/cephlow2/.github/workflows/deploy.yml)) into separate conditional steps for production (on `main` branch) and staging (on `staging` branch) to prevent invalid empty environment flags.
 - **Batch Creator & Sync**: Updated the batch endpoints in `apps/api-worker/src/routes/batches.ts` to remove Google Sheets validation fields and enforce inbuilt spreadsheets as the sole data source kind.
@@ -24,6 +27,7 @@ All notable changes to this project will be documented in this file.
 - **Locked QR Aspect Ratio**: Configured the built-in template editor (`EditorCanvas.tsx` and `PropertiesPanel.tsx`) to lock the aspect ratio of QR elements to 1:1, preventing distortion during canvas transforming or manual size property updates.
 
 ### Removed
+- **Legacy Slides PDF Export**: Removed the obsolete `exportSlidesToPdf` fallback chain and helper function from the backend, as all new certificate batches generate PDFs from built-in templates.
 - **Google Sheets & Slides Routes**: Deleted backend API routes `sheets.ts` and `slides.ts`, unregistering them from the Hono API worker entrypoint in `apps/api-worker/src/index.ts`.
 - **Slide Thumbnail Proxy**: Removed the `/api/slides/thumbnail/:fileId` proxy endpoint from the backend worker.
 - **Legacy Template Wizard**: Deleted `NewTemplate.tsx` (the slide-based wizard) and redirected `/templates/new` to the builtin template editor page in `App.tsx`.

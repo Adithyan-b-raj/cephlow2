@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { getAccessToken } from "../lib/google-auth.js";
-import { downloadDriveFile, exportSlidesToPdf } from "../lib/google-drive.js";
+import { downloadDriveFile } from "../lib/google-drive.js";
 import { sendEmail } from "../lib/email.js";
 import { sendWhatsAppDocument } from "../lib/whatsapp.js";
 import { workspaceMiddleware, isAdminOrOwner } from "../middleware/workspace.js";
@@ -561,13 +561,7 @@ router.post("/batches/:batchId/certificates/:certId/send", async (c) => {
       }
     }
 
-    if (!pdfBuffer && cert.slide_file_id) {
-      try {
-        pdfBuffer = await exportSlidesToPdf(accessToken, cert.slide_file_id);
-      } catch (e: any) {
-        console.error("[Worker Send Email] Slides export failed:", e.message);
-      }
-    }
+
 
     if (!pdfBuffer) {
       return c.json({ error: "Could not retrieve certificate PDF attachment" }, 500);

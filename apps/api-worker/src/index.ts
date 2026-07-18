@@ -6,7 +6,6 @@ import { workspaceMiddleware, requireNotSuspended } from "./middleware/workspace
 import { requireApproval as approvalMiddleware } from "./middleware/approval.js";
 import { rateLimit } from "./middleware/rateLimiter.js";
 import { getAccessToken } from "./lib/google-auth.js";
-import { googleFetch } from "./lib/google-drive.js";
 
 // Routes imports
 import healthRouter from "./routes/health.js";
