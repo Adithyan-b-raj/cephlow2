@@ -158,15 +158,7 @@ export async function moveFileToFolder(accessToken: string, fileId: string, fold
   }, accessToken);
 }
 
-export async function deleteFile(accessToken: string, fileId: string): Promise<void> {
-  const url = `https://www.googleapis.com/drive/v3/files/${fileId}`;
-  try {
-    await googleFetch(url, { method: "DELETE" }, accessToken);
-    console.log(`[DRIVE] Deleted file: ${fileId}`);
-  } catch (err: any) {
-    console.error(`[DRIVE] Failed to delete file ${fileId}:`, err.message);
-  }
-}
+
 
 
 export async function downloadDriveFile(accessToken: string, fileId: string): Promise<ArrayBuffer> {

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "../types.js";
 import { getAccessToken } from "../lib/google-auth.js";
-import { deleteFile } from "../lib/google-drive.js";
+
 import { generatePresignedPutUrl, getR2PublicUrl } from "../lib/r2.js";
 import { isApprovedInContext } from "../lib/approval.js";
 import { workspaceMiddleware, isAdminOrOwner } from "../middleware/workspace.js";
@@ -430,31 +430,7 @@ router.post("/batches/:batchId/client-complete", async (c) => {
   }
 });
 
-// 6. POST /batches/:batchId/client-cleanup
-router.post("/batches/:batchId/client-cleanup", async (c) => {
-  const user = c.get("user")!;
-  try {
-    const { tempFileIds } = await c.req.json().catch(() => ({}));
-    if (!tempFileIds || !Array.isArray(tempFileIds) || tempFileIds.length === 0) {
-      return c.json({ success: true });
-    }
 
-    const { accessToken } = await getAccessToken(c.env.DB, c.env, user.uid, "all");
-    
-    // Clean up files in background
-    c.executionCtx.waitUntil(Promise.all(
-      tempFileIds.map((fileId) =>
-        deleteFile(accessToken, fileId).catch((e) =>
-          console.error("[CLIENT-CLEANUP] Drive delete failed:", fileId, e.message)
-        )
-      )
-    ));
-
-    return c.json({ success: true, cleaned: tempFileIds.length });
-  } catch (err: any) {
-    return c.json({ error: err.message }, 500);
-  }
-});
 
 // 7. POST /batches/:batchId/recover-stuck
 router.post("/batches/:batchId/recover-stuck", async (c) => {
