@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **Google Drive Batch Folders**: Added client-side Google Drive folder creation during generation for free-tier users, and on-demand folder creation and public sharing under `POST /batches/:batchId/share-folder`.
+- **Automatic Certs Movement**: Configured `/share-folder` to automatically move existing cert PDFs from the user's Drive root into the new folder in the background.
+- **Legal & Copy Updates**: Updated Landing Page, Terms of Service, and Privacy Policy pages to align with Google Sheets/Slides integrations removal and the updated `drive.file` OAuth scope constraint.
+
+### Removed
+- **Obsolete Code Cleanup**: Removed legacy `deleteFile` helper and `POST /batches/:batchId/client-cleanup` endpoint since slides generation was removed.
+
+### Added (Legacy)
 - **Frontend Dependencies**: Added `xlsx` (SheetJS) and `pdfjs-dist` (PDF.js) dependencies in `apps/cert-app/package.json` for client-side local spreadsheet imports and PDF template backgrounds.
 - **Workflow Persistence**: The Advanced Workflow Builder now saves the full React Flow graph (nodes + edges) as `workflow_json` on the batch when launched. Batches with a saved workflow display an **Edit Workflow** button in the batch header that reopens `/advanced?batchId=<id>` and restores the exact graph. This persists server-side across devices and sessions.
 
