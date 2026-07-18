@@ -17,7 +17,9 @@ import {
   Unlock,
   Eye,
   EyeOff,
+  Loader2,
 } from "lucide-react";
+import { uploadAssetToR2 } from "@workspace/api-client-react";
 import type { EditorStore } from "./useEditorStore";
 import { FontPicker } from "./FontPicker";
 import type { CanvasElement, ImageElement, ShapeElement, TextElement } from "./types";
@@ -70,7 +72,57 @@ export function PropertiesPanel({ store }: Props) {
   );
 }
 
+async function convertPdfToImage(file: File): Promise<Blob> {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdfjs = await import("pdfjs-dist");
+  const pdfjsWorker = await import("pdfjs-dist/build/pdf.worker?url");
+  pdfjs.GlobalWorkerOptions.workerSrc = pdfjsWorker.default;
+
+  const loadingTask = pdfjs.getDocument({ data: new Uint8Array(arrayBuffer) });
+  const pdf = await loadingTask.promise;
+  const page = await pdf.getPage(1);
+
+  const viewport = page.getViewport({ scale: 2.5 });
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Could not get canvas context");
+
+  canvas.width = viewport.width;
+  canvas.height = viewport.height;
+
+  await page.render({ canvasContext: context, viewport }).promise;
+
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("Canvas conversion to blob failed"));
+    }, "image/png");
+  });
+}
+
 function DocumentProps({ store }: Props) {
+  const [uploadingBg, setUploadingBg] = useState(false);
+
+  const handleBgUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingBg(true);
+    try {
+      let uploadFile: File | Blob = file;
+      let filename = file.name;
+      if (file.type === "application/pdf") {
+        uploadFile = await convertPdfToImage(file);
+        filename = file.name.replace(/\.[^/.]+$/, "") + ".png";
+      }
+      const url = await uploadAssetToR2(uploadFile, filename, "image");
+      store.patchDoc({ backgroundImage: url });
+    } catch (err: any) {
+      alert("Failed to upload background: " + err.message);
+    } finally {
+      setUploadingBg(false);
+    }
+  };
+
   return (
     <div className="themed-scroll p-4 space-y-4 overflow-y-auto h-full">
       {/* Page size — shown on all screens; on phones this replaces the toolbar select */}
@@ -128,6 +180,23 @@ function DocumentProps({ store }: Props) {
           onChange={(e) => store.patchDoc({ backgroundImage: e.target.value || null })}
           className="mt-1.5"
         />
+      </div>
+      <div>
+        <Label>Upload background template (Image/PDF)</Label>
+        <div className="mt-1.5 flex flex-col gap-2">
+          <Input
+            type="file"
+            accept="image/png, image/jpeg, application/pdf"
+            onChange={handleBgUpload}
+            disabled={uploadingBg}
+            className="text-xs cursor-pointer file:text-foreground file:font-semibold file:bg-secondary file:hover:bg-muted"
+          />
+          {uploadingBg && (
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Uploading background template...
+            </p>
+          )}
+        </div>
       </div>
       <p className="text-xs text-muted-foreground pt-4 border-t">
         Click an element on the canvas to edit its properties.

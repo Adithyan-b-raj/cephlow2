@@ -15,6 +15,9 @@ All notable changes to this project will be documented in this file.
 - **Campaign Creation Wizard**: Simplified the campaign wizard pages (`StepDataSource.tsx`, `StepTemplate.tsx`, `NewBatch.tsx`) to remove Sheets/Slides options, forcing all campaigns to use built-in spreadsheets and built-in templates.
 - **Google OAuth & Settings**: Streamlined `use-auth.tsx` to remove slides/sheets permissions status, and updated `Settings.tsx` to hide Sheets and Slides account connection options.
 - **Spreadsheets List Page**: Removed the "Import from Google Sheets" options in `SpreadsheetsList.tsx`.
+- **Built-in Editor File Uploads**: Integrated background image and PDF upload capabilities directly in `PropertiesPanel.tsx` using `uploadAssetToR2` client-side API.
+- **Client-Side PDF Background Conversion**: Integrated dynamic import of `pdfjs-dist` to render the first page of PDF template uploads to a high-resolution canvas client-side, converting it to a PNG file before uploading to Cloudflare R2 storage.
+- **Generation Engine Simplification**: Rewrote `clientGenerate.ts` to remove Google Slides batch PDF generation, alt-text placeholders, and PDF splitting, while retaining the client-side built-in template renderer and free-tier Google Drive upload pathways.
 
 ### Removed
 - **Google Sheets & Slides Routes**: Deleted backend API routes `sheets.ts` and `slides.ts`, unregistering them from the Hono API worker entrypoint in `apps/api-worker/src/index.ts`.
