@@ -2,18 +2,15 @@ import { createContext, useContext, useEffect, useState, useCallback, type React
 import { supabase, signInWithPassword, signUpWithPassword, signOut, type User } from "@/lib/supabase";
 import { setAuthTokenProvider, setBaseUrl } from "@workspace/api-client-react";
 
-export type GoogleScopeType = "drive" | "sheets" | "slides";
+export type GoogleScopeType = "drive";
 
 export interface GoogleAuthStatus {
     drive: boolean;
-    sheets: boolean;
-    slides: boolean;
 }
 
 interface AuthContextType {
     user: User | null;
     loading: boolean;
-    /** true if any Google scope is connected (backwards compat) */
     hasGoogleAuth: boolean;
     googleAuthStatus: GoogleAuthStatus;
     login: (email: string, password: string) => Promise<void>;
@@ -21,7 +18,7 @@ interface AuthContextType {
     loginWithGoogle: () => Promise<void>;
     logout: () => Promise<void>;
     connectGoogle: (scope?: GoogleScopeType) => Promise<void>;
-    disconnectGoogle: (scope?: GoogleScopeType) => Promise<void>;
+    disconnectGoogle: () => Promise<void>;
     recheckGoogleAuth: () => Promise<void>;
 }
 
@@ -35,7 +32,7 @@ async function getAccessToken(): Promise<string | null> {
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [loading, setLoading] = useState(true);
-    const [googleAuthStatus, setGoogleAuthStatus] = useState<GoogleAuthStatus>({ drive: false, sheets: false, slides: false });
+    const [googleAuthStatus, setGoogleAuthStatus] = useState<GoogleAuthStatus>({ drive: false });
 
     useEffect(() => {
         const apiUrl = import.meta.env.VITE_API_URL;
@@ -53,16 +50,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             });
             if (res.ok) {
                 const data = await res.json();
-                // Legacy 'all' tokens count for all scopes
-                const legacy = data.connected && !data.drive && !data.sheets && !data.slides;
+                const legacy = data.connected && !data.drive;
                 setGoogleAuthStatus({
                     drive: data.drive || legacy,
-                    sheets: data.sheets || legacy,
-                    slides: data.slides || legacy,
                 });
             }
         } catch {
-            setGoogleAuthStatus({ drive: false, sheets: false, slides: false });
+            setGoogleAuthStatus({ drive: false });
         }
     }, []);
 
@@ -85,7 +79,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (session?.user && (event === "SIGNED_IN" || event === "USER_UPDATED")) {
                 checkGoogleAuth();
             } else if (!session?.user) {
-                setGoogleAuthStatus({ drive: false, sheets: false, slides: false });
+                setGoogleAuthStatus({ drive: false });
             }
         });
 
@@ -122,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const logout = async () => {
         await signOut();
         setUser(null);
-        setGoogleAuthStatus({ drive: false, sheets: false, slides: false });
+        setGoogleAuthStatus({ drive: false });
     };
 
     const connectGoogle = async (scope: GoogleScopeType = "drive") => {
@@ -139,26 +133,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    const disconnectGoogle = async (scope?: GoogleScopeType) => {
+    const disconnectGoogle = async () => {
         const token = await getAccessToken();
         if (!token) throw new Error("Not authenticated");
         const apiUrl = import.meta.env.VITE_API_URL?.replace(/\/$/, "") || "";
-        const url = scope
-            ? `${apiUrl}/api/auth/google/disconnect?scope=${scope}`
-            : `${apiUrl}/api/auth/google/disconnect`;
+        const url = `${apiUrl}/api/auth/google/disconnect`;
         const res = await fetch(url, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
         if (!res.ok) {
             const body = await res.json().catch(() => ({}));
             throw new Error(body.error || `Request failed (${res.status})`);
         }
-        if (scope) {
-            setGoogleAuthStatus(prev => ({ ...prev, [scope]: false }));
-        } else {
-            setGoogleAuthStatus({ drive: false, sheets: false, slides: false });
-        }
+        setGoogleAuthStatus({ drive: false });
     };
 
-    const hasGoogleAuth = googleAuthStatus.drive || googleAuthStatus.sheets || googleAuthStatus.slides;
+    const hasGoogleAuth = googleAuthStatus.drive;
 
     return (
         <AuthContext.Provider value={{ user, loading, hasGoogleAuth, googleAuthStatus, login, signup, loginWithGoogle, logout, connectGoogle, disconnectGoogle, recheckGoogleAuth: checkGoogleAuth }}>

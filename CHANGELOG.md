@@ -12,10 +12,15 @@ All notable changes to this project will be documented in this file.
 - **Deployment Workflow**: Split the Cloudflare wrangler deployment step in the GitHub Actions workflow ([deploy.yml](file:///c:/Users/AKSHAY/Desktop/code/projects/fork-cephlow/adi-cephlow/cephlow2/.github/workflows/deploy.yml)) into separate conditional steps for production (on `main` branch) and staging (on `staging` branch) to prevent invalid empty environment flags.
 - **Batch Creator & Sync**: Updated the batch endpoints in `apps/api-worker/src/routes/batches.ts` to remove Google Sheets validation fields and enforce inbuilt spreadsheets as the sole data source kind.
 - **Client Generation Engine**: Updated `apps/api-worker/src/routes/clientGenerate.ts` to default campaign template kind to `"builtin"`.
+- **Campaign Creation Wizard**: Simplified the campaign wizard pages (`StepDataSource.tsx`, `StepTemplate.tsx`, `NewBatch.tsx`) to remove Sheets/Slides options, forcing all campaigns to use built-in spreadsheets and built-in templates.
+- **Google OAuth & Settings**: Streamlined `use-auth.tsx` to remove slides/sheets permissions status, and updated `Settings.tsx` to hide Sheets and Slides account connection options.
+- **Spreadsheets List Page**: Removed the "Import from Google Sheets" options in `SpreadsheetsList.tsx`.
 
 ### Removed
 - **Google Sheets & Slides Routes**: Deleted backend API routes `sheets.ts` and `slides.ts`, unregistering them from the Hono API worker entrypoint in `apps/api-worker/src/index.ts`.
 - **Slide Thumbnail Proxy**: Removed the `/api/slides/thumbnail/:fileId` proxy endpoint from the backend worker.
+- **Legacy Template Wizard**: Deleted `NewTemplate.tsx` (the slide-based wizard) and redirected `/templates/new` to the builtin template editor page in `App.tsx`.
+- **Unused Hooks**: Removed unused frontend hooks `use-google-picker.ts` and `use-import-google-sheet.ts`.
 
 
 ## [2.2.0] - 2026-07-18

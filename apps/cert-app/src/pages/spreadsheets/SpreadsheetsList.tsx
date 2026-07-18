@@ -7,28 +7,14 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { FileSpreadsheet, Loader2, Pencil, Plus, Table2, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, Table2, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useImportGoogleSheet } from "@/hooks/use-import-google-sheet";
 
 export default function SpreadsheetsListPage() {
   const [, setLocation] = useLocation();
   const qc = useQueryClient();
   const { toast } = useToast();
   const { data, isLoading } = useListSpreadsheets();
-  const { importSheet, importing } = useImportGoogleSheet();
-
-  async function handleImport() {
-    try {
-      const result = await importSheet();
-      if (!result) return;
-      qc.invalidateQueries({ queryKey: getListSpreadsheetsQueryKey() });
-      toast({ title: "Imported", description: `"${result.name}" is now in your spreadsheets.` });
-      setLocation(`/spreadsheets/${result.id}`);
-    } catch (err: any) {
-      toast({ title: "Import failed", description: err.message, variant: "destructive" });
-    }
-  }
 
   const { mutate: del, isPending: deleting } = useDeleteSpreadsheet({
     mutation: {
@@ -53,10 +39,6 @@ export default function SpreadsheetsListPage() {
           </p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          <Button variant="outline" className="flex-1 sm:flex-none gap-1.5" onClick={handleImport} disabled={importing}>
-            {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-            Import from Google
-          </Button>
           <Button className="flex-1 sm:flex-none" onClick={() => setLocation("/spreadsheets/new")}>
             <Plus className="w-4 h-4 mr-1.5" /> New Spreadsheet
           </Button>
@@ -78,10 +60,6 @@ export default function SpreadsheetsListPage() {
               Create a spreadsheet to store your recipient data — then select it when creating a batch instead of linking Google Sheets.
             </p>
             <div className="flex gap-2 mt-2">
-              <Button variant="outline" onClick={handleImport} disabled={importing} className="gap-1.5">
-                {importing ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileSpreadsheet className="w-4 h-4" />}
-                Import from Google
-              </Button>
               <Button onClick={() => setLocation("/spreadsheets/new")}>
                 <Plus className="w-4 h-4 mr-1.5" /> Create your first spreadsheet
               </Button>
