@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
-import { ApprovalProvider } from "@/hooks/use-approval";
+import { ApprovalProvider, useApproval } from "@/hooks/use-approval";
 import { FeaturesProvider } from "@/hooks/use-features";
 import { WorkspaceProvider } from "@/hooks/use-workspace";
 import { Layout } from "@/components/layout/Layout";
@@ -21,9 +21,18 @@ const RedirectToNewBuiltin = () => {
   useEffect(() => {
     setLocation("/templates/builtin/new", { replace: true });
   }, [setLocation]);
-  return null;
 };
-// Let's write the redirect component properly below:
+const WalletGuard = () => {
+  const { isApproved } = useApproval();
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    if (!isApproved) {
+      setLocation("/", { replace: true });
+    }
+  }, [isApproved, setLocation]);
+  if (!isApproved) return null;
+  return <Wallet />;
+};
 const BuiltinTemplateEditorPage = lazy(() => import("@/pages/templates/BuiltinTemplateEditor"));
 const BuiltinTemplatesListPage = lazy(() => import("@/pages/templates/BuiltinTemplatesList"));
 const VerifyCertificate = lazy(() => import("@/pages/VerifyCertificate"));
@@ -91,7 +100,7 @@ function AuthenticatedRouter() {
           <Route path="/batches/new" component={NewBatch} />
           <Route path="/batches/:id" component={BatchDetail} />
           <Route path="/history" component={History} />
-          <Route path="/wallet" component={Wallet} />
+          <Route path="/wallet" component={WalletGuard} />
           <Route path="/reports" component={Reports} />
           <Route path="/advanced" component={Advanced} />
           <Route path="/templates" component={BuiltinTemplatesListPage} />
