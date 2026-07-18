@@ -206,7 +206,16 @@ function DocumentProps({ store }: Props) {
 }
 
 function CommonProps({ store, el }: { store: EditorStore; el: CanvasElement }) {
-  const update = (patch: Partial<CanvasElement>) => store.updateElement(el.id, patch);
+  const update = (patch: Partial<CanvasElement>) => {
+    if (el.type === "qr") {
+      if (patch.width !== undefined) {
+        patch.height = patch.width;
+      } else if (patch.height !== undefined) {
+        patch.width = patch.height;
+      }
+    }
+    store.updateElement(el.id, patch);
+  };
   return (
     <div className="space-y-3 pb-3 border-b">
       <div className="flex items-center justify-between">
