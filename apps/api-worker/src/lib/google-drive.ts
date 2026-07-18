@@ -151,6 +151,13 @@ export async function makeFilePublic(accessToken: string, fileId: string): Promi
   }, accessToken);
 }
 
+export async function moveFileToFolder(accessToken: string, fileId: string, folderId: string): Promise<void> {
+  const url = `https://www.googleapis.com/drive/v3/files/${fileId}?addParents=${folderId}`;
+  await googleFetch(url, {
+    method: "PATCH",
+  }, accessToken);
+}
+
 export async function deleteFile(accessToken: string, fileId: string): Promise<void> {
   const url = `https://www.googleapis.com/drive/v3/files/${fileId}`;
   try {

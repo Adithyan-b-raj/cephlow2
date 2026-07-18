@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { getAccessToken } from "../lib/google-auth.js";
-import { downloadDriveFile, makeFilePublic, createFolder } from "../lib/google-drive.js";
+import { downloadDriveFile, makeFilePublic, createFolder, moveFileToFolder } from "../lib/google-drive.js";
 import { sendEmail } from "../lib/email.js";
 import { sendWhatsAppDocument } from "../lib/whatsapp.js";
 import { workspaceMiddleware, isAdminOrOwner } from "../middleware/workspace.js";
@@ -1201,7 +1201,7 @@ router.post("/batches/:batchId/share-folder", async (c) => {
   const { batchId } = c.req.param();
   try {
     const batch = await c.env.DB.prepare(`
-      SELECT user_id, workspace_id, pdf_folder_id FROM batches WHERE id = ?
+      SELECT user_id, workspace_id, pdf_folder_id, name FROM batches WHERE id = ?
     `).bind(batchId).first<any>();
 
     if (!batch) return c.json({ error: "Batch not found" }, 404);
@@ -1215,6 +1215,23 @@ router.post("/batches/:batchId/share-folder", async (c) => {
       await c.env.DB.prepare(`
         UPDATE batches SET pdf_folder_id = ?, drive_folder_id = ? WHERE id = ?
       `).bind(folderId, folderId, batchId).run();
+
+      // Find any already generated certificates that have pdf_file_id
+      const certs = await c.env.DB.prepare(`
+        SELECT pdf_file_id FROM certificates WHERE batch_id = ? AND pdf_file_id IS NOT NULL
+      `).bind(batchId).all<{ pdf_file_id: string }>();
+
+      if (certs.results && certs.results.length > 0) {
+        c.executionCtx.waitUntil((async () => {
+          for (const cert of certs.results) {
+            try {
+              await moveFileToFolder(accessToken, cert.pdf_file_id, folderId);
+            } catch (err: any) {
+              console.error(`[SHARE-FOLDER] Failed to move cert ${cert.pdf_file_id} to folder ${folderId}:`, err.message);
+            }
+          }
+        })());
+      }
     }
 
     await makeFilePublic(accessToken, folderId);
