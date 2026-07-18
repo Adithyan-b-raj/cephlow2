@@ -425,6 +425,7 @@ function StepCard({ num, title, desc, delay }: { num: string; title: string; des
 // ── Main landing page ────────────────────────────────────────────────────────
 export default function Landing() {
   const [, navigate] = useLocation();
+  const [showPricingBreakdown, setShowPricingBreakdown] = useState(false);
   const [typedText, setTypedText] = useState("");
   const fullText = "Generate. Verify. Deliver.";
   const heroRef = useRef<HTMLDivElement>(null);
@@ -790,10 +791,29 @@ export default function Landing() {
             {/* Approved / Paid tier */}
             <div className="p-5 sm:p-8 bg-black text-white flex flex-col">
               <div className="text-[10px] tracking-widest text-gray-400 mb-1">APPROVED ORGANISATION</div>
-              <div className="text-3xl font-bold mb-1">
-                ₹0.20<span className="text-sm font-normal text-gray-400">/certificate</span>
+              <div className="text-3xl font-bold mb-1 flex items-baseline gap-1">
+                <span>₹0.20</span>
+                <span className="text-sm font-normal text-gray-400">/certificate</span>
+                <button
+                  type="button"
+                  onClick={() => setShowPricingBreakdown(!showPricingBreakdown)}
+                  className="text-xs text-gray-400 hover:text-white cursor-pointer select-none font-bold align-super ml-0.5 border border-gray-800 hover:border-gray-500 rounded px-1.5 py-0.5 text-[9px] leading-none transition-colors"
+                  title="Click to view pricing breakdown"
+                >
+                  *
+                </button>
               </div>
-              <div className="text-xs text-gray-400 mb-6">₹1 = 5 credits. Prepaid wallet, credits never expire.</div>
+              <div className="text-xs text-gray-400 mb-6">
+                <div>₹1 = 5 credits. Prepaid wallet, credits never expire.</div>
+                {showPricingBreakdown && (
+                  <div className="mt-2 p-2.5 bg-gray-900 border border-gray-800 text-[10px] text-gray-300 leading-normal rounded transition-all">
+                    <span className="font-bold text-white uppercase tracking-wider block mb-1">Cost Breakdown:</span>
+                    <div>• Gen & Storage: 1 credit (₹0.20)</div>
+                    <div>• Email Delivery: +1 credit (₹0.20)</div>
+                    <div>• WhatsApp Delivery: +3 credits (₹0.60)</div>
+                  </div>
+                )}
+              </div>
               <ul className="space-y-3 text-xs flex-1">
                 {[
                   { label: "Built-in template editor" },
