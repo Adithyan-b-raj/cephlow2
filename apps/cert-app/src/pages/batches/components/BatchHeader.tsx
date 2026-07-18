@@ -276,16 +276,34 @@ export function BatchHeader({
 
         {/* Desktop: single compact row */}
         <div className="hidden md:flex items-center gap-1.5 flex-wrap">
-          {/* Data group */}
-          <EditSheetButton />
-          {batch.workflowJson && (
-            <Button variant="outline" size="sm" onClick={() => setLocation(`/advanced?batchId=${batchId}`)} className="hover-elevate bg-background">
-              <Network className="w-3.5 h-3.5 mr-1.5" />
-              Edit Workflow
+          {/* Generate — primary CTA */}
+          <div className="flex items-center gap-1">
+            <Button size="sm" onClick={onGenerate} disabled={generateDisabled} className="hover-elevate min-w-[148px] justify-start">
+              {isGenerating ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Play className="w-3.5 h-3.5 mr-1.5" />}
+              {isGenerating ? 'Generating...' : generateBtnText}
             </Button>
-          )}
+            {isGenerating && (
+              <Button variant="ghost" size="sm" onClick={onCancelGeneration} className="px-1.5" title="Cancel">
+                <X className="w-3.5 h-3.5" />
+              </Button>
+            )}
+          </div>
 
-          {/* More dropdown — Share PDFs, Share Page, Banner */}
+          {/* Send group */}
+          <Button size="sm" variant="outline" onClick={onOpenSend} disabled={sendDisabled} className="hover-elevate bg-background">
+            {isSending ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
+            Send Emails
+          </Button>
+          <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>
+            <Button variant="outline" size="sm" onClick={onOpenWa} disabled={isSendingWhatsapp || batch.status === 'sending' || batch.generatedCount === 0} className="hover-elevate bg-background">
+              {isSendingWhatsapp ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5 mr-1.5" />}
+              WhatsApp
+            </Button>
+          </LockedFeature>
+
+          <div className="w-px h-5 bg-border mx-0.5" />
+
+          {/* More dropdown — secondary actions */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="sm" className="hover-elevate bg-background px-2">
@@ -293,6 +311,16 @@ export function BatchHeader({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleEditSheet} disabled={convertingSheet || isGenerating}>
+                {isInbuilt ? <Table2 className="w-3.5 h-3.5 mr-2 text-blue-600" /> : <FileSpreadsheet className="w-3.5 h-3.5 mr-2 text-green-600" />}
+                Edit Sheet
+              </DropdownMenuItem>
+              {batch.workflowJson && (
+                <DropdownMenuItem onClick={() => setLocation(`/advanced?batchId=${batchId}`)}>
+                  <Network className="w-3.5 h-3.5 mr-2" />
+                  Edit Workflow
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={onShare} disabled={isSharing || batch.generatedCount === 0}>
                 {isSharing ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Share2 className="w-3.5 h-3.5 mr-2" />}
                 Share PDFs
@@ -307,35 +335,6 @@ export function BatchHeader({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-
-          <div className="w-px h-5 bg-border mx-0.5" />
-
-          {/* Generate group — primary CTA */}
-          <div className="flex items-center gap-1">
-            <Button size="sm" onClick={onGenerate} disabled={generateDisabled} className="hover-elevate min-w-[148px] justify-start">
-              {isGenerating ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Play className="w-3.5 h-3.5 mr-1.5" />}
-              {isGenerating ? 'Generating...' : generateBtnText}
-            </Button>
-            {isGenerating && (
-              <Button variant="ghost" size="sm" onClick={onCancelGeneration} className="px-1.5" title="Cancel">
-                <X className="w-3.5 h-3.5" />
-              </Button>
-            )}
-          </div>
-
-          <div className="w-px h-5 bg-border mx-0.5" />
-
-          {/* Send group — secondary */}
-          <Button size="sm" variant="outline" onClick={onOpenSend} disabled={sendDisabled} className="hover-elevate bg-background">
-            {isSending ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
-            Send Emails
-          </Button>
-          <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>
-            <Button variant="outline" size="sm" onClick={onOpenWa} disabled={isSendingWhatsapp || batch.status === 'sending' || batch.generatedCount === 0} className="hover-elevate bg-background">
-              {isSendingWhatsapp ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5 mr-1.5" />}
-              WhatsApp
-            </Button>
-          </LockedFeature>
         </div>
       </div>
     </div>
