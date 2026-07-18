@@ -108,7 +108,7 @@ export function BatchHeader({
   function EditSheetButton({ className }: { className?: string }) {
     return (
       <Button variant="outline" size="sm" className={`hover-elevate bg-background ${className ?? ""}`}
-        onClick={handleEditSheet} disabled={convertingSheet || isSyncing || isGenerating}>
+        onClick={handleEditSheet} disabled={convertingSheet || isGenerating}>
         {convertingSheet ? (
           <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
         ) : isInbuilt ? (
