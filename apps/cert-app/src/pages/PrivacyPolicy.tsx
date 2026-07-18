@@ -159,7 +159,7 @@ export default function PrivacyPolicy() {
             <BulletList items={[
               "Authenticate you and manage your workspace.",
               "Generate personalised certificate PDFs from your templates and recipient lists.",
-              "Deliver certificates via email (Amazon SES) and WhatsApp Business API.",
+              "Deliver certificates via email (ZeptoMail by Zoho) and WhatsApp Business API.",
               "Store PDFs on Cloudflare R2 (edge CDN) so WhatsApp and verification links work reliably.",
               "Inject unique QR codes linking to public verification pages.",
               "Maintain public student profile pages showing certificates issued to each recipient.",
@@ -184,7 +184,7 @@ export default function PrivacyPolicy() {
               </div>
               {[
                 ["Google LLC", "OAuth authentication, Google Drive integration"],
-                ["Amazon Web Services (SES)", "Transactional email delivery"],
+                ["ZeptoMail (Zoho)", "Transactional email delivery"],
                 ["Cloudflare Inc. (R2)", "PDF storage and public CDN delivery"],
                 ["Meta Platforms (WhatsApp Business API)", "Certificate delivery via WhatsApp"],
                 ["Cashfree Payments India", "Wallet top-up and payment processing"],
