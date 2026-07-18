@@ -26,7 +26,7 @@ const CreateBatchSchema = z.object({
   emailSubject: z.string().max(200).optional(),
   emailBody: z.string().max(2000).optional(),
   categoryColumn: z.string().nullable().optional(),
-  categoryTemplateMap: z.record(z.string()).optional(),
+  categoryTemplateMap: z.record(z.any()).optional(),
   categorySlideMap: z.record(z.string()).optional(),
   categorySlideIndexes: z.record(z.any()).optional(),
 });
