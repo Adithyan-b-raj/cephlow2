@@ -37,11 +37,13 @@ import { useWaReports } from "./hooks/useWaReports";
 export default function BatchDetail() {
   const [, params] = useRoute("/batches/:id");
   const batchId = params?.id ?? "";
-  const { data: balanceData, refetch: refetchBalance } = useGetWalletBalance();
+  const { isApproved } = useApproval();
+  const { data: balanceData, refetch: refetchBalance } = useGetWalletBalance({
+    query: { enabled: isApproved }
+  });
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const { isApproved } = useApproval();
   const { connectGoogle } = useAuth();
   const [showConnectDriveDialog, setShowConnectDriveDialog] = useState(false);
 
@@ -256,7 +258,7 @@ export default function BatchDetail() {
         variant: result.failed > 0 ? "destructive" : undefined,
       });
       refetch();
-      refetchBalance();
+      if (isApproved) refetchBalance();
     } catch (err: any) {
       const isCancelled = err.message === "Generation cancelled";
       const isLowBalance = err.message?.includes('Insufficient funds') || err.message?.includes('402');
@@ -270,7 +272,7 @@ export default function BatchDetail() {
         variant: isCancelled ? undefined : "destructive",
         action: isLowBalance ? <Button variant="outline" size="sm" onClick={() => window.location.href = '/wallet'}>Top Up</Button> : undefined
       });
-      setTimeout(() => { refetch(); refetchBalance(); }, 600);
+      setTimeout(() => { refetch(); if (isApproved) refetchBalance(); }, 600);
     }
   };
 
@@ -499,7 +501,7 @@ export default function BatchDetail() {
         walletBalance={balanceData?.currentBalance ?? 0}
         onSaved={() => {
           queryClient.invalidateQueries({ queryKey: getGetBatchQueryKey(batchId) });
-          refetchBalance();
+          if (isApproved) refetchBalance();
         }}
         onUploadingChange={setBannerUploading}
       />
