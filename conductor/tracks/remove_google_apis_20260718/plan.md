@@ -19,9 +19,9 @@
 - [x] Task: Update `Settings.tsx` to remove the "Google Account" connection management UI.
 - [x] Task: Conductor - User Manual Verification 'Phase 2: Frontend Wizard & Settings Clean Up' (Protocol in workflow.md)
 
-## Phase 3: Built-in Template Editor Enhancements
+## Phase 3: Built-in Template Editor Enhancements [checkpoint: f5d866f]
 - [x] Task: Add a file upload button and handler to `PropertiesPanel.tsx` in the built-in editor that calls `uploadAssetToR2` to set the template's background image.
 - [x] Task: Integrate dynamic import of `pdfjs-dist` in `PropertiesPanel.tsx` to allow PDF upload, convert page 1 to an image canvas, and upload it as a background.
 - [x] Task: Modify `apps/cert-app/src/lib/clientGenerate.ts` to remove Google Slides batch PDF generation (`generateChunk`, `getGoogleAccessToken`) and keep only the Builtin Template renderer.
 - [x] Task: Run typecheck and verify frontend builds successfully.
-- [ ] Task: Conductor - User Manual Verification 'Phase 3: Built-in Template Editor Enhancements' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 3: Built-in Template Editor Enhancements' (Protocol in workflow.md)
