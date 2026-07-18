@@ -193,6 +193,46 @@ export async function clientGenerate(
       return googleToken;
     };
 
+    // Create Drive folder if needed for unapproved workspaces
+    if (needsGoogle && !batch.pdfFolderId && !batch.driveFolderId) {
+      onProgress({
+        phase: "preparing",
+        current: 0,
+        total: totalToProcess,
+        currentCertName: "",
+        message: "Creating dedicated folder in Google Drive...",
+      });
+      try {
+        const folderRes = await fetch("https://www.googleapis.com/drive/v3/files", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${googleToken}`,
+          },
+          body: JSON.stringify({
+            name: batch.name || "Certificates",
+            mimeType: "application/vnd.google-apps.folder",
+          }),
+        });
+        if (folderRes.ok) {
+          const folderData = await folderRes.json() as any;
+          if (folderData.id) {
+            batch.pdfFolderId = folderData.id;
+            batch.driveFolderId = folderData.id;
+            
+            // Persist the newly created folder ID to the backend
+            await fetch(`${apiBaseUrl}/api/batches/${batchId}`, {
+              method: "PATCH",
+              headers: await apiHeaders({ "Content-Type": "application/json" }),
+              body: JSON.stringify({ pdfFolderId: folderData.id, driveFolderId: folderData.id }),
+            });
+          }
+        }
+      } catch (err: any) {
+        console.warn("[CLIENT-GENERATE] Failed to create Google Drive folder:", err.message);
+      }
+    }
+
     // Step 3: Handle metadata-only certs (no re-render needed)
     const metadataReports: CertReport[] = [];
     for (const cert of metadataOnly) {

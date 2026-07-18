@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { getAccessToken } from "../lib/google-auth.js";
-import { downloadDriveFile, makeFilePublic } from "../lib/google-drive.js";
+import { downloadDriveFile, makeFilePublic, createFolder } from "../lib/google-drive.js";
 import { sendEmail } from "../lib/email.js";
 import { sendWhatsAppDocument } from "../lib/whatsapp.js";
 import { workspaceMiddleware, isAdminOrOwner } from "../middleware/workspace.js";
@@ -356,6 +356,8 @@ router.patch("/batches/:batchId", async (c) => {
       bannerCropZoom: "banner_crop_zoom",
       bannerCropX: "banner_crop_x",
       bannerCropY: "banner_crop_y",
+      pdfFolderId: "pdf_folder_id",
+      driveFolderId: "drive_folder_id",
     };
 
     const fields: string[] = ["updated_at = datetime('now')"];
@@ -1205,16 +1207,21 @@ router.post("/batches/:batchId/share-folder", async (c) => {
     if (!batch) return c.json({ error: "Batch not found" }, 404);
     if (!canAccessBatch(batch, workspace, user)) return c.json({ error: "Access denied" }, 403);
 
-    if (!batch.pdf_folder_id) {
-      return c.json({ error: "PDF folder does not exist for this batch" }, 400);
+    const { accessToken } = await getAccessToken(c.env.DB, c.env, user.uid, "all");
+    let folderId = batch.pdf_folder_id;
+
+    if (!folderId) {
+      folderId = await createFolder(accessToken, batch.name || batchId);
+      await c.env.DB.prepare(`
+        UPDATE batches SET pdf_folder_id = ?, drive_folder_id = ? WHERE id = ?
+      `).bind(folderId, folderId, batchId).run();
     }
 
-    const { accessToken } = await getAccessToken(c.env.DB, c.env, user.uid, "all");
-    await makeFilePublic(accessToken, batch.pdf_folder_id);
+    await makeFilePublic(accessToken, folderId);
 
     return c.json({
       success: true,
-      shareLink: `https://drive.google.com/drive/folders/${batch.pdf_folder_id}`,
+      shareLink: `https://drive.google.com/drive/folders/${folderId}`,
     });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
