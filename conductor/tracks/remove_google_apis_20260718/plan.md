@@ -10,14 +10,14 @@
 - [x] Task: Run backend tests to ensure the Hono API starts and tests pass.
 - [x] Task: Conductor - User Manual Verification 'Phase 1: Dependency Setup and Backend Cleanup' (Protocol in workflow.md)
 
-## Phase 2: Frontend Wizard & Settings Clean Up
+## Phase 2: Frontend Wizard & Settings Clean Up [checkpoint: e695c73]
 - [x] Task: Modify `StepDataSource.tsx` to remove the Google Sheets selection tab.
 - [x] Task: Modify `StepTemplate.tsx` to remove Google Slides options, category slide mappings, and multi-template modes.
 - [x] Task: Modify `NewBatch.tsx` to remove Google Picker handles and force `dataSourceKind` and `templateKind` to default to `"inbuilt"` and `"builtin"`.
 - [x] Task: Delete `apps/cert-app/src/hooks/use-google-picker.ts` and `apps/cert-app/src/hooks/use-import-google-sheet.ts`.
 - [x] Task: Update `use-auth.tsx` to remove Google authentication scopes and connection status hooks.
 - [x] Task: Update `Settings.tsx` to remove the "Google Account" connection management UI.
-- [ ] Task: Conductor - User Manual Verification 'Phase 2: Frontend Wizard & Settings Clean Up' (Protocol in workflow.md)
+- [x] Task: Conductor - User Manual Verification 'Phase 2: Frontend Wizard & Settings Clean Up' (Protocol in workflow.md)
 
 ## Phase 3: Built-in Template Editor Enhancements
 - [ ] Task: Add a file upload button and handler to `PropertiesPanel.tsx` in the built-in editor that calls `uploadAssetToR2` to set the template's background image.
