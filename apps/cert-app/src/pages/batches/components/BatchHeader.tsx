@@ -5,11 +5,17 @@ import { Input } from "@/components/ui/input";
 import { LockedFeature } from "@/components/LockedFeature";
 import { useApproval } from "@/hooks/use-approval";
 import { useToast } from "@/hooks/use-toast";
-import { Play, Send, Loader2, Share2, Link2, MessageCircle, Eye, X, ChevronDown, ChevronUp, Pencil, Check, Network } from "lucide-react";
+import { Play, Send, Loader2, Share2, Link2, MessageCircle, Eye, X, ChevronDown, ChevronUp, Pencil, Check, Network, MoreHorizontal } from "lucide-react";
 import { FileSpreadsheet, Table2 } from "lucide-react";
 import { format } from "date-fns";
 import { FileText } from "lucide-react";
 import { useLocation } from "wouter";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Props {
   batch: any;
@@ -279,28 +285,33 @@ export function BatchHeader({
             </Button>
           )}
 
-          <div className="w-px h-5 bg-border mx-0.5" />
-
-          {/* Output group */}
-          <Button variant="outline" size="sm" onClick={onShare} disabled={isSharing || batch.generatedCount === 0} className="hover-elevate bg-background">
-            {isSharing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5 mr-1.5" />}
-            Share PDFs
-          </Button>
-          <Button variant="outline" size="sm" onClick={copyGalleryLink} disabled={batch.generatedCount === 0} className="hover-elevate bg-background" title="Copy a public link recipients can use to find their certificate">
-            <Link2 className="w-3.5 h-3.5 mr-1.5" />
-            Share Page
-          </Button>
-          <LockedFeature feature="custom event banners" featureKey="custom_event_banners" inline>
-            <Button variant="outline" size="sm" onClick={onBannerEdit} disabled={bannerUploading} className="hover-elevate bg-background">
-              {bannerUploading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-1.5" />}
-              {batch.bannerUrl ? "Edit Banner" : "Add Banner"}
-            </Button>
-          </LockedFeature>
+          {/* More dropdown — Share PDFs, Share Page, Banner */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="hover-elevate bg-background px-2">
+                <MoreHorizontal className="w-3.5 h-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onShare} disabled={isSharing || batch.generatedCount === 0}>
+                {isSharing ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Share2 className="w-3.5 h-3.5 mr-2" />}
+                Share PDFs
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={copyGalleryLink} disabled={batch.generatedCount === 0}>
+                <Link2 className="w-3.5 h-3.5 mr-2" />
+                Share Page
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onBannerEdit} disabled={bannerUploading}>
+                {bannerUploading ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-2" />}
+                {batch.bannerUrl ? "Edit Banner" : "Add Banner"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
           <div className="w-px h-5 bg-border mx-0.5" />
 
           {/* Generate group */}
-          <div className="flex items-center gap-1 min-w-[240px]">
+          <div className="flex items-center gap-1">
             <Button size="sm" variant="outline" onClick={onGenerate} disabled={generateDisabled} className="hover-elevate bg-background min-w-[148px] justify-start">
               {isGenerating ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Play className="w-3.5 h-3.5 mr-1.5" />}
               {isGenerating ? 'Generating...' : generateBtnText}
