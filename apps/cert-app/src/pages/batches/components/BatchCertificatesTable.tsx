@@ -8,6 +8,7 @@ import { LockedFeature } from "@/components/LockedFeature";
 import { Loader2, Clock, CheckCircle2, MailCheck, XCircle, AlertCircle, MessageCircle, CheckCheck, Truck, Send, FileDown, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { QrCodePopover } from "./QrCodePopover";
+import { useApproval } from "@/hooks/use-approval";
 
 export interface ReportDetail { message: string; phone: string; created_at: string; }
 
@@ -33,6 +34,7 @@ export function BatchCertificatesTable({
   batchId, getStatusColor,
 }: Props) {
   const [expandedCertIds, setExpandedCertIds] = useState<Set<string>>(new Set());
+  const { isApproved } = useApproval();
 
   const toggleExpanded = (id: string) => {
     setExpandedCertIds(prev => {
@@ -45,7 +47,7 @@ export function BatchCertificatesTable({
   const colSpan = batch.categoryColumn && batch.categoryTemplateMap ? 7 : 6;
 
   const canEmail = (cert: any) =>
-    cert.status === 'generated' || cert.status === 'sent' || cert.status === 'failed';
+    isApproved && (cert.status === 'generated' || cert.status === 'sent' || cert.status === 'failed');
   const canWa = (cert: any) =>
     (cert.status === 'generated' || cert.status === 'sent' || cert.status === 'failed') && !!cert.r2PdfUrl;
 
@@ -60,11 +62,9 @@ export function BatchCertificatesTable({
         </Button>
       )}
       {canEmail(cert) && (
-        <LockedFeature feature="Email delivery" featureKey="email_delivery" inline>
-          <Button variant="outline" size="sm" className="hover-elevate" onClick={() => onIndivEmail(cert)}>
-            <Send className="w-3.5 h-3.5 mr-1.5" />Email
-          </Button>
-        </LockedFeature>
+        <Button variant="outline" size="sm" className="hover-elevate" onClick={() => onIndivEmail(cert)}>
+          <Send className="w-3.5 h-3.5 mr-1.5" />Email
+        </Button>
       )}
       {canWa(cert) && (
         <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>
@@ -93,11 +93,9 @@ export function BatchCertificatesTable({
         </Button>
       )}
       {canEmail(cert) && (
-        <LockedFeature feature="Email delivery" featureKey="email_delivery" inline>
-          <Button variant="outline" size="sm" className="hover-elevate w-full justify-start" onClick={() => onIndivEmail(cert)}>
-            <Send className="w-3.5 h-3.5 mr-1.5" />Email
-          </Button>
-        </LockedFeature>
+        <Button variant="outline" size="sm" className="hover-elevate w-full justify-start" onClick={() => onIndivEmail(cert)}>
+          <Send className="w-3.5 h-3.5 mr-1.5" />Email
+        </Button>
       )}
       {canWa(cert) && (
         <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>
