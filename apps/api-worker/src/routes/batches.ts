@@ -519,7 +519,7 @@ router.post("/batches/:batchId/certificates/:certId/send", async (c) => {
 
     if (!cert) return c.json({ error: "Certificate not found" }, 404);
     if (!cert.recipient_email) return c.json({ error: "Certificate has no email address" }, 400);
-    if (!cert.r2_pdf_url && !cert.slide_file_id) return c.json({ error: "Certificate has not been generated yet" }, 400);
+    if (!cert.r2_pdf_url && !cert.pdf_file_id) return c.json({ error: "Certificate has not been generated yet" }, 400);
 
     const subject = reqSubject || batch.email_subject || "Your Certificate";
     const body = reqBody || batch.email_body || "Please find your certificate attached.";
