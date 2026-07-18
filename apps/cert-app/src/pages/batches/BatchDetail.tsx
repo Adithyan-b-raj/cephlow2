@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useRoute } from "wouter";
+import { useState, useEffect, useRef } from "react";
+import { useRoute, useLocation } from "wouter";
 import { useClientGenerate } from "@/hooks/useClientGenerate";
 import { useApproval } from "@/hooks/use-approval";
 import { useAuth } from "@/hooks/use-auth";
@@ -136,6 +136,19 @@ export default function BatchDetail() {
       onError: (err: any) => toast({ title: "Sync failed", description: err.message || err.data?.error, variant: "destructive" })
     }
   });
+
+  // Auto-sync when returning from the spreadsheet editor (?synced=1)
+  const [, setLocation] = useLocation();
+  const autoSyncedRef = useRef(false);
+  useEffect(() => {
+    if (autoSyncedRef.current || !batch || isSyncing) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("synced") !== "1") return;
+    autoSyncedRef.current = true;
+    // Strip the param from the URL without a reload
+    setLocation(`/batches/${batchId}`, { replace: true });
+    syncData({ batchId });
+  }, [batch, batchId, isSyncing, syncData, setLocation]);
 
   const { mutate: sendCerts, isPending: isSending } = useSendBatch({
     mutation: {
@@ -352,7 +365,6 @@ export default function BatchDetail() {
         batch={batch}
         batchId={batchId}
         isGenerating={isGenerating}
-        isSyncing={isSyncing}
         isSharing={isSharing}
         isSending={isSending}
         isSendingWhatsapp={isSendingWhatsapp}
@@ -363,7 +375,6 @@ export default function BatchDetail() {
         getStatusColor={getStatusColor}
         onGenerate={handleGenerate}
         onCancelGeneration={cancelGeneration}
-        onSync={() => syncData({ batchId })}
         onShare={() => shareFolder({ batchId })}
         onBannerEdit={() => setBannerEditorOpen(true)}
         onOpenSend={handleOpenSend}

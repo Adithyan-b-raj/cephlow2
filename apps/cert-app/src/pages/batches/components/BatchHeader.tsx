@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { LockedFeature } from "@/components/LockedFeature";
 import { useApproval } from "@/hooks/use-approval";
 import { useToast } from "@/hooks/use-toast";
-import { Play, Send, Loader2, Share2, Link2, MessageCircle, RefreshCcw, Eye, X, ChevronDown, ChevronUp, Pencil, Check, Network } from "lucide-react";
+import { Play, Send, Loader2, Share2, Link2, MessageCircle, Eye, X, ChevronDown, ChevronUp, Pencil, Check, Network } from "lucide-react";
 import { FileSpreadsheet, Table2 } from "lucide-react";
 import { format } from "date-fns";
 import { FileText } from "lucide-react";
@@ -15,7 +15,6 @@ interface Props {
   batch: any;
   batchId: string;
   isGenerating: boolean;
-  isSyncing: boolean;
   isSharing: boolean;
   isSending: boolean;
   isSendingWhatsapp: boolean;
@@ -26,7 +25,6 @@ interface Props {
   getStatusColor: (status: string) => string;
   onGenerate: () => void;
   onCancelGeneration: () => void;
-  onSync: () => void;
   onShare: () => void;
   onBannerEdit: () => void;
   onOpenSend: () => void;
@@ -36,9 +34,9 @@ interface Props {
 }
 
 export function BatchHeader({
-  batch, batchId, isGenerating, isSyncing, isSharing, isSending, isSendingWhatsapp,
+  batch, batchId, isGenerating, isSharing, isSending, isSendingWhatsapp,
   bannerUploading, generateBtnText, canResumeAll, selectedCertIds,
-  getStatusColor, onGenerate, onCancelGeneration, onSync, onShare, onBannerEdit, onOpenSend, onOpenWa,
+  getStatusColor, onGenerate, onCancelGeneration, onShare, onBannerEdit, onOpenSend, onOpenWa,
   onRename, isRenaming,
 }: Props) {
   const [moreOpen, setMoreOpen] = useState(false);
@@ -75,7 +73,7 @@ export function BatchHeader({
 
   const handleEditSheet = async () => {
     if (batch.spreadsheetId) {
-      setLocation(`/spreadsheets/${batch.spreadsheetId}?returnTo=/batches/${batchId}`);
+      setLocation(`/spreadsheets/${batch.spreadsheetId}?returnTo=/batches/${batchId}?synced=1`);
       return;
     }
 
@@ -99,7 +97,7 @@ export function BatchHeader({
       }
       const data = await res.json();
       toast({ title: "Migrated to Built-in Sheet", description: "Successfully converted Google Sheet data to built-in sheet." });
-      setLocation(`/spreadsheets/${data.spreadsheetId}?returnTo=/batches/${batchId}`);
+      setLocation(`/spreadsheets/${data.spreadsheetId}?returnTo=/batches/${batchId}?synced=1`);
     } catch (err: any) {
       toast({ title: "Conversion failed", description: err.message, variant: "destructive" });
     } finally {
@@ -239,10 +237,6 @@ export function BatchHeader({
         {moreOpen && (
           <div className="grid grid-cols-2 gap-2 md:hidden p-3 bg-secondary/40 rounded-xl border border-border/50">
             <EditSheetButton className="w-full justify-start" />
-            <Button variant="outline" size="sm" onClick={onSync} disabled={isSyncing || batch.status === 'generating'} className="hover-elevate bg-background w-full justify-start">
-              {isSyncing ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCcw className="w-4 h-4 mr-1.5" />}
-              Sync Data
-            </Button>
             <Button variant="outline" size="sm" onClick={onShare} disabled={isSharing || batch.generatedCount === 0} className="hover-elevate bg-background w-full justify-start">
               {isSharing ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Share2 className="w-4 h-4 mr-1.5" />}
               Share PDFs
@@ -284,10 +278,6 @@ export function BatchHeader({
               Edit Workflow
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={onSync} disabled={isSyncing || batch.status === 'generating'} className="hover-elevate bg-background">
-            {isSyncing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5 mr-1.5" />}
-            Sync Data
-          </Button>
 
           <div className="w-px h-5 bg-border mx-0.5" />
 
