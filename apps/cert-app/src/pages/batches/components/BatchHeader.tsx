@@ -310,9 +310,9 @@ export function BatchHeader({
 
           <div className="w-px h-5 bg-border mx-0.5" />
 
-          {/* Generate group */}
+          {/* Generate group — primary CTA */}
           <div className="flex items-center gap-1">
-            <Button size="sm" variant="outline" onClick={onGenerate} disabled={generateDisabled} className="hover-elevate bg-background min-w-[148px] justify-start">
+            <Button size="sm" onClick={onGenerate} disabled={generateDisabled} className="hover-elevate min-w-[148px] justify-start">
               {isGenerating ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Play className="w-3.5 h-3.5 mr-1.5" />}
               {isGenerating ? 'Generating...' : generateBtnText}
             </Button>
@@ -325,8 +325,8 @@ export function BatchHeader({
 
           <div className="w-px h-5 bg-border mx-0.5" />
 
-          {/* Send group */}
-          <Button size="sm" onClick={onOpenSend} disabled={sendDisabled} className="hover-elevate">
+          {/* Send group — secondary */}
+          <Button size="sm" variant="outline" onClick={onOpenSend} disabled={sendDisabled} className="hover-elevate bg-background">
             {isSending ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
             Send Emails
           </Button>
