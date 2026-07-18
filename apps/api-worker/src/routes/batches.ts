@@ -434,58 +434,66 @@ router.delete("/batches/:batchId", async (c) => {
       }
     }
 
-    // Clean up student profile certs and index listings
+    // Helper: chunk array to stay under D1's 999 bind-variable limit
+    const chunk = <T>(arr: T[], size: number): T[][] =>
+      Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
+
+    // Clean up student profile certs
     const certIds = certs.map(c => c.id);
     if (certIds.length > 0) {
-      const placeholders = certIds.map(() => "?").join(",");
-      await c.env.DB.prepare(`
-        DELETE FROM student_profile_certs WHERE cert_id IN (${placeholders})
-      `).bind(...certIds).run();
-      
+      for (const ids of chunk(certIds, 100)) {
+        const ph = ids.map(() => "?").join(",");
+        await c.env.DB.prepare(`DELETE FROM student_profile_certs WHERE cert_id IN (${ph})`).bind(...ids).run();
+      }
+
       const uniqueEmails = [...new Set(certs.map(c => c.recipient_email).filter(Boolean))] as string[];
       if (uniqueEmails.length > 0) {
         const emailKeys = uniqueEmails.map(e => e.toLowerCase().replace(/[^a-z0-9]/g, "_"));
-        const emailPlaceholders = emailKeys.map(() => "?").join(",");
 
-        const { results: indexRows } = await c.env.DB.prepare(`
-          SELECT slug, email_key FROM student_profile_index
-          WHERE email_key IN (${emailPlaceholders})
-        `).bind(...emailKeys).all<{ slug: string; email_key: string }>();
+        const indexRows: { slug: string; email_key: string }[] = [];
+        for (const keys of chunk(emailKeys, 100)) {
+          const ph = keys.map(() => "?").join(",");
+          const { results } = await c.env.DB.prepare(`
+            SELECT slug, email_key FROM student_profile_index WHERE email_key IN (${ph})
+          `).bind(...keys).all<{ slug: string; email_key: string }>();
+          indexRows.push(...(results ?? []));
+        }
 
-        if (indexRows && indexRows.length > 0) {
+        if (indexRows.length > 0) {
           const slugs = indexRows.map(r => r.slug);
-          const slugPlaceholders = slugs.map(() => "?").join(",");
+          const remainingSlugs = new Set<string>();
+          for (const sl of chunk(slugs, 100)) {
+            const ph = sl.map(() => "?").join(",");
+            const { results } = await c.env.DB.prepare(`
+              SELECT DISTINCT profile_slug FROM student_profile_certs WHERE profile_slug IN (${ph})
+            `).bind(...sl).all<{ profile_slug: string }>();
+            (results ?? []).forEach(r => remainingSlugs.add(r.profile_slug));
+          }
 
-          // Check if slugs have remaining certs left
-          const { results: remainingCerts } = await c.env.DB.prepare(`
-            SELECT DISTINCT profile_slug FROM student_profile_certs
-            WHERE profile_slug IN (${slugPlaceholders})
-          `).bind(...slugs).all<{ profile_slug: string }>();
-
-          const slugsWithRemaining = new Set(remainingCerts.map(r => r.profile_slug));
-          const orphanedSlugs = slugs.filter(s => !slugsWithRemaining.has(s));
-          const orphanedEmailKeys = indexRows
-            .filter(r => orphanedSlugs.includes(r.slug))
-            .map(r => r.email_key);
+          const orphanedSlugs = slugs.filter(s => !remainingSlugs.has(s));
+          const orphanedEmailKeys = indexRows.filter(r => orphanedSlugs.includes(r.slug)).map(r => r.email_key);
 
           if (orphanedSlugs.length > 0) {
-            const osPlaceholders = orphanedSlugs.map(() => "?").join(",");
-            const oekPlaceholders = orphanedEmailKeys.map(() => "?").join(",");
-            
-            await c.env.DB.batch([
-              c.env.DB.prepare(`DELETE FROM student_profiles WHERE slug IN (${osPlaceholders})`).bind(...orphanedSlugs),
-              c.env.DB.prepare(`DELETE FROM student_profile_index WHERE email_key IN (${oekPlaceholders})`).bind(...orphanedEmailKeys),
-            ]);
+            for (const sl of chunk(orphanedSlugs, 100)) {
+              const ph = sl.map(() => "?").join(",");
+              await c.env.DB.prepare(`DELETE FROM student_profiles WHERE slug IN (${ph})`).bind(...sl).run();
+            }
+            for (const ek of chunk(orphanedEmailKeys, 100)) {
+              const ph = ek.map(() => "?").join(",");
+              await c.env.DB.prepare(`DELETE FROM student_profile_index WHERE email_key IN (${ph})`).bind(...ek).run();
+            }
           }
         }
       }
     }
 
-    // Cascade delete batch
+    // Delete certificates then the batch itself
+    await c.env.DB.prepare(`DELETE FROM certificates WHERE batch_id = ?`).bind(batchId).run();
     await c.env.DB.prepare(`DELETE FROM batches WHERE id = ?`).bind(batchId).run();
 
     return c.json({ success: true });
   } catch (err: any) {
+    console.error("[DELETE /batches] error:", err.message);
     return c.json({ error: err.message }, 500);
   }
 });
