@@ -214,7 +214,7 @@ export function BatchHeader({
               size="sm"
               className="hover-elevate flex-1"
             >
-              {isSendingWhatsapp ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-1.5" />}
+              {isSendingWhatsapp ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-1.5 text-[#25D366]" />}
               WhatsApp
             </Button>
           ) : (
@@ -266,7 +266,7 @@ export function BatchHeader({
             ) : (
               <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>
                 <Button variant="outline" size="sm" onClick={onOpenWa} disabled={waDisabled} className="hover-elevate bg-background w-full justify-start">
-                  {isSendingWhatsapp ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-1.5" />}
+                  {isSendingWhatsapp ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-1.5 text-[#25D366]" />}
                   WhatsApp
                 </Button>
               </LockedFeature>
@@ -296,7 +296,7 @@ export function BatchHeader({
           </Button>
           <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>
             <Button variant="outline" size="sm" onClick={onOpenWa} disabled={isSendingWhatsapp || batch.status === 'sending' || batch.generatedCount === 0} className="hover-elevate bg-background">
-              {isSendingWhatsapp ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5 mr-1.5" />}
+              {isSendingWhatsapp ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5 mr-1.5 text-[#25D366]" />}
               WhatsApp
             </Button>
           </LockedFeature>
