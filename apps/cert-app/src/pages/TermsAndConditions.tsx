@@ -178,8 +178,9 @@ export default function TermsAndConditions() {
               certificate delivery.
             </SubSection>
             <SubSection title="Pricing">
-              Current rates: <span className="font-bold">₹1.00 per certificate generated</span> and{" "}
-              <span className="font-bold">₹0.50 per certificate delivered</span> (WhatsApp or email).
+              Current rates: <span className="font-bold">₹0.20 (1 credit) per certificate generated</span>,{" "}
+              <span className="font-bold">₹0.20 (1 credit) per certificate emailed</span>, and{" "}
+              <span className="font-bold">₹0.60 (3 credits) per certificate sent via WhatsApp</span>.
               Prices are subject to change with 14 days' notice posted on the platform.
             </SubSection>
             <SubSection title="Refunds">
