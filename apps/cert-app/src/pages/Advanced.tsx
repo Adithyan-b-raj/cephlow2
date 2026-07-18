@@ -26,6 +26,7 @@ import {
   useGetSheetData,
   useListBuiltinTemplates,
   useCreateBatch,
+  useGetBatch,
   getListBatchesQueryKey,
   useListSpreadsheets,
   useGetSpreadsheet,
@@ -731,6 +732,28 @@ function AdvancedInner() {
 
   const { mutateAsync: createBatchAsync } = useCreateBatch();
 
+  // ── Restore saved workflow from ?batchId ────────────────────────────────
+
+  const searchParams = new URLSearchParams(window.location.search);
+  const restoreBatchId = searchParams.get("batchId");
+
+  const { data: restoreBatch } = useGetBatch(restoreBatchId ?? "", {
+    query: { enabled: !!restoreBatchId },
+  } as any);
+
+  const restoredRef = useRef(false);
+  useEffect(() => {
+    if (restoredRef.current || !restoreBatch) return;
+    const wj = (restoreBatch as any).workflowJson;
+    if (!wj) return;
+    try {
+      const { nodes: sn, edges: se } = JSON.parse(wj);
+      if (Array.isArray(sn)) setNodes(sn);
+      if (Array.isArray(se)) setEdges(se);
+      restoredRef.current = true;
+    } catch {}
+  }, [restoreBatch, setNodes, setEdges]);
+
   // ── Connection validation ───────────────────────────────────────────────
 
   const onConnect = useCallback(
@@ -934,6 +957,7 @@ function AdvancedInner() {
               nameColumn: nameCol,
               ...(sd.source === "inbuilt" ? { spreadsheetId: sd.inbuiltSpreadsheetId, dataSourceKind: "inbuilt" } : {}),
               ...(categoryColumn ? { categoryColumn, categoryTemplateMap } : {}),
+              workflowJson: JSON.stringify({ nodes, edges }),
             } as any,
           });
           results[0] = { ...results[0], status: "success", batchId: batch.id };
@@ -973,6 +997,7 @@ function AdvancedInner() {
                   emailColumn: emailCol,
                   nameColumn: nameCol,
                   ...(sd.source === "inbuilt" ? { spreadsheetId: sd.inbuiltSpreadsheetId, dataSourceKind: "inbuilt" } : {}),
+                  workflowJson: JSON.stringify({ nodes, edges }),
                 } as any,
               });
               results[idx] = { ...results[idx], status: "success", batchId: batch.id };

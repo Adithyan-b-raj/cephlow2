@@ -91,6 +91,7 @@ CREATE TABLE IF NOT EXISTS batches (
   banner_crop_zoom REAL,
   banner_crop_x REAL,
   banner_crop_y REAL,
+  workflow_json TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS batches_workspace_idx ON batches(workspace_id);

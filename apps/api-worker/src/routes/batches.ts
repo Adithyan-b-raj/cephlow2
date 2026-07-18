@@ -29,6 +29,7 @@ const CreateBatchSchema = z.object({
   categoryTemplateMap: z.record(z.any()).optional(),
   categorySlideMap: z.record(z.string()).optional(),
   categorySlideIndexes: z.record(z.any()).optional(),
+  workflowJson: z.string().optional(),
 });
 
 const router = new Hono<ContextEnv>();
@@ -99,6 +100,7 @@ router.get("/batches", async (c) => {
       updatedAt: row.updated_at,
       certCount: row.cert_count || 0,
       totalCount: row.cert_count || 0,
+      workflowJson: row.workflow_json || null,
     }));
 
     return c.json({ spreadsheets: batches, batches });
@@ -183,6 +185,7 @@ router.get("/batches/:batchId", async (c) => {
       totalCount,
       certCount: totalCount,
       certificates,
+      workflowJson: batch.workflow_json || null,
     });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
@@ -250,8 +253,8 @@ router.post("/batches", async (c) => {
         spreadsheet_id, data_source_kind, template_id, template_name, template_kind,
         column_map, email_column, name_column, email_subject, email_body,
         category_column, category_template_map, category_slide_map, category_slide_indexes,
-        total_count
-      ) VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        total_count, workflow_json
+      ) VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       batchId,
       workspace.id,
@@ -274,7 +277,8 @@ router.post("/batches", async (c) => {
       JSON.stringify(body.categoryTemplateMap || {}),
       JSON.stringify(body.categorySlideMap || {}),
       JSON.stringify(body.categorySlideIndexes || {}),
-      dataRows.length
+      dataRows.length,
+      body.workflowJson || null
     ));
 
     // 2. Prepare certificate inserts

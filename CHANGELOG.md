@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - **Frontend Dependencies**: Added `xlsx` (SheetJS) and `pdfjs-dist` (PDF.js) dependencies in `apps/cert-app/package.json` for client-side local spreadsheet imports and PDF template backgrounds.
+- **Workflow Persistence**: The Advanced Workflow Builder now saves the full React Flow graph (nodes + edges) as `workflow_json` on the batch when launched. Batches with a saved workflow display an **Edit Workflow** button in the batch header that reopens `/advanced?batchId=<id>` and restores the exact graph. This persists server-side across devices and sessions.
 
 ### Changed
 - **Contact Emails**: Updated default fallback support and approval contact emails across the Privacy Policy, Terms & Conditions, Locked Feature wrapper, App Sidebar, and Landing pages to transition from `cephlow.online` / `approvals@cephlow.online` to `cephlow.in` / `contact@cephlow.in` / `approvals@cephlow.in`.

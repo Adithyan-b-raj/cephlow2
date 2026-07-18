@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { LockedFeature } from "@/components/LockedFeature";
 import { useApproval } from "@/hooks/use-approval";
 import { useToast } from "@/hooks/use-toast";
-import { Play, Send, Loader2, Share2, Link2, MessageCircle, RefreshCcw, Eye, X, ChevronDown, ChevronUp, Pencil, Check } from "lucide-react";
+import { Play, Send, Loader2, Share2, Link2, MessageCircle, RefreshCcw, Eye, X, ChevronDown, ChevronUp, Pencil, Check, Network } from "lucide-react";
 import { FileSpreadsheet, Table2 } from "lucide-react";
 import { format } from "date-fns";
 import { FileText } from "lucide-react";
@@ -278,6 +278,12 @@ export function BatchHeader({
         <div className="hidden md:flex items-center gap-1.5 flex-wrap">
           {/* Data group */}
           <EditSheetButton />
+          {batch.workflowJson && (
+            <Button variant="outline" size="sm" onClick={() => setLocation(`/advanced?batchId=${batchId}`)} className="hover-elevate bg-background">
+              <Network className="w-3.5 h-3.5 mr-1.5" />
+              Edit Workflow
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={onSync} disabled={isSyncing || batch.status === 'generating'} className="hover-elevate bg-background">
             {isSyncing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5 mr-1.5" />}
             Sync Data
