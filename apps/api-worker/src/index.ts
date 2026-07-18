@@ -20,8 +20,7 @@ import internalRouter from "./routes/internal.js";
 import workspacesRouter from "./routes/workspaces.js";
 import approvalRouter from "./routes/approval.js";
 import batchesRouter from "./routes/batches.js";
-import sheetsRouter from "./routes/sheets.js";
-import slidesRouter from "./routes/slides.js";
+
 import spreadsheetsRouter from "./routes/spreadsheets.js";
 import frameTemplatesRouter from "./routes/frameTemplates.js";
 import frameMarketplaceRouter from "./routes/frameMarketplace.js";
@@ -90,8 +89,7 @@ app.use("/api/auth/*", authMiddleware);
 app.use("/api/approval/*", authMiddleware);
 app.use("/api/workspaces*", authMiddleware);
 app.use("/api/workspaces/*", authMiddleware);
-app.use("/api/slides/*", authMiddleware);
-app.use("/api/sheets/*", authMiddleware);
+
 app.use("/api/batches/*", authMiddleware);
 app.use("/api/frame-templates*", authMiddleware);
 app.use("/api/frame-templates/*", authMiddleware);
@@ -123,37 +121,10 @@ app.route("/api", authRouter);
 app.route("/api", approvalRouter);
 app.route("/api", workspacesRouter);
 
-// Slide thumbnail proxy
-app.get("/api/slides/thumbnail/:fileId", async (c) => {
-  const user = c.get("user")!;
-  const fileId = c.req.param("fileId");
-  try {
-    const { accessToken } = await getAccessToken(c.env.DB, c.env, user.uid, "slides");
-    const fileRes = await googleFetch(
-      `https://www.googleapis.com/drive/v3/files/${fileId}?fields=thumbnailLink`,
-      { method: "GET" },
-      accessToken
-    );
-    const fileData = (await fileRes.json()) as any;
-    const thumbnailLink = fileData.thumbnailLink;
-    if (!thumbnailLink) {
-      return c.text("No thumbnail available", 404);
-    }
-    const res = await fetch(thumbnailLink);
-    if (!res.ok) throw new Error("Failed to fetch thumbnail from Google");
-    const buffer = await res.arrayBuffer();
-    
-    return c.body(buffer, 200, {
-      "Content-Type": res.headers.get("Content-Type") || "image/png",
-      "Cache-Control": "public, max-age=3600",
-    });
-  } catch (err: any) {
-    return c.json({ error: err.message }, 500);
-  }
-});
+
 
 // ── Workspace-scoped routes (Require Workspace Context Middleware) ──
-app.use("/api/sheets/*", workspaceMiddleware);
+
 app.use("/api/batches/*", workspaceMiddleware);
 app.use("/api/frame-templates*", workspaceMiddleware);
 app.use("/api/frame-templates/*", workspaceMiddleware);
@@ -167,14 +138,14 @@ app.use("/api/spreadsheets*", workspaceMiddleware);
 app.use("/api/spreadsheets/*", workspaceMiddleware);
 app.use("/api/reports*", workspaceMiddleware);
 app.use("/api/reports/*", workspaceMiddleware);
-app.use("/api/slides/*", workspaceMiddleware);
+
 app.use("/api/wallet*", workspaceMiddleware);
 app.use("/api/wallet/*", workspaceMiddleware);
 
 // ── Suspended-workspace kill switch (usage routes only — deliberately NOT
 // applied to /api/payments/*, so a suspended workspace can still complete an
 // already-charged payment instead of leaving money stuck uncredited) ──
-app.use("/api/sheets/*", requireNotSuspended);
+
 app.use("/api/batches/*", requireNotSuspended);
 app.use("/api/frame-templates*", requireNotSuspended);
 app.use("/api/frame-templates/*", requireNotSuspended);
@@ -187,11 +158,11 @@ app.use("/api/spreadsheets*", requireNotSuspended);
 app.use("/api/spreadsheets/*", requireNotSuspended);
 app.use("/api/reports*", requireNotSuspended);
 app.use("/api/reports/*", requireNotSuspended);
-app.use("/api/slides/*", requireNotSuspended);
+
 app.use("/api/wallet*", requireNotSuspended);
 app.use("/api/wallet/*", requireNotSuspended);
 
-app.route("/api", sheetsRouter);
+
 app.route("/api", batchesRouter);
 app.route("/api", frameTemplatesRouter);
 app.route("/api", frameMarketplaceRouter);
@@ -203,11 +174,11 @@ app.route("/api", spreadsheetsRouter);
 app.route("/api", reportsRouter);
 
 // ── Approved organization restricted routes ──
-app.use("/api/slides/*", approvalMiddleware);
+
 app.use("/api/wallet*", approvalMiddleware);
 app.use("/api/wallet/*", approvalMiddleware);
 
-app.route("/api", slidesRouter);
+
 app.route("/api", walletRouter);
 
 // ── Platform-admin routes (cross-workspace, requirePlatformAdmin inside the router) ──

@@ -1,13 +1,13 @@
 # Plan: Remove Google Slides & Sheets APIs & Enhance Builtin Editor
 
 ## Phase 1: Dependency Setup and Backend Cleanup
-- [ ] Task: Install `xlsx` (SheetJS) and `pdfjs-dist` (PDF.js) dependencies in `apps/cert-app/package.json`.
-- [ ] Task: Remove Google Sheets routes by deleting `apps/api-worker/src/routes/sheets.ts`.
-- [ ] Task: Remove Google Slides routes by deleting `apps/api-worker/src/routes/slides.ts`.
-- [ ] Task: Update `apps/api-worker/src/index.ts` to unregister Sheets and Slides routes and remove the `/api/slides/thumbnail/:fileId` route.
-- [ ] Task: Update `apps/api-worker/src/routes/batches.ts` to remove Google Sheet fields (`sheetId`, `sheetName`, `tabName`) from batch creation validation.
-- [ ] Task: Update `apps/api-worker/src/routes/clientGenerate.ts` to bypass Google Slides template data loading and drive folder caching.
-- [ ] Task: Run backend tests to ensure the Hono API starts and tests pass.
+- [x] Task: Install `xlsx` (SheetJS) and `pdfjs-dist` (PDF.js) dependencies in `apps/cert-app/package.json`.
+- [x] Task: Remove Google Sheets routes by deleting `apps/api-worker/src/routes/sheets.ts`.
+- [x] Task: Remove Google Slides routes by deleting `apps/api-worker/src/routes/slides.ts`.
+- [x] Task: Update `apps/api-worker/src/index.ts` to unregister Sheets and Slides routes and remove the `/api/slides/thumbnail/:fileId` route.
+- [x] Task: Update `apps/api-worker/src/routes/batches.ts` to remove Google Sheet fields (`sheetId`, `sheetName`, `tabName`) from batch creation validation.
+- [x] Task: Update `apps/api-worker/src/routes/clientGenerate.ts` to bypass Google Slides template data loading and drive folder caching.
+- [x] Task: Run backend tests to ensure the Hono API starts and tests pass.
 - [ ] Task: Conductor - User Manual Verification 'Phase 1: Dependency Setup and Backend Cleanup' (Protocol in workflow.md)
 
 ## Phase 2: Frontend Wizard & Settings Clean Up

@@ -8,7 +8,6 @@ import { workspaceMiddleware, isAdminOrOwner } from "../middleware/workspace.js"
 import { requireApproval as approvalMiddleware } from "../middleware/approval.js";
 import { upsertStudentProfile, emailToSlug } from "../lib/cert-utils.js";
 import { isApprovedInContext } from "../lib/approval.js";
-import { getSpreadsheetValues } from "../lib/google-sheets.js";
 import { normalizePhoneNumber, hasXssPayload } from "../lib/security.js";
 
 const CreateBatchSchema = z.object({
@@ -16,17 +15,8 @@ const CreateBatchSchema = z.object({
     (val) => !hasXssPayload(val),
     { message: "Batch name contains invalid or malicious characters" }
   ),
-  dataSourceKind: z.enum(["google", "inbuilt"]).default("google"),
+  dataSourceKind: z.enum(["inbuilt"]).default("inbuilt"),
   spreadsheetId: z.string().nullable().optional(),
-  sheetId: z.string().nullable().optional().refine(
-    (val) => {
-      if (!val) return true;
-      return /^[a-zA-Z0-9-_]+$/.test(val);
-    },
-    { message: "sheetId must be alphanumeric" }
-  ),
-  sheetName: z.string().nullable().optional(),
-  tabName: z.string().nullable().optional(),
   templateId: z.string().nullable().optional(),
   templateName: z.string().nullable().optional(),
   templateKind: z.string().nullable().optional(),
@@ -212,58 +202,43 @@ router.post("/batches", async (c) => {
     const body = parseResult.data;
     const batchId = crypto.randomUUID();
 
-    const dataSourceKind = body.dataSourceKind;
-    const isInbuilt = dataSourceKind === "inbuilt";
+    const dataSourceKind = "inbuilt";
     const spreadsheetId = body.spreadsheetId || null;
 
     let headers: string[] = [];
     let dataRows: Record<string, string>[] = [];
     let inbuiltSpreadsheetName = "";
 
-    if (isInbuilt && spreadsheetId) {
-      const spreadsheet = await c.env.DB.prepare(`
-        SELECT name, columns, rows FROM spreadsheets WHERE id = ? AND workspace_id = ?
-      `).bind(spreadsheetId, workspace.id).first<any>();
-      
-      if (!spreadsheet) {
-        return c.json({ error: "Spreadsheet not found" }, 400);
-      }
-      
-      inbuiltSpreadsheetName = spreadsheet.name || "";
-      const rawCols = JSON.parse(spreadsheet.columns || "[]") as string[];
-      const rawRows = JSON.parse(spreadsheet.rows || "[]") as Record<string, string>[];
-      
-      const firstRow = rawRows[0];
-      const filledCols = rawCols.filter((c) => firstRow?.[c]?.trim());
-      if (filledCols.length > 0) {
-        headers = filledCols.map((c) => firstRow[c].trim());
-        dataRows = rawRows.slice(1)
-          .filter((r) => filledCols.some((c) => r[c]?.trim()))
-          .map((row) => {
-            const mapped: Record<string, string> = {};
-            filledCols.forEach((oldCol, i) => { mapped[headers[i]] = row[oldCol] ?? ""; });
-            return mapped;
-          });
-      } else {
-        headers = rawCols;
-        dataRows = rawRows.filter((r) => Object.values(r).some((v) => v?.trim()));
-      }
-    } else {
-      const sheetId = body.sheetId;
-      if (!sheetId) {
-        return c.json({ error: "sheetId is required for Google Sheets data source" }, 400);
-      }
-      const { accessToken } = await getAccessToken(c.env.DB, c.env, user.uid, "sheets");
-      const range = body.tabName ? `${body.tabName}!A:ZZ` : "A:ZZ";
-      const rawValues = await getSpreadsheetValues(accessToken, sheetId, range);
-      if (rawValues.length > 0) {
-        headers = rawValues[0] as string[];
-        dataRows = rawValues.slice(1).filter((r) => r.length > 0).map((row) => {
-          const obj: Record<string, string> = {};
-          headers.forEach((h, i) => { obj[h] = (row[i] as string) || ""; });
-          return obj;
+    if (!spreadsheetId) {
+      return c.json({ error: "spreadsheetId is required" }, 400);
+    }
+
+    const spreadsheet = await c.env.DB.prepare(`
+      SELECT name, columns, rows FROM spreadsheets WHERE id = ? AND workspace_id = ?
+    `).bind(spreadsheetId, workspace.id).first<any>();
+    
+    if (!spreadsheet) {
+      return c.json({ error: "Spreadsheet not found" }, 400);
+    }
+    
+    inbuiltSpreadsheetName = spreadsheet.name || "";
+    const rawCols = JSON.parse(spreadsheet.columns || "[]") as string[];
+    const rawRows = JSON.parse(spreadsheet.rows || "[]") as Record<string, string>[];
+    
+    const firstRow = rawRows[0];
+    const filledCols = rawCols.filter((c) => firstRow?.[c]?.trim());
+    if (filledCols.length > 0) {
+      headers = filledCols.map((c) => firstRow[c].trim());
+      dataRows = rawRows.slice(1)
+        .filter((r) => filledCols.some((c) => r[c]?.trim()))
+        .map((row) => {
+          const mapped: Record<string, string> = {};
+          filledCols.forEach((oldCol, i) => { mapped[headers[i]] = row[oldCol] ?? ""; });
+          return mapped;
         });
-      }
+    } else {
+      headers = rawCols;
+      dataRows = rawRows.filter((r) => Object.values(r).some((v) => v?.trim()));
     }
 
     const statements: any[] = [];
@@ -282,9 +257,9 @@ router.post("/batches", async (c) => {
       workspace.id,
       user.uid,
       body.name || "Untitled Batch",
-      body.sheetId || "",
-      isInbuilt ? inbuiltSpreadsheetName : (body.sheetName || ""),
-      body.tabName || null,
+      "",
+      inbuiltSpreadsheetName,
+      null,
       spreadsheetId,
       dataSourceKind,
       body.templateId || "",
@@ -1067,42 +1042,31 @@ router.post("/batches/:batchId/sync", async (c) => {
     let headers: string[] = [];
     let dataRows: Record<string, string>[] = [];
 
-    if (batch.data_source_kind === "inbuilt") {
-      const spreadsheet = await c.env.DB.prepare(`
-        SELECT columns, rows FROM spreadsheets WHERE id = ? AND workspace_id = ?
-      `).bind(batch.spreadsheet_id, workspace.id).first<any>();
-      if (!spreadsheet) return c.json({ error: "Inbuilt spreadsheet not found" }, 400);
-
-      const rawCols = JSON.parse(spreadsheet.columns || "[]") as string[];
-      const rawRows = JSON.parse(spreadsheet.rows || "[]") as Record<string, string>[];
-      const firstRow = rawRows[0];
-      const filledCols = rawCols.filter((c) => firstRow?.[c]?.trim());
-      if (filledCols.length > 0) {
-        headers = filledCols.map((c) => firstRow[c].trim());
-        dataRows = rawRows.slice(1).filter((r) => filledCols.some((c) => r[c]?.trim())).map((row) => {
-          const mapped: Record<string, string> = {};
-          filledCols.forEach((oldCol, i) => { mapped[headers[i]] = row[oldCol] ?? ""; });
-          return mapped;
-        });
-      } else {
-        headers = rawCols;
-        dataRows = rawRows.filter((r) => Object.values(r).some((v) => v?.trim()));
-      }
-      if (dataRows.length === 0) return c.json({ error: "Spreadsheet is empty." }, 400);
-    } else {
-      const sheetId = batch.sheet_id;
-      if (!sheetId) return c.json({ error: "sheetId is required for Google Sheets" }, 400);
-      const { accessToken } = await getAccessToken(c.env.DB, c.env, user.uid, "sheets");
-      const range = batch.tab_name ? `${batch.tab_name}!A:ZZ` : "A:ZZ";
-      const rawValues = await getSpreadsheetValues(accessToken, sheetId, range);
-      if (rawValues.length === 0) return c.json({ error: "Spreadsheet is empty." }, 400);
-      headers = rawValues[0] as string[];
-      dataRows = rawValues.slice(1).filter((r) => r.length > 0).map((row) => {
-        const obj: Record<string, string> = {};
-        headers.forEach((h, i) => { obj[h] = (row[i] as string) || ""; });
-        return obj;
-      });
+    if (!batch.spreadsheet_id) {
+      return c.json({ error: "This batch does not have an associated spreadsheet ID." }, 400);
     }
+
+    const spreadsheet = await c.env.DB.prepare(`
+      SELECT columns, rows FROM spreadsheets WHERE id = ? AND workspace_id = ?
+    `).bind(batch.spreadsheet_id, workspace.id).first<any>();
+    if (!spreadsheet) return c.json({ error: "Inbuilt spreadsheet not found" }, 400);
+
+    const rawCols = JSON.parse(spreadsheet.columns || "[]") as string[];
+    const rawRows = JSON.parse(spreadsheet.rows || "[]") as Record<string, string>[];
+    const firstRow = rawRows[0];
+    const filledCols = rawCols.filter((c) => firstRow?.[c]?.trim());
+    if (filledCols.length > 0) {
+      headers = filledCols.map((c) => firstRow[c].trim());
+      dataRows = rawRows.slice(1).filter((r) => filledCols.some((c) => r[c]?.trim())).map((row) => {
+        const mapped: Record<string, string> = {};
+        filledCols.forEach((oldCol, i) => { mapped[headers[i]] = row[oldCol] ?? ""; });
+        return mapped;
+      });
+    } else {
+      headers = rawCols;
+      dataRows = rawRows.filter((r) => Object.values(r).some((v) => v?.trim()));
+    }
+    if (dataRows.length === 0) return c.json({ error: "Spreadsheet is empty." }, 400);
 
     const nameColumn = batch.name_column;
     const emailColumn = batch.email_column;

@@ -4,8 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Frontend Dependencies**: Added `xlsx` (SheetJS) and `pdfjs-dist` (PDF.js) dependencies in `apps/cert-app/package.json` for client-side local spreadsheet imports and PDF template backgrounds.
+
 ### Changed
 - **Contact Emails**: Updated default fallback support and approval contact emails across the Privacy Policy, Terms & Conditions, Locked Feature wrapper, App Sidebar, and Landing pages to transition from `cephlow.online` / `approvals@cephlow.online` to `cephlow.in` / `contact@cephlow.in` / `approvals@cephlow.in`.
+- **Deployment Workflow**: Split the Cloudflare wrangler deployment step in the GitHub Actions workflow ([deploy.yml](file:///c:/Users/AKSHAY/Desktop/code/projects/fork-cephlow/adi-cephlow/cephlow2/.github/workflows/deploy.yml)) into separate conditional steps for production (on `main` branch) and staging (on `staging` branch) to prevent invalid empty environment flags.
+- **Batch Creator & Sync**: Updated the batch endpoints in `apps/api-worker/src/routes/batches.ts` to remove Google Sheets validation fields and enforce inbuilt spreadsheets as the sole data source kind.
+- **Client Generation Engine**: Updated `apps/api-worker/src/routes/clientGenerate.ts` to default campaign template kind to `"builtin"`.
+
+### Removed
+- **Google Sheets & Slides Routes**: Deleted backend API routes `sheets.ts` and `slides.ts`, unregistering them from the Hono API worker entrypoint in `apps/api-worker/src/index.ts`.
+- **Slide Thumbnail Proxy**: Removed the `/api/slides/thumbnail/:fileId` proxy endpoint from the backend worker.
 
 
 ## [2.2.0] - 2026-07-18

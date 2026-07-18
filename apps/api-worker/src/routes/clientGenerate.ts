@@ -187,7 +187,7 @@ router.post("/batches/:batchId/client-generate", async (c) => {
         id: batch.id,
         name: batch.name,
         templateId: batch.template_id,
-        templateKind: batch.template_kind || "slides",
+        templateKind: batch.template_kind || "builtin",
         columnMap: JSON.parse(batch.column_map || "{}"),
         driveFolderId: batch.drive_folder_id,
         pdfFolderId: batch.pdf_folder_id,
