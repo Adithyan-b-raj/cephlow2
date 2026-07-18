@@ -204,7 +204,7 @@ function WhatsAppInteractive() {
     botReply({
       from: 'bot',
       certFile: selectedCert,
-      text: `Hi Adithyan, your certificate for ${name} is attached.\n\nSend /cert anytime to get it again.\n\nView all your certificates at cephlow.online/adithyanbraj`,
+      text: `Hi Adithyan, your certificate for ${name} is attached.\n\nSend /cert anytime to get it again.\n\nView all your certificates at cephlow.in/adithyanbraj`,
     }, 1400);
   }
 
@@ -610,7 +610,7 @@ export default function Landing() {
                 ["SEND ALL CERT", "Get every certificate issued to you in one tap"],
                 ["SEARCH A CERT", "Pick a specific event from your history"],
                 ["/CERT", "Resend any certificate anytime with a command"],
-                ["PROFILE LINK", "Bot shares your public cephlow.online page"],
+                ["PROFILE LINK", "Bot shares your public cephlow.in page"],
               ].map(([title, desc]) => (
                 <li key={title} className="flex gap-3 text-xs font-mono items-start">
                   <span className="border border-black px-2 py-1 font-bold text-[9px] tracking-wider shrink-0 mt-0.5">{title}</span>

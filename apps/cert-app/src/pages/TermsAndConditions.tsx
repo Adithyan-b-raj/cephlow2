@@ -185,7 +185,7 @@ export default function TermsAndConditions() {
             <SubSection title="Refunds">
               Credits are non-refundable once consumed (generation or delivery attempted). Unused wallet
               balance may be refunded within 30 days of a written request to{" "}
-              <span className="font-bold">approvals@cephlow.online</span>, subject to a processing fee.
+              <span className="font-bold">contact@cephlow.in</span>, subject to a processing fee.
               Credits never expire.
             </SubSection>
             <SubSection title="Failed Deliveries">
@@ -327,7 +327,7 @@ export default function TermsAndConditions() {
               "We may suspend or terminate your account immediately if you breach these Terms.",
               "We may discontinue or modify the platform with reasonable notice.",
               "Upon termination, your access to the platform ends, but previously issued certificate verification pages remain live.",
-              "You may close your account at any time by contacting approvals@cephlow.online.",
+              "You may close your account at any time by contacting contact@cephlow.in.",
             ]} />
           </section>
 
@@ -365,8 +365,8 @@ export default function TermsAndConditions() {
               <h2 className="text-xl font-bold mb-4">Questions about these Terms?</h2>
               <div className="space-y-1 text-sm">
                 <div className="font-bold">CEPHLOW CERTIFICATE AUTHORITY</div>
-                <div className="text-gray-600">approvals@cephlow.online</div>
-                <div className="text-gray-600">cephlow.online</div>
+                <div className="text-gray-600">contact@cephlow.in</div>
+                <div className="text-gray-600">cephlow.in</div>
               </div>
             </div>
           </section>
