@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { getAccessToken } from "../lib/google-auth.js";
-import { downloadDriveFile } from "../lib/google-drive.js";
+import { downloadDriveFile, makeFilePublic } from "../lib/google-drive.js";
 import { sendEmail } from "../lib/email.js";
 import { sendWhatsAppDocument } from "../lib/whatsapp.js";
 import { workspaceMiddleware, isAdminOrOwner } from "../middleware/workspace.js";
@@ -1188,6 +1188,35 @@ router.post("/batches/:batchId/sync", async (c) => {
     return c.json({ success: true, message: `Synced successfully. Added ${newCount} new certificates.`, newCount });
   } catch (err: any) {
     console.error("[SYNC] failed:", err);
+    return c.json({ error: err.message }, 500);
+  }
+});
+ 
+// 13. POST /batches/:batchId/share-folder — Share the PDF folder (make it public on Google Drive)
+router.post("/batches/:batchId/share-folder", async (c) => {
+  const user = c.get("user")!;
+  const workspace = c.get("workspace")!;
+  const { batchId } = c.req.param();
+  try {
+    const batch = await c.env.DB.prepare(`
+      SELECT user_id, workspace_id, pdf_folder_id FROM batches WHERE id = ?
+    `).bind(batchId).first<any>();
+
+    if (!batch) return c.json({ error: "Batch not found" }, 404);
+    if (!canAccessBatch(batch, workspace, user)) return c.json({ error: "Access denied" }, 403);
+
+    if (!batch.pdf_folder_id) {
+      return c.json({ error: "PDF folder does not exist for this batch" }, 400);
+    }
+
+    const { accessToken } = await getAccessToken(c.env.DB, c.env, user.uid, "all");
+    await makeFilePublic(accessToken, batch.pdf_folder_id);
+
+    return c.json({
+      success: true,
+      shareLink: `https://drive.google.com/drive/folders/${batch.pdf_folder_id}`,
+    });
+  } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }
 });
