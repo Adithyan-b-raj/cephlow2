@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { getColumnName } from "@/lib/utils";
+import * as XLSX from "xlsx";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -407,28 +408,45 @@ export function SpreadsheetEditorUI({
 
   // ── CSV import/export ─────────────────────────────────────────────────────
 
-  const importCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const importFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (evt) => {
-      const text = evt.target?.result as string;
-      if (!text) return;
-      const lines = text.split(/\r?\n/).filter((l) => l.trim() !== "");
-      if (!lines.length) return;
-      const parse = (line: string) => line.split(",").map((v) => v.replace(/^"(.*)"$/, "$1").replace(/""/g, '"'));
-      const headers = parse(lines[0]);
-      const dataRows = lines.slice(1).map((l) => {
-        const vals = parse(l);
-        const obj: Record<string, string> = {};
-        headers.forEach((h, i) => (obj[h] = vals[i] ?? ""));
-        return obj;
-      });
-      setColumns(headers);
-      setRows(dataRows);
-      pushHistory(headers, dataRows);
+      try {
+        const data = evt.target?.result;
+        if (!data) return;
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        if (!sheet) throw new Error("Sheet not found in workbook");
+        
+        const rawJson: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+        if (!rawJson.length) return;
+
+        const rawHeaders = rawJson[0] || [];
+        const headers = rawHeaders.map((h, i) => {
+          const s = String(h ?? "").trim();
+          return s || getColumnName(i);
+        });
+
+        const dataRows = rawJson.slice(1).map((row) => {
+          const obj: Record<string, string> = {};
+          headers.forEach((h, i) => {
+            const val = row[i];
+            obj[h] = val !== undefined && val !== null ? String(val).trim() : "";
+          });
+          return obj;
+        });
+
+        setColumns(headers);
+        setRows(dataRows);
+        pushHistory(headers, dataRows);
+      } catch (err: any) {
+        toast({ title: "Import failed", description: err.message, variant: "destructive" });
+      }
     };
-    reader.readAsText(file);
+    reader.readAsArrayBuffer(file);
     e.target.value = "";
   };
 
@@ -552,11 +570,11 @@ export function SpreadsheetEditorUI({
 
         <div className="h-6 w-px bg-border hidden sm:block" />
 
-        <label title="Import CSV">
-          <input type="file" accept=".csv,text/csv" className="hidden" onChange={importCSV} />
+        <label title="Import CSV / Excel">
+          <input type="file" accept=".csv,.tsv,.xlsx,.xls,.ods" className="hidden" onChange={importFile} />
           <span className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-md text-sm border border-input bg-background hover:bg-accent cursor-pointer text-foreground whitespace-nowrap">
             <Upload className="w-3.5 h-3.5" />
-            <span className="hidden md:inline">Import CSV</span>
+            <span className="hidden md:inline">Import File</span>
           </span>
         </label>
 

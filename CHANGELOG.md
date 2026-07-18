@@ -18,11 +18,13 @@ All notable changes to this project will be documented in this file.
 - **Built-in Editor File Uploads**: Integrated background image and PDF upload capabilities directly in `PropertiesPanel.tsx` using `uploadAssetToR2` client-side API.
 - **Client-Side PDF Background Conversion**: Integrated dynamic import of `pdfjs-dist` to render the first page of PDF template uploads to a high-resolution canvas client-side, converting it to a PNG file before uploading to Cloudflare R2 storage.
 - **Generation Engine Simplification**: Rewrote `clientGenerate.ts` to remove Google Slides batch PDF generation, alt-text placeholders, and PDF splitting, while retaining the client-side built-in template renderer and free-tier Google Drive upload pathways.
+- **Spreadsheet Editor Importer**: Extended the built-in sheet editor (`SpreadsheetEditorUI.tsx`) to support importing `.csv`, `.tsv`, `.xlsx`, `.xls`, and `.ods` local spreadsheet files using SheetJS (`xlsx`).
 
 ### Removed
 - **Google Sheets & Slides Routes**: Deleted backend API routes `sheets.ts` and `slides.ts`, unregistering them from the Hono API worker entrypoint in `apps/api-worker/src/index.ts`.
 - **Slide Thumbnail Proxy**: Removed the `/api/slides/thumbnail/:fileId` proxy endpoint from the backend worker.
 - **Legacy Template Wizard**: Deleted `NewTemplate.tsx` (the slide-based wizard) and redirected `/templates/new` to the builtin template editor page in `App.tsx`.
+- **Google Slides templates button**: Removed the "From Google Slides" legacy template creation button in `BuiltinTemplatesList.tsx`.
 - **Unused Hooks**: Removed unused frontend hooks `use-google-picker.ts` and `use-import-google-sheet.ts`.
 
 
