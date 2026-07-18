@@ -1,0 +1,8 @@
+{
+  "track_id": "remove_google_apis_20260718",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-07-18T19:01:00Z",
+  "updated_at": "2026-07-18T19:01:00Z",
+  "description": "Remove Google Slides & Sheets APIs and replace/enhance with local CSV import and R2 background image uploads in the built-in canvas editor."
+}
