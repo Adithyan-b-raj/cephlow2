@@ -55,18 +55,13 @@ export function MarketplaceBrowseDialog({ open, onOpenChange, onFrameSelected }:
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [purchasingId, setPurchasingId] = useState<string | null>(null);
-  const [walletBalance, setWalletBalance] = useState(0);
 
   useEffect(() => {
     if (!open) return;
     setLoading(true);
-    Promise.all([
-      customFetch<{ listings: Listing[] }>("/api/marketplace/listings?limit=48"),
-      customFetch<{ currentBalance: number }>("/api/wallet"),
-    ])
-      .then(([d, w]) => {
+    customFetch<{ listings: Listing[] }>("/api/marketplace/listings?limit=48")
+      .then((d) => {
         setListings(d.listings ?? []);
-        setWalletBalance(w.currentBalance ?? 0);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -85,20 +80,10 @@ export function MarketplaceBrowseDialog({ open, onOpenChange, onFrameSelected }:
       return;
     }
 
-    if (listing.price > walletBalance) {
-      toast({
-        title: "Insufficient balance",
-        description: `This frame costs ₹${listing.price}. Your workspace balance is ₹${walletBalance}.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
     setPurchasingId(listing.id);
     try {
       await customFetch("/api/marketplace/listings/" + listing.id + "/purchase", { method: "POST" });
       setListings(prev => prev.map(l => l.id === listing.id ? { ...l, alreadyPurchased: true } : l));
-      setWalletBalance(prev => prev - listing.price);
       toast({ title: `"${listing.name}" added to your workspace` });
       onFrameSelected(`marketplace:${listing.id}`, listing.name, listing.frameConfig);
       onOpenChange(false);
@@ -117,7 +102,7 @@ export function MarketplaceBrowseDialog({ open, onOpenChange, onFrameSelected }:
           <DialogDescription>Browse community frames and apply one to your batch.</DialogDescription>
         </DialogHeader>
 
-        {/* Search + balance */}
+        {/* Search */}
         <div className="shrink-0 flex items-center gap-3 pb-3">
           <div className="flex-1 flex items-center gap-2 border-2 border-border px-3 py-1.5 focus-within:border-foreground transition-colors">
             <Search className="w-3 h-3 text-muted-foreground shrink-0" />
@@ -128,9 +113,6 @@ export function MarketplaceBrowseDialog({ open, onOpenChange, onFrameSelected }:
               onChange={e => setSearch(e.target.value)}
             />
           </div>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground shrink-0">
-            Balance: ₹{walletBalance}
-          </span>
         </div>
 
         {/* Listings grid */}

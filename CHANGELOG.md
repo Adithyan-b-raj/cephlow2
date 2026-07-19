@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-07-19
+
+### Fixed
+- **Marketplace Browsing**: Removed wallet balance fetching and validations from the Marketplace browse dialog entirely since all marketplace templates are free of charge, allowing unapproved (free) workspaces to browse and acquire templates without any wallet calls.
+- **Paid Badge Cleanup**: Removed the redundant "Paid" badge shown next to recipient names on the Batch details page. Once generated, certificates are active and verifiable, making the visual label unnecessary for all tiers.
+- **Issue Reports Fetch Graceful Fallback**: Caught token authorization or communication errors when fetching WhatsApp bot reports in the `/api/reports` endpoint, logging a warning and returning an empty list instead of crashing with a `500 Internal Server Error`.
+
 ## [2.4.0] - 2026-07-19
 
 ### Added

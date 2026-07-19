@@ -377,4 +377,12 @@ These scenarios test the resilience, error-handling, validation, and security bo
    - Log out and log back in (using email/password or Google).
    - *Expected Outcome*: You bypass the terms screen and go straight to the dashboard.
 
-
+### Scenario 10.9: Marketplace Browsing (Unapproved Workspace / No Wallet)
+1. Log in as an **unapproved** (free-tier) workspace owner.
+2. Go to **Batches** -> **New Batch** (or open an existing draft batch) and click **Design Frame**.
+3. Under the Frame selection options, click **Browse Marketplace**.
+4. Verify that:
+    - The marketplace listings load successfully (rather than spinning indefinitely or remaining empty).
+    - You can browse the available templates.
+    - No wallet balance is shown or retrieved.
+    - Clicking on a template successfully installs/acquires the template and lets you use it in the batch.

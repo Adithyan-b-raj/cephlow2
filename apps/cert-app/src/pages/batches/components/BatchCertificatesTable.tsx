@@ -163,10 +163,7 @@ export function BatchCertificatesTable({
                         />
                       </TableCell>
                       <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          {cert.recipientName}
-                          {cert.isPaid && <Badge variant="secondary" className={`text-[10px] px-1 py-0 h-4 ${certHasReport(cert) ? 'bg-background/20 text-background border-background/30' : ''}`}>Paid</Badge>}
-                        </div>
+                        {cert.recipientName}
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-muted-foreground">{cert.recipientEmail}</TableCell>
                       <TableCell>
