@@ -217,12 +217,22 @@ export const authMiddleware: MiddlewareHandler<ContextEnv> = async (c, next) => 
     c.set("user", user);
 
     if (decoded.email) {
-      c.executionCtx.waitUntil(
-        c.env.DB.prepare(`
-          INSERT INTO user_profiles (id, email) VALUES (?, ?)
-          ON CONFLICT(id) DO UPDATE SET email = excluded.email, updated_at = datetime('now')
-        `).bind(decoded.sub, decoded.email).run().catch(() => null)
-      );
+      c.executionCtx.waitUntil((async () => {
+        try {
+          const existing = await c.env.DB.prepare(`
+            SELECT email FROM user_profiles WHERE id = ?
+          `).bind(decoded.sub).first<{ email: string }>();
+          
+          if (!existing || existing.email !== decoded.email) {
+            await c.env.DB.prepare(`
+              INSERT INTO user_profiles (id, email) VALUES (?, ?)
+              ON CONFLICT(id) DO UPDATE SET email = excluded.email, updated_at = datetime('now')
+            `).bind(decoded.sub, decoded.email).run();
+          }
+        } catch (err: any) {
+          console.error("[Auth] User profile sync failed:", err.message);
+        }
+      })());
     }
     
     return await next();

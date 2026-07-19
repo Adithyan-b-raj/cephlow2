@@ -35,16 +35,27 @@ router.get("/reports", async (c) => {
       return c.json([]);
     }
 
-    // Query user's batches
-    const { results: batches } = await c.env.DB.prepare(`
-      SELECT id FROM batches WHERE user_id = ?
-    `).bind(user.uid).all<{ id: string }>();
+    const batchId = c.req.query("batchId");
+    let batchIds: string[] = [];
 
-    if (batches.length === 0) {
-      return c.json([]);
+    if (batchId) {
+      const existingBatch = await c.env.DB.prepare(`
+        SELECT id FROM batches WHERE id = ? AND user_id = ?
+      `).bind(batchId, user.uid).first<{ id: string }>();
+      if (!existingBatch) {
+        return c.json([]);
+      }
+      batchIds = [batchId];
+    } else {
+      const { results: batches } = await c.env.DB.prepare(`
+        SELECT id FROM batches WHERE user_id = ?
+      `).bind(user.uid).all<{ id: string }>();
+      if (batches.length === 0) {
+        return c.json([]);
+      }
+      batchIds = batches.map(b => b.id);
     }
 
-    const batchIds = batches.map(b => b.id);
     const placeholders = batchIds.map(() => "?").join(",");
 
     // Query certificates belonging to user's batches

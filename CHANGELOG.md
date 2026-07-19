@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.4.2] - 2026-07-19
+
+### Added
+- **Admin Approvals Search Bar**: Integrated a search bar into the Admin Approvals tab, allowing platform administrators to filter user approval requests by user email.
+
+### Optimized
+- **Database Limits Mitigation**: Optimized API and database operations to prevent hitting Cloudflare D1 free-tier read/write limits:
+  - Scoped `/api/reports` endpoint with an optional `batchId` filter to query certificates only for the requested batch, reducing row reads significantly.
+  - Combined workspace role membership and suspension check queries into a single query with a `JOIN` in `workspaceMiddleware`, storing the status in context to avoid redundant checks in `requireNotSuspended` middleware.
+  - Reduced frontend polling frequency in `useWaReports` and `Reports.tsx` from 15 seconds to 45 seconds, and disabled background polling when the browser tab is hidden/unfocused.
+  - Removed dynamic runtime schema initialization (`ensureSchema`) from the WhatsApp bot worker (`worker.js`), extracting it into a static `schema.sql` migration script to save D1 query overhead on cold starts.
+  - Optimized user profile synchronization in `authMiddleware` to query first and skip upserting `user_profiles` on every single request if it already exists, reducing authentication write operations to zero.
+
 ## [2.4.1] - 2026-07-19
 
 ### Fixed

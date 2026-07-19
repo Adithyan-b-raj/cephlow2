@@ -139,7 +139,7 @@ describe("workspaceMiddleware & requireNotSuspended - Security Tests", () => {
         bind: vi.fn().mockReturnValue({
           first: vi.fn().mockImplementation(async () => {
             if (query.includes("workspace_members")) {
-              return { role: "admin" };
+              return { role: "admin", suspended: 0 };
             }
             return null;
           }),
@@ -166,6 +166,7 @@ describe("workspaceMiddleware & requireNotSuspended - Security Tests", () => {
     expect(data.workspace).toEqual({
       id: "workspace-abc",
       role: "admin",
+      suspended: false,
     });
   });
 
@@ -178,10 +179,7 @@ describe("workspaceMiddleware & requireNotSuspended - Security Tests", () => {
         bind: vi.fn().mockReturnValue({
           first: vi.fn().mockImplementation(async () => {
             if (query.includes("workspace_members")) {
-              return { role: "member" };
-            }
-            if (query.includes("workspaces")) {
-              return { suspended: 1 };
+              return { role: "member", suspended: 1 };
             }
             return null;
           }),
@@ -314,9 +312,6 @@ describe("workspaceMiddleware & requireNotSuspended - Security Tests", () => {
         bind: vi.fn().mockReturnValue({
           first: vi.fn().mockImplementation(async () => {
             if (query.includes("workspace_members")) {
-              return { role: "member" };
-            }
-            if (query.includes("workspaces")) {
               throw new Error("DB workspaces check failed");
             }
             return null;
