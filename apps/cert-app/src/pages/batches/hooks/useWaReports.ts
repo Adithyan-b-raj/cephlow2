@@ -19,9 +19,12 @@ export function useWaReports(batch: any) {
         const { data: sessionData } = await supabase.auth.getSession();
         const token = sessionData.session?.access_token;
         
+        const wsId = batch?.workspaceId || batch?.workspace_id || localStorage.getItem("cephlow_active_workspace");
+        
         const res = await fetch(`${apiBaseUrl}/api/reports`, {
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(wsId ? { "x-workspace-id": wsId } : {}),
           },
         });
         if (!res.ok) return;
