@@ -102,6 +102,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
     }, [checkGoogleAuth]);
 
+    useEffect(() => {
+        if (user && !user.user_metadata?.agreed_to_terms) {
+            if (sessionStorage.getItem("agreed_to_terms") === "true") {
+                sessionStorage.removeItem("agreed_to_terms");
+                supabase.auth.updateUser({
+                    data: { agreed_to_terms: true }
+                }).then(({ data }) => {
+                    if (data.user) setUser(data.user);
+                }).catch(() => null);
+            }
+        }
+    }, [user]);
+
+
     const login = async (email: string, password: string) => { await signInWithPassword(email, password); };
     const signup = async (email: string, password: string) => { await signUpWithPassword(email, password); };
     const loginWithGoogle = async () => {

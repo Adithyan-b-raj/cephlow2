@@ -345,3 +345,44 @@ These scenarios test the resilience, error-handling, validation, and security bo
 3. **Simulate Network Drop**: Disconnect your internet connection during client-side generation.
    - *Expected Outcome*: The browser loop must pause or fail gracefully, updating the batch status in D1 to `partial` (if some certificates were already reported) and logging the failure.
 
+### Scenario 10.7: Account Deletion (Danger Zone Validation)
+1. Go to **Settings**.
+2. Scroll to the **Danger Zone** section.
+3. Verify that the warning message changes based on whether your workspace is approved (paid tier) or unapproved (free tier):
+   - *Free User*: "Permanently deletes your account, workspaces, and all certificates. This action is irreversible."
+   - *Paid User*: "Wipes your admin access, draft batches, and wallets. Issued certificates remain active and verifiable by recipients."
+4. Click **Delete Account** to open the confirmation dialog.
+5. Try to click **Permanently Delete My Account** with the text field empty or with a mismatching email.
+   - *Expected Outcome*: The delete button is disabled.
+6. Type your exact email address and click **Permanently Delete My Account**.
+   - *Expected Outcome*:
+     - The request is sent to `POST /api/me/delete-account`.
+     - The database purges all records for free users, or migrates active certificates to the system dummy owner (`orphaned-system-user` and `orphaned-system-workspace`) for approved users.
+     - Your user credentials are deleted from Supabase.
+     - You are automatically logged out and redirected to `/login`.
+
+### Scenario 10.8: Terms of Service & Privacy Policy Consent Lock
+1. **Google Sign-In on Sign-In page**:
+   - Clear your cookies or delete your account to simulate a new user.
+   - Go to `/login` (defaulting to the **Sign In** tab where no checkbox is present).
+   - Click **Continue with Google** to register a new account.
+   - *Expected Outcome*: Upon redirect back to the app, you must be blocked by the full-screen `TermsAgreementScreen` overlay and unable to access the dashboard.
+2. **Cancel Agreement**:
+   - On the `TermsAgreementScreen` overlay, click **Cancel**.
+   - *Expected Outcome*: You are immediately logged out and returned to the Landing / Login page.
+3. **Accept Agreement**:
+   - Sign back in. When blocked by the `TermsAgreementScreen`, check the box and click **I Agree**.
+   - *Expected Outcome*: Consent is saved (`agreed_to_terms: true`) in your user metadata. You are redirected to the dashboard.
+4. **Subsequent Logins**:
+   - Log out and log back in (using email/password or Google).
+   - *Expected Outcome*: You bypass the terms screen and go straight to the dashboard.
+
+### Scenario 10.9: Marketplace Browsing (Unapproved Workspace / No Wallet)
+1. Log in as an **unapproved** (free-tier) workspace owner.
+2. Go to **Batches** -> **New Batch** (or open an existing draft batch) and click **Design Frame**.
+3. Under the Frame selection options, click **Browse Marketplace**.
+4. Verify that:
+    - The marketplace listings load successfully (rather than spinning indefinitely or remaining empty).
+    - You can browse the available templates.
+    - No wallet balance is shown or retrieved.
+    - Clicking on a template successfully installs/acquires the template and lets you use it in the batch.

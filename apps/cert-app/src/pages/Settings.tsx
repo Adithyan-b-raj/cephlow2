@@ -2,6 +2,16 @@ import { useState, useEffect } from "react";
 import { Settings as SettingsIcon } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { useApproval } from "@/hooks/use-approval";
+import { customFetch } from "@workspace/api-client-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   type ClickSound,
   CLICK_SOUND_LABELS,
@@ -15,9 +25,40 @@ import { type Theme, THEME_LABELS, useThemePreference } from "@/hooks/use-theme"
 import { updatePassword, updateUserProfile } from "@/lib/supabase";
 
 export default function Settings() {
-  const { user, googleAuthStatus, connectGoogle, disconnectGoogle, recheckGoogleAuth } = useAuth();
+  const { user, googleAuthStatus, connectGoogle, disconnectGoogle, recheckGoogleAuth, logout } = useAuth();
   const { toast } = useToast();
+  const { isApproved } = useApproval();
   const [loading, setLoading] = useState(false);
+
+  // Deletion states
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [confirmEmail, setConfirmEmail] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  async function handleDeleteAccount() {
+    if (confirmEmail.toLowerCase().trim() !== user?.email?.toLowerCase().trim()) {
+      toast({ title: "Email does not match", variant: "destructive" });
+      return;
+    }
+    setDeleting(true);
+    try {
+      await customFetch("/api/me/delete-account", {
+        method: "POST",
+        body: JSON.stringify({ email: confirmEmail.trim() }),
+      });
+      toast({ title: "Account deleted successfully." });
+      setDeleteConfirmOpen(false);
+      await logout();
+    } catch (err: any) {
+      toast({
+        title: "Deletion failed",
+        description: err?.message || "An unexpected error occurred",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -401,6 +442,72 @@ export default function Settings() {
           </div>
         )}
       </section>
+
+      {/* ── Danger Zone ────────────────────────────────────────────────────────── */}
+      <section className="border-2 border-destructive mb-4 mt-8">
+        <div className="px-5 py-3 border-b-2 border-destructive bg-destructive/5">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-destructive">
+            Danger Zone
+          </span>
+        </div>
+        <div className="px-5 py-5">
+          <p className="text-xs font-bold uppercase tracking-wide mb-1 text-destructive">Delete Account</p>
+          <p className="text-[11px] text-muted-foreground leading-relaxed mb-4">
+            {isApproved
+              ? "Wipes your admin access, draft batches, and wallets. Issued certificates remain active and verifiable by recipients."
+              : "Permanently deletes your account, workspaces, and all certificates. This action is irreversible."}
+          </p>
+          <button
+            onClick={() => setDeleteConfirmOpen(true)}
+            className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest border-2 border-destructive text-destructive hover:bg-destructive hover:text-white transition-colors"
+          >
+            Delete Account
+          </button>
+        </div>
+      </section>
+
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="text-destructive">Are you absolutely sure?</DialogTitle>
+            <DialogDescription>
+              {isApproved
+                ? "This will permanently delete your organizer admin access, draft batches, and wallets. Issued certificates will remain active and verifiable by recipients. This cannot be undone."
+                : "This will permanently delete your account, workspaces, batches, and all certificates. This cannot be undone."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 flex flex-col gap-2">
+            <p className="text-[11px] text-muted-foreground">
+              To confirm, please type your email address <strong>{user?.email}</strong> below:
+            </p>
+            <input
+              type="text"
+              value={confirmEmail}
+              onChange={(e) => setConfirmEmail(e.target.value)}
+              placeholder={user?.email}
+              className="w-full px-3 py-2 text-xs border-2 border-border bg-background focus:outline-none focus:border-foreground"
+            />
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <button
+              onClick={() => {
+                setDeleteConfirmOpen(false);
+                setConfirmEmail("");
+              }}
+              className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest border-2 border-border hover:border-foreground hover:bg-muted transition-colors mr-2"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleDeleteAccount}
+              disabled={deleting || confirmEmail.toLowerCase().trim() !== user?.email?.toLowerCase().trim()}
+              className="px-4 py-2 text-[10px] font-bold uppercase tracking-widest border-2 border-destructive bg-destructive text-white hover:bg-destructive/95 transition-colors disabled:opacity-50"
+            >
+              {deleting ? "Deleting..." : "Permanently Delete My Account"}
+            </button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

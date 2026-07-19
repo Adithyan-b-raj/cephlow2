@@ -4,20 +4,34 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.4.1] - 2026-07-19
+
+### Fixed
+- **Marketplace Browsing**: Removed wallet balance fetching and validations from the Marketplace browse dialog entirely since all marketplace templates are free of charge, allowing unapproved (free) workspaces to browse and acquire templates without any wallet calls.
+- **Paid Badge Cleanup**: Removed the redundant "Paid" badge shown next to recipient names on the Batch details page. Once generated, certificates are active and verifiable, making the visual label unnecessary for all tiers.
+- **Issue Reports Fetch Graceful Fallback**: Caught token authorization or communication errors when fetching WhatsApp bot reports in the `/api/reports` endpoint, logging a warning and returning an empty list instead of crashing with a `500 Internal Server Error`.
+
+## [2.4.0] - 2026-07-19
+
+### Added
+- **Account Deletion**: Added a secure account deletion flow for organizers. Unapproved/free users are completely purged from the D1 database, whereas approved/paid users have their generated/sent certificates decoupled and preserved under `orphaned-system-user` and `orphaned-system-workspace` to protect recipient verification links.
+- **Danger Zone Settings**: Integrated a "Danger Zone" section in Settings page prompting the user to type their email address to confirm permanent account deletion.
+- **Mandatory Terms & Privacy Agreement**: Added a post-auth blocking terms agreement modal overlay to guarantee all new users (including Google Sign-In signups) accept the Terms of Service & Privacy Policy before accessing the dashboard. Email/Password signups automatically record consent, and existing users are never asked to agree again.
+
 ## [2.3.0] - 2026-07-19
 
 ### Fixed
 - **Google OAuth redirect_uri**: Added missing `GOOGLE_REDIRECT_URI` to production and staging `wrangler.toml` vars — was causing "Error 400: invalid_request — Missing required parameter: redirect_uri" on reconnect. Added early validation in `generateAuthUrl()`.
 - **Content-Security-Policy**: Whitelisted `https://fonts.googleapis.com` (styles), `https://fonts.gstatic.com` (fonts), `https://static.cloudflareinsights.com` (scripts), `https://*.r2.dev` (images), and `https://*.r2.cloudflarestorage.com` (direct API uploads) in both frontend `_headers` and API worker `secureHeaders` middleware to prevent browser blocking.
 - **WhatsApp Issue Reports Security**: Refactored the `useWaReports` hook to query the API worker's `/api/reports` endpoint securely instead of calling the external WhatsApp bot worker directly. This fixes client-side CSP block violations and prevents exposing the private `VITE_WA_ANALYTICS_TOKEN` to the public client.
-
-
+- **Batch Header Layout**: Restored direct visibility of the **Send Emails** button next to the **WhatsApp** button on the desktop batch header for approved workspaces so that it is not hidden in the actions dropdown.
 
 
 ### Added
 - **Google Drive Batch Folders**: Added client-side Google Drive folder creation during generation for free-tier users, and on-demand folder creation and public sharing under `POST /batches/:batchId/share-folder`.
 - **Automatic Certs Movement**: Configured `/share-folder` to automatically move existing cert PDFs from the user's Drive root into the new folder in the background.
 - **Legal & Copy Updates**: Updated Landing Page, Terms of Service, and Privacy Policy pages to align with Google Sheets/Slides integrations removal and the updated `drive.file` OAuth scope constraint.
+
 
 ### Removed
 - **Obsolete Code Cleanup**: Removed legacy `deleteFile` helper and `POST /batches/:batchId/client-cleanup` endpoint since slides generation was removed.

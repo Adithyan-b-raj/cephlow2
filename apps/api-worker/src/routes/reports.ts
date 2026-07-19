@@ -24,7 +24,10 @@ router.get("/reports", async (c) => {
   try {
     const waUrl = `${workerUrl.replace(/\/$/, "")}/reports?token=${token}`;
     const waRes = await fetch(waUrl);
-    if (!waRes.ok) throw new Error(`WA worker responded ${waRes.status}`);
+    if (!waRes.ok) {
+      console.warn(`[reports] WA worker responded ${waRes.status}: ${await waRes.text().catch(() => "")}`);
+      return c.json([]);
+    }
 
     const allReports = (await waRes.json()) as WaReport[];
 

@@ -27,10 +27,8 @@ interface LockedFeatureProps {
 const APPROVAL_EMAIL =
   import.meta.env.VITE_APPROVAL_CONTACT_EMAIL || "approvals@cephlow.in";
 
-const APPROVAL_WA_NUMBER = import.meta.env.VITE_APPROVAL_WA_NUMBER || "";
-const APPROVAL_WA_LINK = APPROVAL_WA_NUMBER
-  ? `https://wa.me/${APPROVAL_WA_NUMBER.replace(/[^0-9]/g, "")}?text=${encodeURIComponent("hi")}`
-  : "";
+const APPROVAL_WA_NUMBER = import.meta.env.VITE_APPROVAL_WA_NUMBER || "916282572066";
+const APPROVAL_WA_LINK = `https://wa.me/${APPROVAL_WA_NUMBER.replace(/[^0-9]/g, "")}?text=${encodeURIComponent("hi")}`;
 
 /**
  * Wraps a feature/button. When the current user is unapproved, the wrapped
@@ -101,15 +99,12 @@ export function LockedFeature({ children, feature, featureKey, inline, className
               <a href={`mailto:${APPROVAL_EMAIL}`} className="underline">{APPROVAL_EMAIL}</a>.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter className="gap-2 sm:gap-2">
-            {APPROVAL_WA_LINK && (
-              <Button asChild variant="default">
-                <a href={APPROVAL_WA_LINK} target="_blank" rel="noopener noreferrer">
-                  <MessageCircle className="h-4 w-4 mr-2" /> Open WhatsApp
-                </a>
-              </Button>
-            )}
-            <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>
+          <DialogFooter>
+            <Button asChild variant="default" className="w-full">
+              <a href={APPROVAL_WA_LINK} target="_blank" rel="noopener noreferrer">
+                <MessageCircle className="h-4 w-4 mr-2" /> Chat on WhatsApp
+              </a>
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -151,15 +146,12 @@ export function useLockedFeatureGuard(feature: string, featureKey: FeatureKey) {
             <a href={`mailto:${APPROVAL_EMAIL}`} className="underline">{APPROVAL_EMAIL}</a>.
           </DialogDescription>
         </DialogHeader>
-        <DialogFooter className="gap-2 sm:gap-2">
-          {APPROVAL_WA_LINK && (
-            <Button asChild variant="default">
-              <a href={APPROVAL_WA_LINK} target="_blank" rel="noopener noreferrer">
-                <MessageCircle className="h-4 w-4 mr-2" /> Open WhatsApp
-              </a>
-            </Button>
-          )}
-          <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>
+        <DialogFooter>
+          <Button asChild variant="default" className="w-full">
+            <a href={APPROVAL_WA_LINK} target="_blank" rel="noopener noreferrer">
+              <MessageCircle className="h-4 w-4 mr-2" /> Chat on WhatsApp
+            </a>
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
