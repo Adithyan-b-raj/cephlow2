@@ -44,7 +44,7 @@ app.use("*", secureHeaders({
     scriptSrc: ["'self'", "'unsafe-inline'", "https://sdk.cashfree.com", "https://*.cashfree.com", "https://static.cloudflareinsights.com"],
     styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
     fontSrc: ["'self'", "https://fonts.gstatic.com"],
-    imgSrc: ["'self'", "data:", "https://*.r2.cloudflarestorage.com"],
+    imgSrc: ["'self'", "data:", "https://*.r2.cloudflarestorage.com", "https://*.r2.dev"],
     frameSrc: ["'self'", "https://*.cashfree.com"],
     frameAncestors: ["'none'"],
   },

@@ -6,7 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - **Google OAuth redirect_uri**: Added missing `GOOGLE_REDIRECT_URI` to production and staging `wrangler.toml` vars — was causing "Error 400: invalid_request — Missing required parameter: redirect_uri" on reconnect. Added early validation in `generateAuthUrl()`.
-- **Content-Security-Policy**: Whitelisted `https://fonts.googleapis.com` (styles), `https://fonts.gstatic.com` (fonts), and `https://static.cloudflareinsights.com` (scripts) in both frontend `_headers` and API worker `secureHeaders` middleware to prevent browser blocking.
+- **Content-Security-Policy**: Whitelisted `https://fonts.googleapis.com` (styles), `https://fonts.gstatic.com` (fonts), `https://static.cloudflareinsights.com` (scripts), and `https://*.r2.dev` (images) in both frontend `_headers` and API worker `secureHeaders` middleware to prevent browser blocking.
+
 
 
 ### Added
