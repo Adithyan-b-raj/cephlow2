@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 import type { ReportDetail } from "../components/BatchIssueReportDialog";
 
 export function useWaReports(batch: any) {
@@ -9,20 +10,29 @@ export function useWaReports(batch: any) {
   const initialReportsLoadedRef = useRef<boolean>(false);
 
   useEffect(() => {
-    const workerUrl = import.meta.env.VITE_WA_WORKER_URL?.replace(/\/$/, '');
-    const token = import.meta.env.VITE_WA_ANALYTICS_TOKEN;
-    if (!workerUrl || !token) return;
+    const apiBaseUrl = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
+    if (!apiBaseUrl) return;
 
     let cancelled = false;
-    const loadReports = () => {
-      fetch(`${workerUrl}/reports?token=${token}`)
-        .then(r => r.json())
-        .then((data: { cert_key?: string; message: string; phone: string; created_at: string }[]) => {
-          if (cancelled) return;
-          const scoped = data.filter(r => r.cert_key);
-          const map = new Map<string, ReportDetail>();
-          scoped.forEach(r => map.set(r.cert_key!, { message: r.message, phone: r.phone, created_at: r.created_at }));
-          setReportsByCertKey(map);
+    const loadReports = async () => {
+      try {
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+        
+        const res = await fetch(`${apiBaseUrl}/api/reports`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+        if (!res.ok) return;
+        
+        const data = await res.json().catch(() => []) as { cert_key?: string; message: string; phone: string; created_at: string }[];
+        if (cancelled) return;
+        
+        const scoped = data.filter(r => r.cert_key);
+        const map = new Map<string, ReportDetail>();
+        scoped.forEach(r => map.set(r.cert_key!, { message: r.message, phone: r.phone, created_at: r.created_at }));
+        setReportsByCertKey(map);
 
           const seen = seenReportKeysRef.current;
           const currentBatchCertKeys = new Set<string>(
@@ -56,8 +66,9 @@ export function useWaReports(batch: any) {
               toast({ title: `${newReports.length} new issue reports`, description: "Recipients reported issues with their certificates via WhatsApp." });
             }
           }
-        })
-        .catch(() => {});
+      } catch (err) {
+        console.error("Failed to load reports:", err);
+      }
     };
 
     loadReports();
