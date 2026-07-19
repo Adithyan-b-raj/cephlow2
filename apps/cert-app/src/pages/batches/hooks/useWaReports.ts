@@ -20,8 +20,10 @@ export function useWaReports(batch: any) {
         const token = sessionData.session?.access_token;
         
         const wsId = batch?.workspaceId || batch?.workspace_id || localStorage.getItem("cephlow_active_workspace");
+        const batchId = batch?.id;
+        const url = `${apiBaseUrl}/api/reports${batchId ? `?batchId=${batchId}` : ""}`;
         
-        const res = await fetch(`${apiBaseUrl}/api/reports`, {
+        const res = await fetch(url, {
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             ...(wsId ? { "x-workspace-id": wsId } : {}),
@@ -75,8 +77,16 @@ export function useWaReports(batch: any) {
     };
 
     loadReports();
-    const intervalId = window.setInterval(loadReports, 15000);
-    const onFocus = () => loadReports();
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        loadReports();
+      }
+    }, 45000);
+    const onFocus = () => {
+      if (document.visibilityState === "visible") {
+        loadReports();
+      }
+    };
     const onVisibility = () => { if (document.visibilityState === 'visible') loadReports(); };
     window.addEventListener('focus', onFocus);
     document.addEventListener('visibilitychange', onVisibility);

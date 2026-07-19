@@ -22,9 +22,11 @@ export const workspaceMiddleware: MiddlewareHandler<ContextEnv> = async (c, next
 
   try {
     const member = await c.env.DB.prepare(`
-      SELECT role FROM workspace_members
-      WHERE workspace_id = ? AND user_id = ?
-    `).bind(workspaceId, user.uid).first<{ role: string }>();
+      SELECT m.role, w.suspended
+      FROM workspace_members m
+      JOIN workspaces w ON m.workspace_id = w.id
+      WHERE m.workspace_id = ? AND m.user_id = ?
+    `).bind(workspaceId, user.uid).first<{ role: string; suspended: number }>();
 
     if (!member) {
       return c.json({ error: "Not a member of this workspace" }, 403);
@@ -33,6 +35,7 @@ export const workspaceMiddleware: MiddlewareHandler<ContextEnv> = async (c, next
     c.set("workspace", {
       id: workspaceId,
       role: member.role as WorkspaceRole,
+      suspended: Boolean(member.suspended),
     });
 
     return await next();
@@ -59,12 +62,8 @@ export const requireNotSuspended: MiddlewareHandler<ContextEnv> = async (c, next
   if (!workspace) {
     return c.json({ error: "Missing workspace context" }, 400);
   }
-  try {
-    if (await isWorkspaceSuspended(c.env.DB, workspace.id)) {
-      return c.json({ error: "Workspace suspended", code: "WORKSPACE_SUSPENDED" }, 403);
-    }
-    return await next();
-  } catch (err: any) {
-    return c.json({ error: err.message }, 500);
+  if (workspace.suspended) {
+    return c.json({ error: "Workspace suspended", code: "WORKSPACE_SUSPENDED" }, 403);
   }
+  return await next();
 };

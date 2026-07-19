@@ -94,8 +94,16 @@ export default function Reports() {
     };
 
     loadReports(true);
-    const intervalId = window.setInterval(() => loadReports(false), 15000);
-    const onFocus = () => loadReports(false);
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === "visible") {
+        loadReports(false);
+      }
+    }, 45000);
+    const onFocus = () => {
+      if (document.visibilityState === "visible") {
+        loadReports(false);
+      }
+    };
     const onVisibility = () => {
       if (document.visibilityState === "visible") loadReports(false);
     };

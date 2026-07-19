@@ -21,7 +21,6 @@
 const PAGE_SIZE = 8; // max 8 certs per list page (2 slots reserved for Prev/Next)
 
 // Schema is created once per Worker instance (cold start)
-let schemaReady = false;
 
 export default {
   async fetch(req, env, ctx) {
@@ -336,7 +335,6 @@ async function handleReportCertList(phone, folder, page, env) {
 /** Capture the report text with cert key, save it, and confirm */
 async function handleReportText(phone, certKey, text, env) {
   if (env.DB) {
-    await ensureSchema(env);
     await env.DB.prepare(
       'INSERT INTO reports (phone, cert_key, message, created_at) VALUES (?, ?, ?, ?)'
     ).bind(phone, certKey, text, new Date().toISOString()).run();
@@ -351,8 +349,6 @@ async function handleReportText(phone, certKey, text, env) {
 
 /** Record a student's vote to scale the project (one per phone) */
 async function handleVoteScale(phone, env) {
-  await ensureSchema(env);
-
   let isNew = false;
   if (env.DB) {
     const existing = await env.DB.prepare(
@@ -473,7 +469,6 @@ async function handleSendSingle(phone, fileKey, env) {
 async function getUserState(phone, env) {
   if (!env.DB) return null;
   try {
-    await ensureSchema(env);
     return await env.DB.prepare(
       'SELECT state FROM user_states WHERE phone = ?'
     ).bind(phone).first() || null;
@@ -482,7 +477,6 @@ async function getUserState(phone, env) {
 
 async function setUserState(phone, state, env) {
   if (!env.DB) return;
-  await ensureSchema(env);
   await env.DB.prepare(
     'INSERT OR REPLACE INTO user_states (phone, state, updated_at) VALUES (?, ?, ?)'
   ).bind(phone, state, new Date().toISOString()).run();
@@ -497,51 +491,11 @@ async function clearUserState(phone, env) {
 // Analytics
 // ────────────────────────────────────────────────────────────────────
 
-async function ensureSchema(env) {
-  if (schemaReady || !env.DB) return;
-  await env.DB.prepare(`
-    CREATE TABLE IF NOT EXISTS interactions (
-      id          INTEGER PRIMARY KEY AUTOINCREMENT,
-      phone       TEXT NOT NULL,
-      action      TEXT NOT NULL,
-      detail      TEXT,
-      certs_count INTEGER,
-      created_at  TEXT NOT NULL
-    )
-  `).run();
-  await env.DB.prepare(`
-    CREATE TABLE IF NOT EXISTS user_states (
-      phone      TEXT PRIMARY KEY,
-      state      TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    )
-  `).run();
-  await env.DB.prepare(`
-    CREATE TABLE IF NOT EXISTS reports (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
-      phone      TEXT NOT NULL,
-      cert_key   TEXT,
-      message    TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    )
-  `).run();
-  await env.DB.prepare(`
-    CREATE TABLE IF NOT EXISTS votes (
-      phone      TEXT PRIMARY KEY,
-      created_at TEXT NOT NULL
-    )
-  `).run();
-  // Add cert_key to existing tables that may not have it yet
-  await env.DB.prepare(`ALTER TABLE reports ADD COLUMN cert_key TEXT`).run().catch(() => {});
-  await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_created_at ON interactions(created_at)`).run();
-  await env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_action ON interactions(action)`).run();
-  schemaReady = true;
-}
+// Schema is setup statically via wrangler migrations / execute schema.sql
 
 async function logInteraction(env, { phone, action, detail = null, certsCount = null }) {
   if (!env.DB) return;
   try {
-    await ensureSchema(env);
     await env.DB.prepare(
       `INSERT INTO interactions (phone, action, detail, certs_count, created_at)
        VALUES (?, ?, ?, ?, ?)`
@@ -557,7 +511,6 @@ async function handleAnalytics(env) {
   }
 
   try {
-    await ensureSchema(env);
 
     const [summary, today, thisWeek, daily, monthly, yearly, actions, recent, voteCount] = await Promise.all([
       // All-time totals
@@ -960,7 +913,6 @@ async function handleReports(env) {
   if (!env.DB) {
     return new Response('[]', { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } });
   }
-  await ensureSchema(env);
   const result = await env.DB.prepare(
     'SELECT id, phone, cert_key, message, created_at FROM reports ORDER BY created_at DESC LIMIT 200'
   ).all();

@@ -53,6 +53,7 @@ declare global {
       workspace?: {
         id: string;
         role: 'owner' | 'admin' | 'member';
+        suspended: boolean;
       };
     };
   };

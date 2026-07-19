@@ -94,6 +94,7 @@ describe("authMiddleware - Security Tests", () => {
     dbMock = {
       prepare: vi.fn().mockReturnValue({
         bind: vi.fn().mockReturnValue({
+          first: vi.fn().mockResolvedValue({ email: "test@example.com" }),
           run: vi.fn().mockResolvedValue({ success: true }),
         }),
       }),
