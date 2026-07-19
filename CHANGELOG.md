@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- **Google OAuth redirect_uri**: Added missing `GOOGLE_REDIRECT_URI` to production and staging `wrangler.toml` vars — was causing "Error 400: invalid_request — Missing required parameter: redirect_uri" on reconnect. Added early validation in `generateAuthUrl()`.
+
 ### Added
 - **Google Drive Batch Folders**: Added client-side Google Drive folder creation during generation for free-tier users, and on-demand folder creation and public sharing under `POST /batches/:batchId/share-folder`.
 - **Automatic Certs Movement**: Configured `/share-folder` to automatically move existing cert PDFs from the user's Drive root into the new folder in the background.

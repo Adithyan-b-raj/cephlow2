@@ -78,12 +78,16 @@ export async function generateAuthUrl(
     VALUES (?, ?, ?, ?, ?)
   `).bind(nonce, uid, scopeType, Date.now() + 10 * 60 * 1000, originUrl ?? null).run();
 
+  if (!env.GOOGLE_REDIRECT_URI) {
+    throw new Error("GOOGLE_REDIRECT_URI is not configured");
+  }
+
   const params = new URLSearchParams({
     access_type: "offline",
     prompt: "consent",
     response_type: "code",
     client_id: env.GOOGLE_CLIENT_ID || "",
-    redirect_uri: env.GOOGLE_REDIRECT_URI || "",
+    redirect_uri: env.GOOGLE_REDIRECT_URI,
     scope: SCOPE_SETS[scopeType].join(" "),
     state: nonce,
   });
