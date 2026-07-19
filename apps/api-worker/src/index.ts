@@ -40,7 +40,7 @@ app.use("*", secureHeaders({
   xContentTypeOptions: "nosniff",
   contentSecurityPolicy: {
     defaultSrc: ["'self'"],
-    connectSrc: ["'self'", "https://*.supabase.co", "https://*.cashfree.com", "https://*.googleapis.com"],
+    connectSrc: ["'self'", "https://*.supabase.co", "https://*.cashfree.com", "https://*.googleapis.com", "https://*.r2.cloudflarestorage.com"],
     scriptSrc: ["'self'", "'unsafe-inline'", "https://sdk.cashfree.com", "https://*.cashfree.com", "https://static.cloudflareinsights.com"],
     styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
     fontSrc: ["'self'", "https://fonts.gstatic.com"],
