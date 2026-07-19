@@ -51,6 +51,8 @@ export function BatchHeader({
   const [, setLocation] = useLocation();
   const { isApproved: isEmailUnlocked, guard: guardEmail, modal: emailModal } = useLockedFeatureGuard("Email delivery", "email_delivery");
   const { isApproved: isWaUnlocked, guard: guardWa, modal: waModal } = useLockedFeatureGuard("WhatsApp delivery", "whatsapp_delivery");
+  const { isApproved: isSharePageUnlocked, guard: guardSharePage, modal: sharePageModal } = useLockedFeatureGuard("Public verification page", "qr_codes");
+  const { isApproved: isBannerUnlocked, guard: guardBanner, modal: bannerModal } = useLockedFeatureGuard("custom event banners", "custom_event_banners");
 
   const copyGalleryLink = () => {
     const slug = batch.name
@@ -265,10 +267,19 @@ export function BatchHeader({
                 </Button>
               </LockedFeature>
             )}
-            <Button variant="outline" size="sm" onClick={copyGalleryLink} disabled={!hasGeneratedCerts} className="hover-elevate bg-background w-full justify-start" title="Copy a public link recipients can use to find their certificate">
-              <Link2 className="w-4 h-4 mr-1.5" />
-              Share Page
-            </Button>
+            {isApproved ? (
+              <Button variant="outline" size="sm" onClick={copyGalleryLink} disabled={!hasGeneratedCerts} className="hover-elevate bg-background w-full justify-start" title="Copy a public link recipients can use to find their certificate">
+                <Link2 className="w-4 h-4 mr-1.5" />
+                Share Page
+              </Button>
+            ) : (
+              <LockedFeature feature="Public verification page" featureKey="qr_codes" inline className="w-full">
+                <Button variant="outline" size="sm" onClick={copyGalleryLink} disabled={!hasGeneratedCerts} className="hover-elevate bg-background w-full justify-start" title="Copy a public link recipients can use to find their certificate">
+                  <Link2 className="w-4 h-4 mr-1.5" />
+                  Share Page
+                </Button>
+              </LockedFeature>
+            )}
             <LockedFeature feature="custom event banners" featureKey="custom_event_banners" inline>
               <Button variant="outline" size="sm" onClick={onBannerEdit} disabled={bannerUploading} className="hover-elevate bg-background w-full justify-start">
                 {bannerUploading ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Eye className="w-4 h-4 mr-1.5" />}
@@ -369,20 +380,42 @@ export function BatchHeader({
                   </DropdownMenuItem>
                 </>
               )}
-              <DropdownMenuItem onClick={copyGalleryLink} disabled={!hasGeneratedCerts}>
-                <Link2 className="w-3.5 h-3.5 mr-2" />
-                Share Page
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onBannerEdit} disabled={bannerUploading}>
-                {bannerUploading ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-2" />}
-                {batch.bannerUrl ? "Edit Banner" : "Add Banner"}
-              </DropdownMenuItem>
+              {isApproved ? (
+                <DropdownMenuItem onClick={copyGalleryLink} disabled={!hasGeneratedCerts}>
+                  <Link2 className="w-3.5 h-3.5 mr-2" />
+                  Share Page
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={guardSharePage(copyGalleryLink)} disabled={!hasGeneratedCerts} className="flex items-center justify-between">
+                  <span className="flex items-center">
+                    <Link2 className="w-3.5 h-3.5 mr-2" />
+                    Share Page
+                  </span>
+                  <Lock className="w-3 h-3 text-muted-foreground ml-2" />
+                </DropdownMenuItem>
+              )}
+              {isApproved ? (
+                <DropdownMenuItem onClick={onBannerEdit} disabled={bannerUploading}>
+                  {bannerUploading ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-2" />}
+                  {batch.bannerUrl ? "Edit Banner" : "Add Banner"}
+                </DropdownMenuItem>
+              ) : (
+                <DropdownMenuItem onClick={guardBanner(onBannerEdit)} disabled={bannerUploading} className="flex items-center justify-between">
+                  <span className="flex items-center">
+                    {bannerUploading ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-2" />}
+                    {batch.bannerUrl ? "Edit Banner" : "Add Banner"}
+                  </span>
+                  <Lock className="w-3 h-3 text-muted-foreground ml-2" />
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
       {emailModal}
       {waModal}
+      {sharePageModal}
+      {bannerModal}
     </div>
   );
 }
