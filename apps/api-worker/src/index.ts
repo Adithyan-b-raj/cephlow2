@@ -30,6 +30,7 @@ import builtinTemplatesRouter from "./routes/builtinTemplates.js";
 import reportsRouter from "./routes/reports.js";
 import walletRouter from "./routes/wallet.js";
 import adminRouter from "./routes/admin.js";
+import deleteAccountRouter from "./routes/deleteAccount.js";
 
 const app = new Hono<ContextEnv>();
 
@@ -120,6 +121,7 @@ app.use("/api/batches", async (c, next) => {
 app.route("/api", authRouter);
 app.route("/api", approvalRouter);
 app.route("/api", workspacesRouter);
+app.route("/api", deleteAccountRouter);
 
 
 

@@ -9,6 +9,7 @@ import { ApprovalProvider, useApproval } from "@/hooks/use-approval";
 import { FeaturesProvider } from "@/hooks/use-features";
 import { WorkspaceProvider } from "@/hooks/use-workspace";
 import { Layout } from "@/components/layout/Layout";
+import TermsAgreementScreen from "@/components/TermsAgreementScreen";
 
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const NewBatch = lazy(() => import("@/pages/batches/NewBatch"));
@@ -167,6 +168,10 @@ function AppRouter() {
   if (location === "/login") {
     setLocation("/", { replace: true });
     return null;
+  }
+
+  if (user && !user.user_metadata?.agreed_to_terms) {
+    return <TermsAgreementScreen />;
   }
 
   return (

@@ -11,7 +11,15 @@ export async function signInWithPassword(email: string, password: string) {
 }
 
 export async function signUpWithPassword(email: string, password: string) {
-  const { data, error } = await supabase.auth.signUp({ email, password });
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      data: {
+        agreed_to_terms: true,
+      },
+    },
+  });
   if (error) throw error;
   // If auto-confirm is off, signUp won't return a session — user must verify email first
   if (!data.session) {

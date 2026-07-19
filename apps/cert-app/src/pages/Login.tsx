@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { isStaging } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -18,6 +18,10 @@ export default function Login() {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState("");
     const [termsAccepted, setTermsAccepted] = useState(false);
+
+    useEffect(() => {
+        sessionStorage.removeItem("agreed_to_terms");
+    }, []);
 
     const handleSubmit = async (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -133,6 +137,9 @@ export default function Login() {
                             setLoading(true);
                             setError("");
                             try {
+                                if (mode === "signup") {
+                                    sessionStorage.setItem("agreed_to_terms", "true");
+                                }
                                 await loginWithGoogle();
                             } catch (err: any) {
                                 setError(err.message ?? "Google Sign-In failed.");
@@ -148,6 +155,14 @@ export default function Login() {
                         </svg>
                         Continue with Google
                     </Button>
+                    {mode === "signin" && (
+                        <p className="text-[10px] text-muted-foreground text-center mt-3 leading-snug">
+                            By signing in, you agree to our{" "}
+                            <a href="/terms" target="_blank" className="underline text-foreground">Terms of Service</a>
+                            {" "}and{" "}
+                            <a href="/privacy" target="_blank" className="underline text-foreground">Privacy Policy</a>.
+                        </p>
+                    )}
                     {mode === "signin" && (
                         <button
                             onClick={() => setLocation("/forgot-password")}

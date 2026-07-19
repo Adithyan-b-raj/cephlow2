@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-07-19
+
+### Added
+- **Account Deletion**: Added a secure account deletion flow for organizers. Unapproved/free users are completely purged from the D1 database, whereas approved/paid users have their generated/sent certificates decoupled and preserved under `orphaned-system-user` and `orphaned-system-workspace` to protect recipient verification links.
+- **Danger Zone Settings**: Integrated a "Danger Zone" section in Settings page prompting the user to type their email address to confirm permanent account deletion.
+- **Mandatory Terms & Privacy Agreement**: Added a post-auth blocking terms agreement modal overlay to guarantee all new users (including Google Sign-In signups) accept the Terms of Service & Privacy Policy before accessing the dashboard. Email/Password signups automatically record consent, and existing users are never asked to agree again.
+
 ## [2.3.0] - 2026-07-19
 
 ### Fixed
@@ -13,12 +20,11 @@ All notable changes to this project will be documented in this file.
 - **Batch Header Layout**: Restored direct visibility of the **Send Emails** button next to the **WhatsApp** button on the desktop batch header for approved workspaces so that it is not hidden in the actions dropdown.
 
 
-
-
 ### Added
 - **Google Drive Batch Folders**: Added client-side Google Drive folder creation during generation for free-tier users, and on-demand folder creation and public sharing under `POST /batches/:batchId/share-folder`.
 - **Automatic Certs Movement**: Configured `/share-folder` to automatically move existing cert PDFs from the user's Drive root into the new folder in the background.
 - **Legal & Copy Updates**: Updated Landing Page, Terms of Service, and Privacy Policy pages to align with Google Sheets/Slides integrations removal and the updated `drive.file` OAuth scope constraint.
+
 
 ### Removed
 - **Obsolete Code Cleanup**: Removed legacy `deleteFile` helper and `POST /batches/:batchId/client-cleanup` endpoint since slides generation was removed.
