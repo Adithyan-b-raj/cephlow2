@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **Admin Approvals Search Bar**: Integrated a search bar into the Admin Approvals tab, allowing platform administrators to filter user approval requests by user email.
+
 ## [2.4.1] - 2026-07-19
 
 ### Fixed

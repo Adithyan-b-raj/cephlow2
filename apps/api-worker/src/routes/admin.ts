@@ -262,12 +262,20 @@ router.patch("/admin/workspaces/:id/suspend", async (c) => {
 router.get("/admin/approvals", async (c) => {
   try {
     const status = c.req.query("status") || "pending";
-    const whereClause = status === "pending" ? "WHERE is_approved = 0" : status === "approved" ? "WHERE is_approved = 1" : "";
+    const q = (c.req.query("q") || "").trim();
+
+    let whereClause = status === "pending" ? "WHERE is_approved = 0" : status === "approved" ? "WHERE is_approved = 1" : "WHERE 1=1";
+    const bindArgs: any[] = [];
+
+    if (q) {
+      whereClause += " AND email LIKE ?";
+      bindArgs.push(`%${q}%`);
+    }
 
     const { results } = await c.env.DB.prepare(`
       SELECT id, email, is_approved FROM user_profiles ${whereClause}
       ORDER BY email ASC
-    `).all<any>();
+    `).bind(...bindArgs).all<any>();
 
     return c.json({
       users: results.map((u) => ({ userId: u.id, email: u.email, isApproved: Boolean(u.is_approved) })),

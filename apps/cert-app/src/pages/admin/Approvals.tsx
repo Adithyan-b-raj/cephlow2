@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Loader2, ShieldOff, UserCheck } from "lucide-react";
+import { Loader2, ShieldOff, UserCheck, Search, RefreshCw } from "lucide-react";
 import { customFetch } from "@workspace/api-client-react";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -16,19 +16,20 @@ export default function Approvals() {
   const [loading, setLoading] = useState(true);
   const [unauthorized, setUnauthorized] = useState(false);
   const [statusFilter, setStatusFilter] = useState<"pending" | "approved">("pending");
+  const [query, setQuery] = useState("");
 
-  const load = useCallback((status = statusFilter) => {
+  const load = useCallback((status = statusFilter, q = query) => {
     setLoading(true);
-    customFetch<{ users: ApprovalUser[] }>(`/api/admin/approvals?status=${status}`)
+    customFetch<{ users: ApprovalUser[] }>(`/api/admin/approvals?status=${status}&q=${encodeURIComponent(q)}`)
       .then((d) => setUsers(d.users ?? []))
       .catch((err: any) => {
         if (err?.status === 403) setUnauthorized(true);
         else toast({ title: "Failed to load approvals", description: err.message, variant: "destructive" });
       })
       .finally(() => setLoading(false));
-  }, [statusFilter]);
+  }, [statusFilter, query]);
 
-  useEffect(() => { load(statusFilter); }, [statusFilter]);
+  useEffect(() => { load(statusFilter, query); }, [statusFilter]);
 
   const setApproved = async (userId: string, approved: boolean) => {
     try {
@@ -37,7 +38,7 @@ export default function Approvals() {
         body: JSON.stringify({ approved }),
       });
       toast({ title: approved ? "User approved" : "User unapproved" });
-      load(statusFilter);
+      load(statusFilter, query);
     } catch (err: any) {
       toast({ title: "Failed to update approval", description: err.message, variant: "destructive" });
     }
@@ -67,6 +68,22 @@ export default function Approvals() {
             {s}
           </button>
         ))}
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 border-2 border-border px-2 py-1.5 flex-1 min-w-[200px]">
+          <Search className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          <input
+            className="flex-1 bg-transparent text-xs outline-none"
+            placeholder="Search by email…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") load(statusFilter, query); }}
+          />
+        </div>
+        <button onClick={() => load(statusFilter, query)} className="p-2 text-muted-foreground hover:text-foreground transition-colors" title="Refresh">
+          <RefreshCw className="w-4 h-4" />
+        </button>
       </div>
 
       {loading ? (
