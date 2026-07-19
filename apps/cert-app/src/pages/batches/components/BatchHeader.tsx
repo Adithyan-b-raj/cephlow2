@@ -301,12 +301,18 @@ export function BatchHeader({
           </div>
 
           {isApproved ? (
-            <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>
-              <Button variant="outline" size="sm" onClick={onOpenWa} disabled={isSendingWhatsapp || batch.status === 'sending' || batch.generatedCount === 0} className="hover-elevate bg-background">
-                {isSendingWhatsapp ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5 mr-1.5 text-[#25D366]" />}
-                WhatsApp
+            <>
+              <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>
+                <Button variant="outline" size="sm" onClick={onOpenWa} disabled={isSendingWhatsapp || batch.status === 'sending' || batch.generatedCount === 0} className="hover-elevate bg-background">
+                  {isSendingWhatsapp ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5 mr-1.5 text-[#25D366]" />}
+                  WhatsApp
+                </Button>
+              </LockedFeature>
+              <Button variant="outline" size="sm" onClick={onOpenSend} disabled={sendDisabled} className="hover-elevate bg-background">
+                {isSending ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
+                Send Emails
               </Button>
-            </LockedFeature>
+            </>
           ) : (
             <Button variant="outline" size="sm" onClick={onShare} disabled={isSharing || batch.generatedCount === 0} className="hover-elevate bg-background">
               {isSharing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5 mr-1.5" />}
@@ -335,16 +341,10 @@ export function BatchHeader({
                 </DropdownMenuItem>
               )}
               {isApproved ? (
-                <>
-                  <DropdownMenuItem onClick={onOpenSend} disabled={sendDisabled}>
-                    <Send className="w-3.5 h-3.5 mr-2" />
-                    Send Emails
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={onShare} disabled={isSharing || batch.generatedCount === 0}>
-                    {isSharing ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Share2 className="w-3.5 h-3.5 mr-2" />}
-                    Share PDFs
-                  </DropdownMenuItem>
-                </>
+                <DropdownMenuItem onClick={onShare} disabled={isSharing || batch.generatedCount === 0}>
+                  {isSharing ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Share2 className="w-3.5 h-3.5 mr-2" />}
+                  Share PDFs
+                </DropdownMenuItem>
               ) : (
                 <>
                   <DropdownMenuItem onClick={guardEmail(onOpenSend)} disabled={sendDisabled} className="flex items-center justify-between">

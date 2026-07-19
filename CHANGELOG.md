@@ -10,6 +10,7 @@ All notable changes to this project will be documented in this file.
 - **Google OAuth redirect_uri**: Added missing `GOOGLE_REDIRECT_URI` to production and staging `wrangler.toml` vars — was causing "Error 400: invalid_request — Missing required parameter: redirect_uri" on reconnect. Added early validation in `generateAuthUrl()`.
 - **Content-Security-Policy**: Whitelisted `https://fonts.googleapis.com` (styles), `https://fonts.gstatic.com` (fonts), `https://static.cloudflareinsights.com` (scripts), `https://*.r2.dev` (images), and `https://*.r2.cloudflarestorage.com` (direct API uploads) in both frontend `_headers` and API worker `secureHeaders` middleware to prevent browser blocking.
 - **WhatsApp Issue Reports Security**: Refactored the `useWaReports` hook to query the API worker's `/api/reports` endpoint securely instead of calling the external WhatsApp bot worker directly. This fixes client-side CSP block violations and prevents exposing the private `VITE_WA_ANALYTICS_TOKEN` to the public client.
+- **Batch Header Layout**: Restored direct visibility of the **Send Emails** button next to the **WhatsApp** button on the desktop batch header for approved workspaces so that it is not hidden in the actions dropdown.
 
 
 
