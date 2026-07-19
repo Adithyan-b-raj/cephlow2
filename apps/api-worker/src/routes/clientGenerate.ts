@@ -84,11 +84,11 @@ router.post("/batches/:batchId/client-generate", async (c) => {
     const unpaidCount = unpaidCerts.length;
     const regenCount = regenCerts.length;
 
-    const RATE = Number(c.env.VITE_CERT_GENERATION_RATE || 1);
-    const REGEN_RATE = Number(c.env.VITE_CERT_REGENERATION_RATE || (RATE * 0.20));
+    const RATE = Number(c.env.CREDIT_COST_GENERATION || 1);
+    const REGEN_RATE = 0; // Regeneration is free
 
     const approved = await getCachedApproval(c.env, user.uid, workspace.id);
-    const cost = approved ? (unpaidCount * RATE + regenCount * REGEN_RATE) : 0;
+    const cost = approved ? (unpaidCount * RATE) : 0;
     
     // Fetch current balance to check existence
     const ws = await c.env.DB.prepare(`

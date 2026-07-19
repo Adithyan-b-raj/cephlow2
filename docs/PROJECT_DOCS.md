@@ -32,20 +32,20 @@ This is a **certificate generation and delivery platform** for organizations tha
 The complete workflow:
 
 ```
-Google Sheets (participant data)
+Built-in Spreadsheet (participant data)
          +
-Google Slides (certificate template)
+Built-in Canvas Editor (certificate design template)
          ↓
-  Browser generates personalized certificates (client-side)
+  Browser generates personalized certificates (client-side canvas rendering)
          ↓
   PDFs exported → uploaded to Cloudflare R2
          ↓
-  Sent to each participant via Gmail or WhatsApp
+  Sent to each participant via Email or WhatsApp
          ↓
   Each certificate gets a unique QR code → public verification page
 ```
 
-**Who uses it:** An admin user logs in, connects their Google account, picks their spreadsheet and slide template, maps placeholders, generates certificates, and delivers them via email or WhatsApp.
+**Who uses it:** An admin user logs in, designs their template using the built-in editor, loads recipient data into a built-in spreadsheet, maps placeholders, generates certificates, and delivers them via email or WhatsApp.
 
 ---
 
@@ -136,9 +136,9 @@ Configure user identification and sign-in.
 
 ### Prepaid Credits System
 - `CREDITS_PER_RUPEE`: Conversion rate for wallet recharges (credits received per 1 INR, defaults to 10).
-- `CREDIT_COST_GENERATION`: Global default credit cost per certificate generation (defaults to 5).
-- `CREDIT_COST_EMAIL`: Global default credit cost per Gmail email delivery (defaults to 1).
-- `CREDIT_COST_WHATSAPP`: Global default credit cost per WhatsApp message delivery (defaults to 2).
+- `CREDIT_COST_GENERATION`: Global default credit cost per certificate generation (defaults to 1).
+- `CREDIT_COST_EMAIL`: Global default credit cost per email delivery (defaults to 1).
+- `CREDIT_COST_WHATSAPP`: Global default credit cost per WhatsApp message delivery (defaults to 3).
 - `MIN_RECHARGE_AMOUNT`: Minimum wallet recharge limit in INR (defaults to 100).
 
 ---
@@ -194,8 +194,8 @@ Cloudflare D1 hosts relation tables for the system:
 - The client-side Supabase SDK gets a JWT (RS256) and attaches it in request headers.
 - The `authMiddleware` inside the Worker verifies it using Supabase JWKS.
 
-### Layer 2: Google OAuth 2.0 (Permissions)
-- To perform background tasks in Drive/Slides, the user connects Google permissions.
+### Layer 2: Google OAuth 2.0 (Permissions - Optional)
+- To perform optional Google Drive backup/sharing tasks (making folders public), the user connects Google permissions.
 - Google returns a refresh token, which is encrypted and stored in the database.
 - The backend retrieves the token, gets an access token, and calls the Google API on behalf of the user.
 
@@ -206,13 +206,13 @@ Cloudflare D1 hosts relation tables for the system:
 To scale certificate generation without overloading servers, Cephlow does all generation client-side (in the browser):
 
 ```
-1. Browser fetches sheet rows (GET /api/sheets/:sheetId/data) and requests Google Access Token.
+1. Browser loads template data and built-in spreadsheet rows.
 2. For each row:
-   a. Browser copies Slides template via Google Drive API.
-   b. Browser fills placeholders via Google Slides API batchUpdate.
-   c. Browser exports generated slide to PDF.
-3. Browser requests presigned PUT URL from api-worker (POST /api/batches/:id/client-generate).
-4. Browser uploads PDF directly to Cloudflare R2 using the presigned URL.
+   a. Browser renders the HTML canvas template.
+   b. Fills placeholders dynamic-text on the canvas.
+   c. Generates a PDF directly in the browser using PDF-Lib (client-side canvas export).
+3. Browser requests a presigned PUT URL from api-worker (POST /api/batches/:id/client-generate).
+4. Browser uploads the generated PDF directly to Cloudflare R2 using the presigned URL.
 5. Browser notifies api-worker that upload is complete (POST /api/batches/:id/client-generate/complete).
 ```
 

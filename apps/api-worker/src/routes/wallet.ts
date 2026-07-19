@@ -18,7 +18,7 @@ router.get("/wallet", async (c) => {
       currentBalance: ws?.current_balance ?? 0,
       transferCode: ws?.transfer_code ?? null,
       costs: {
-        generation: Number(c.env.VITE_CERT_GENERATION_RATE || 1),
+        generation: Number(c.env.CREDIT_COST_GENERATION || 1),
         email: Number(c.env.CREDIT_COST_EMAIL || 1),
         whatsapp: Number(c.env.CREDIT_COST_WHATSAPP || 3),
         creditsPerRupee: Number(c.env.CREDITS_PER_RUPEE || 1),

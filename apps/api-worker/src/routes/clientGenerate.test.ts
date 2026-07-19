@@ -270,8 +270,8 @@ describe("clientGenerateRouter - Presigned URL Security & Scoping (H-3)", () => 
       }, {});
 
       expect(res.status).toBe(200);
-      // Cost should be 0.20 credits for 1 cert at 20% of standard 1.0 rate
-      expect(dbMock.prepare).toHaveBeenCalledWith(expect.stringContaining("UPDATE workspaces SET current_balance = current_balance - ?"));
+      // Regeneration is free, so no balance update query should be executed
+      expect(dbMock.prepare).not.toHaveBeenCalledWith(expect.stringContaining("UPDATE workspaces SET current_balance = current_balance - ?"));
     });
 
     it("should reject generation if workspace balance is insufficient (C-2)", async () => {
