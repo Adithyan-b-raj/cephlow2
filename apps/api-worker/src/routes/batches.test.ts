@@ -117,7 +117,7 @@ describe("batchesRouter - Input Security & Validation Tests", () => {
     expect(data.error).toContain("malicious characters");
   });
 
-  it("should reject batch creation with non-alphanumeric sheetId", async () => {
+  it("should reject batch creation with invalid dataSourceKind", async () => {
     const token = await getAuthToken("user-123");
     const res = await runRoute("POST", "/api/batches", {
       Authorization: `Bearer ${token}`,
@@ -125,12 +125,11 @@ describe("batchesRouter - Input Security & Validation Tests", () => {
     }, {
       name: "Valid Batch Name",
       dataSourceKind: "google",
-      sheetId: "invalid-id-with-spaces; drop table batches;",
     });
 
     expect(res.status).toBe(400);
     const data = await res.json() as any;
-    expect(data.error).toContain("sheetId must be alphanumeric");
+    expect(data.error).toContain("Expected 'inbuilt', received 'google'");
   });
 
   it("should reject batch creation with invalid phone numbers in data rows", async () => {

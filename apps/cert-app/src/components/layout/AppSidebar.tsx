@@ -61,7 +61,7 @@ import { isStaging } from "@/lib/utils";
 
 
 const APPROVAL_EMAIL =
-  import.meta.env.VITE_APPROVAL_CONTACT_EMAIL || "approvals@cephlow.online";
+  import.meta.env.VITE_APPROVAL_CONTACT_EMAIL || "approvals@cephlow.in";
 const APPROVAL_WA_NUMBER = import.meta.env.VITE_APPROVAL_WA_NUMBER || "";
 const APPROVAL_WA_LINK = APPROVAL_WA_NUMBER
   ? `https://wa.me/${APPROVAL_WA_NUMBER.replace(/[^0-9]/g, "")}?text=${encodeURIComponent("hi")}`

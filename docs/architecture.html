@@ -616,7 +616,6 @@
     <a class="nav-link" href="#support">WhatsApp/Telegram Bot</a>
 
     <div class="nav-group-label">Other</div>
-    <a class="nav-link" href="#google">Google Integration</a>
     <a class="nav-link" href="#payments">Payments</a>
     <a class="nav-link" href="#decisions">Design Decisions</a>
     <a class="nav-link" href="#interviews">Interview Q&A</a>
@@ -651,10 +650,10 @@
 
     <p>
       Cephlow is a <strong>certificate generation and delivery SaaS</strong>. Organizations use it to
-      bulk-generate and send PDF certificates to students via email and WhatsApp. A user connects their
-      Google account, picks a Google Sheet (participant list) and a Google Slides template (certificate
-      design), then clicks Generate. The app fills the template for each row client-side, exports it as a PDF,
-      uploads it to Cloudflare R2, and sends it via Gmail or WhatsApp Business API.
+      bulk-generate and send PDF certificates to students via email and WhatsApp. A user designs their
+      template using the built-in HTML canvas editor, loads recipient data into a built-in spreadsheet,
+      and clicks Generate. The app fills the template for each row client-side using canvas rendering, exports it as a PDF,
+      uploads it to Cloudflare R2, and sends it via Email or WhatsApp.
     </p>
     <p>
       Recipients can text the WhatsApp number at any time to re-download their certificate.
@@ -670,12 +669,12 @@
       <div class="card">
         <div class="card-label">Primary User</div>
         <div class="card-value">Organizer</div>
-        <div class="card-desc">Connects Google, picks template + sheet, clicks generate</div>
+        <div class="card-desc">Designs template, inputs data in sheet, clicks generate</div>
       </div>
       <div class="card">
         <div class="card-label">Delivery Channels</div>
         <div class="card-value">Email + WA</div>
-        <div class="card-desc">Gmail API and WhatsApp Business API</div>
+        <div class="card-desc">ZeptoMail API and WhatsApp Business API</div>
       </div>
       <div class="card">
         <div class="card-label">Storage</div>
@@ -784,13 +783,11 @@ flowchart TD
         subgraph Apps [apps/]
             CertApp[cert-app<br/>React 19 Frontend<br/>Vite + Tailwind v4]
             APIWorker[api-worker<br/>Hono API Backend<br/>Cloudflare Workers]
-            APIServer[api-server<br/>Legacy Express<br/>Deprecated]
         end
         subgraph Packages [packages/]
             APISpec[api-spec<br/>OpenAPI specification<br/>Source of Truth]
             APIZod[api-zod<br/>Zod schemas<br/>Codegen'd]
             APIClient[api-client-react<br/>React Query hooks<br/>Codegen'd]
-            Supabase[supabase<br/>Shared Auth + JWT verify]
         end
     end
 
@@ -798,7 +795,6 @@ flowchart TD
     APISpec -.-> |"Codegen"| APIClient
     APIClient --> CertApp
     APIZod --> APIWorker
-    Supabase --> APIWorker
 
     style APISpec fill:#ff5722,stroke:#333,stroke-width:2px,color:#fff
     style Root fill:transparent,stroke:#555,stroke-dasharray: 5 5
@@ -887,16 +883,16 @@ PUBLIC (no auth required):
   GET/POST /api/webhooks/whatsapp   → WA webhook verify + delivery status
   POST     /api/webhooks/cashfree   → Payment confirmation from Cashfree
   GET      /api/verify/:certId      → QR code certificate verification
-  GET      /api/qr/:certId          → QR image (Google Slides embeds it)
+  GET      /api/qr/:certId          → QR image endpoint
   POST     /api/internal/report-*   → Server-to-server (shared-secret header)
 
 AUTH REQUIRED (Supabase JWT):
-  /api/batches/*          → Batch CRUD + generate + send
-  /api/certificates/*     → Certificate records
-  /api/sheets/*           → Google Sheets integration
-  /api/slides/*           → Google Slides integration
-  /api/wallet/*           → Credits and payment ledger
-  /api/workspaces/*       → Multi-tenant workspace management
+  /api/batches/*               → Batch CRUD + generate + send
+  /api/certificates/*          → Certificate records
+  /api/spreadsheets/*          → Built-in Spreadsheets
+  /api/builtin-templates/*     → Built-in HTML Canvas templates
+  /api/wallet/*                → Credits and payment ledger
+  /api/workspaces/*            → Multi-tenant workspace management
 </pre>
     </div>
   </section>
@@ -1008,28 +1004,28 @@ AUTH REQUIRED (Supabase JWT):
         <div class="flow-num">01</div>
         <div class="flow-content">
           <div class="flow-title">User Configures Batch</div>
-          <div class="flow-desc">Selects Google Sheet (participant data) + Google Slides template + column mappings.</div>
+          <div class="flow-desc">Selects built-in Spreadsheet (recipient data) + Canvas Frame template + column mappings.</div>
         </div>
       </div>
       <div class="flow-step">
         <div class="flow-num">02</div>
         <div class="flow-content">
           <div class="flow-title">Frontend Fetches Data</div>
-          <div class="flow-desc">Browser pulls Sheets data via Google Sheets APIs and requests a Google access token.</div>
+          <div class="flow-desc">Browser pulls template details and built-in spreadsheet rows locally.</div>
         </div>
       </div>
       <div class="flow-step">
         <div class="flow-num">03</div>
         <div class="flow-content">
-          <div class="flow-title">Browser: Copy & Edit Slides</div>
-          <div class="flow-desc">Browser calls Google Drive and Slides APIs to copy templates and replace placeholders (e.g. <code>{{Name}}</code>) for each participant.</div>
+          <div class="flow-title">Browser: HTML Canvas Render</div>
+          <div class="flow-desc">Browser renders the certificate design using the HTML Canvas API and replaces placeholder mappings (e.g. <code>{{Name}}</code>) for each participant dynamically.</div>
         </div>
       </div>
       <div class="flow-step">
         <div class="flow-num">04</div>
         <div class="flow-content">
           <div class="flow-title">Browser: Export to PDF</div>
-          <div class="flow-desc">Calls Google Drive's PDF export API directly from the client.</div>
+          <div class="flow-desc">Generates a PDF file directly in the browser using PDF-Lib (canvas image export).</div>
         </div>
       </div>
       <div class="flow-step">
@@ -1141,7 +1137,7 @@ sequenceDiagram
           <tr class="highlight-row">
             <td>Client-side Generation</td>
             <td>Browser renders and exports PDFs</td>
-            <td>Zero server load / memory leaks. Scaled out to user's individual Google quota.</td>
+            <td>Zero server load / memory leaks. High scalability using browser rendering CPU/RAM.</td>
           </tr>
           <tr class="highlight-row">
             <td>Presigned R2 URLs</td>
@@ -1175,7 +1171,7 @@ sequenceDiagram
           <span class="arrow">▶</span>
         </div>
         <div class="qa-a">
-          It's a serverless certificate generation platform. The frontend is React hosted on Cloudflare Pages. The API backend is written in Hono and deployed to Cloudflare Workers, using Cloudflare D1 as the edge relational database. When users generate certificates, the frontend copies Slides, replaces placeholders, and uploads the PDF directly to Cloudflare R2 using presigned URLs. For sending, client-side loops hit non-blocking worker endpoints that call Zeptomail or WhatsApp Cloud APIs, ensuring low memory footprint and high scalability.
+          It's a serverless certificate generation platform. The frontend is React hosted on Cloudflare Pages. The API backend is written in Hono and deployed to Cloudflare Workers, using Cloudflare D1 as the edge relational database. When users generate certificates, the frontend renders the design template on an HTML canvas, replaces placeholder text dynamically for each recipient, and uploads the exported PDF directly to Cloudflare R2 using presigned URLs. For sending, client-side loops hit non-blocking worker endpoints that call Zeptomail or WhatsApp Cloud APIs, ensuring low memory footprint and high scalability.
         </div>
       </div>
 

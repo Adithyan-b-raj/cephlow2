@@ -32,7 +32,7 @@ Isolation between distinct workspaces is enforced to prevent unauthorized data a
 
 ## 3. Google API Credentials Protection
 
-Cephlow interacts with Google Drive, Sheets, and Slides. Google OAuth refresh tokens are stored securely:
+Cephlow optionally interacts with Google Drive for backup and public folder sharing. Google OAuth refresh tokens are stored securely:
 
 *   **Encryption at Rest**: Stored tokens in `user_google_tokens` are encrypted using AES-GCM (with unique 12-byte IVs) via `encryptToken` and `decryptToken` helpers in [google-auth.ts](file:///c:/Users/AKSHAY/Desktop/code/projects/fork-cephlow/adi-cephlow/cephlow2/apps/api-worker/src/lib/google-auth.ts). This protects the tokens in case of D1 database snapshot exposures.
 *   **CSRF Protection**: Nonce verification for OAuth callbacks uses a `pending_google_auth` table with a short 10-minute expiry. Nonces are destroyed upon successful consumption.
@@ -69,9 +69,10 @@ Publicly exposed views are restricted to minimize the exposure of Personally Ide
 
 *   **No SQL Injection**: Database queries bind variables natively (`?` placeholders with `.bind()`) across all endpoints. String interpolation is not used for query assembly.
 *   **Cross-Site Scripting (XSS)**: Inputs (e.g., batch names) are validated using the `hasXssPayload` check to block HTML/JS code or event handler injection.
-*   **Secure Headers**: Secure header configurations are enforced on all routes:
+*   **Secure Headers & CSP Whitelisting**: Secure header configurations are enforced on all routes:
     *   `strictTransportSecurity` forces secure HTTPS communication.
     *   `xFrameOptions` and `frameAncestors` are configured to block clickjacking.
+    *   Content Security Policy (CSP) whitelists direct client uploads via `connect-src` specifically scoped to `https://*.r2.cloudflarestorage.com` in both the client `_headers` and API Worker global configurations to mitigate data exfiltration risks.
 *   **CORS Policies**: Restricted to verified frontend domains and designated development environments.
 
 ---

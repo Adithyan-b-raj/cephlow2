@@ -25,9 +25,17 @@ jobs:
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Deploy Worker
+      - name: Deploy Worker to Production
+        if: github.ref == 'refs/heads/main'
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: apps/api-worker
-          environment: ${{ github.ref == 'refs/heads/staging' && 'staging' || '' }}
+
+      - name: Deploy Worker to Staging
+        if: github.ref == 'refs/heads/staging'
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: apps/api-worker
+          environment: staging

@@ -70,9 +70,9 @@ export default function TermsAndConditions() {
           <div className="text-[10px] tracking-widest text-gray-500 mb-4">LEGAL DOCUMENT</div>
           <h1 className="text-4xl lg:text-6xl font-bold mb-6 leading-tight text-white">Terms &amp; Conditions</h1>
           <div className="flex flex-wrap gap-6 text-sm text-gray-400">
-            <span>Last updated: <span className="text-white font-bold">06 May 2026</span></span>
+            <span>Last updated: <span className="text-white font-bold">18 July 2026</span></span>
             <span>·</span>
-            <span>Effective: <span className="text-white font-bold">06 May 2026</span></span>
+            <span>Effective: <span className="text-white font-bold">18 July 2026</span></span>
           </div>
           <p className="mt-8 text-base text-gray-400 max-w-2xl leading-relaxed">
             These Terms govern your access to and use of Cephlow. By creating an account or using the
@@ -111,7 +111,7 @@ export default function TermsAndConditions() {
           <p className="text-base text-gray-700 leading-relaxed max-w-3xl">
             These Terms and Conditions ("Terms") govern your access to and use of the Cephlow platform
             operated by <span className="font-bold">Cephlow Certificate Authority</span> ("Cephlow",
-            "we", "our", or "us") at <span className="font-bold">cephlow.online</span>. If you do not
+            "we", "our", or "us") at <span className="font-bold">cephlow.in</span>. If you do not
             agree, do not use the platform.
           </p>
 
@@ -123,7 +123,7 @@ export default function TermsAndConditions() {
             <BulletList items={[
               "You must be at least 18 years old and have the legal authority to bind the organisation you represent.",
               "You are responsible for maintaining the confidentiality of your account credentials and for all activity under your account.",
-              "Each workspace account must be connected to a valid Google account. You are responsible for the Google permissions you grant.",
+              "Workspace accounts may connect to a Google account to authorize saving generated PDFs to Google Drive. You are responsible for the Google permissions you grant.",
               "Cephlow reserves the right to suspend or terminate accounts that violate these Terms.",
             ]} />
           </section>
@@ -157,7 +157,7 @@ export default function TermsAndConditions() {
             <BulletList items={[
               "The names, details, and achievements stated on certificates you generate.",
               "The template design, including any logos, seals, or branding you include.",
-              "Recipient data imported from Google Sheets.",
+              "Recipient data imported from local spreadsheet files (CSV, XLSX, etc.).",
               "The event names, dates, and descriptions used as template placeholders.",
             ]} />
             <p className="text-sm text-gray-700 leading-relaxed">
@@ -178,14 +178,15 @@ export default function TermsAndConditions() {
               certificate delivery.
             </SubSection>
             <SubSection title="Pricing">
-              Current rates: <span className="font-bold">₹1.00 per certificate generated</span> and{" "}
-              <span className="font-bold">₹0.50 per certificate delivered</span> (WhatsApp or email).
+              Current rates: <span className="font-bold">₹0.20 (1 credit) per certificate generated</span>,{" "}
+              <span className="font-bold">₹0.20 (1 credit) per certificate emailed</span>, and{" "}
+              <span className="font-bold">₹0.60 (3 credits) per certificate sent via WhatsApp</span>.
               Prices are subject to change with 14 days' notice posted on the platform.
             </SubSection>
             <SubSection title="Refunds">
               Credits are non-refundable once consumed (generation or delivery attempted). Unused wallet
               balance may be refunded within 30 days of a written request to{" "}
-              <span className="font-bold">approvals@cephlow.online</span>, subject to a processing fee.
+              <span className="font-bold">contact@cephlow.in</span>, subject to a processing fee.
               Credits never expire.
             </SubSection>
             <SubSection title="Failed Deliveries">
@@ -198,12 +199,9 @@ export default function TermsAndConditions() {
 
           {/* 05 */}
           <section id="google" className="scroll-mt-24 space-y-4">
-            <SectionHead num="05" title="Google Integration & OAuth" />
+            <SectionHead num="05" title="Google Drive Integration & OAuth" />
             <p className="text-sm text-gray-700 leading-relaxed">
-              By connecting your Google account you authorise Cephlow to access the specific Google
-              services described in our Privacy Policy on your behalf. You may revoke this access at any
-              time via your Google Account settings. Revoking access will prevent generation and delivery
-              of future batches but will not affect previously issued certificates.
+              By connecting your Google account you authorise Cephlow to access the specific Google Drive folder (drive.file scope) described in our Privacy Policy to save your certificates. You may revoke this access at any time via your Google Account settings. Revoking access will prevent exporting future batches to Google Drive but will not affect previously issued certificates.
             </p>
             <p className="text-sm text-gray-700 leading-relaxed">
               You are responsible for ensuring that your use of Google services through Cephlow complies
@@ -231,7 +229,7 @@ export default function TermsAndConditions() {
             <SectionHead num="07" title="Public Profiles & QR Codes" />
             <p className="text-sm text-gray-700 leading-relaxed">
               Issuing a certificate via Cephlow creates a public verification page at{" "}
-              <span className="font-bold">cephlow.online/&lt;recipient-username&gt;</span> and embeds a
+              <span className="font-bold">cephlow.in/&lt;recipient-username&gt;</span> and embeds a
               QR code in the certificate PDF. These are permanent by design to support lifetime
               certificate verification.
             </p>
@@ -327,7 +325,7 @@ export default function TermsAndConditions() {
               "We may suspend or terminate your account immediately if you breach these Terms.",
               "We may discontinue or modify the platform with reasonable notice.",
               "Upon termination, your access to the platform ends, but previously issued certificate verification pages remain live.",
-              "You may close your account at any time by contacting approvals@cephlow.online.",
+              "You may close your account at any time by contacting contact@cephlow.in.",
             ]} />
           </section>
 
@@ -365,8 +363,8 @@ export default function TermsAndConditions() {
               <h2 className="text-xl font-bold mb-4">Questions about these Terms?</h2>
               <div className="space-y-1 text-sm">
                 <div className="font-bold">CEPHLOW CERTIFICATE AUTHORITY</div>
-                <div className="text-gray-600">approvals@cephlow.online</div>
-                <div className="text-gray-600">cephlow.online</div>
+                <div className="text-gray-600">contact@cephlow.in</div>
+                <div className="text-gray-600">cephlow.in</div>
               </div>
             </div>
           </section>

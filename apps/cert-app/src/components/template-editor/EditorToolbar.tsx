@@ -31,6 +31,7 @@ interface Props {
   templateName: string;
   setTemplateName: (n: string) => void;
   onSave: () => void;
+  onSaveAsCopy?: () => void;
   saving: boolean;
   onBack: () => void;
   onAddImage: (file: File) => void;
@@ -46,6 +47,7 @@ export function EditorToolbar({
   templateName,
   setTemplateName,
   onSave,
+  onSaveAsCopy,
   saving,
   onBack,
   onAddImage,
@@ -60,6 +62,13 @@ export function EditorToolbar({
       return;
     }
     onSave();
+  };
+  const handleSaveAsCopy = () => {
+    if (!templateName.trim()) {
+      toast({ title: "Please name your template before saving", description: "Type a name in the 'Template name' field at the top." });
+      return;
+    }
+    onSaveAsCopy?.();
   };
   const addText = () => {
     const id = newId("text");
@@ -272,6 +281,11 @@ export function EditorToolbar({
         {!isFullscreen && (
           <>
             <div className="h-6 w-px bg-border mx-1" />
+            {onSaveAsCopy && (
+              <Button onClick={handleSaveAsCopy} disabled={saving} size="sm" variant="outline" className="mr-2">
+                Save as Copy
+              </Button>
+            )}
             <Button onClick={handleSave} disabled={saving} size="sm">
               {saving ? <Loader2 className="w-4 h-4 sm:mr-1.5 animate-spin" /> : <Save className="w-4 h-4 sm:mr-1.5" />}
               <span className="hidden sm:inline">Save</span>

@@ -2,12 +2,13 @@ import { createContext, useCallback, useContext, useEffect, useState, type React
 import { supabase } from "@/lib/supabase";
 import { useWorkspace } from "@/hooks/use-workspace";
 
-export type FeatureKey = "whatsapp_delivery" | "custom_event_banners" | "google_slides_templates" | "qr_codes";
+export type FeatureKey = "whatsapp_delivery" | "email_delivery" | "custom_event_banners" | "google_slides_templates" | "qr_codes";
 
 type Features = Record<FeatureKey, boolean>;
 
 const EMPTY_FEATURES: Features = {
   whatsapp_delivery: false,
+  email_delivery: false,
   custom_event_banners: false,
   google_slides_templates: false,
   qr_codes: false,

@@ -14,15 +14,21 @@ This checklist provides step-by-step manual verification scenarios for Cephlow's
 5. Check your email for the confirmation link and click it.
 6. Return to the app and verify you can now log in.
 
-### Scenario 1.2: Google Auth OAuth Integration
+### Scenario 1.2: Google Drive Integration (Optional Backup & Sharing)
 1. Go to **Settings** / **Connections**.
 2. Click **Connect Google Account**.
-3. Select Google scopes to authorize (Google Drive, Google Sheets, Google Slides).
+3. Select Google scopes to authorize (Google Drive: `drive.file` scope only).
 4. Complete the Google OAuth popup flow.
 5. Verify that:
    - You are redirected back to the Settings page with a success query parameter.
-   - The connection status card displays "Connected" for the selected scopes (Drive, Sheets, Slides).
+   - The connection status card displays "Connected" for Google Drive backup/sharing.
    - The D1 database stores the encrypted refresh token under `user_google_tokens`.
+
+### Scenario 1.3: Hostname-based BETA Badge Validation
+1. Navigate to the app on a test/staging domain (e.g., `localhost`, `test.cephlow.in`, or `*.pages.dev`).
+2. Verify that a `BETA` badge is rendered next to the Cephlow logo (in sidebar, landing page, and login screen).
+3. Navigate to the app on a production domain (e.g., `cephlow.in` or `cephlow.online`).
+4. Verify that the `BETA` badge is completely hidden.
 
 ---
 
@@ -55,34 +61,32 @@ This checklist provides step-by-step manual verification scenarios for Cephlow's
 
 ## 3. Template Creation & Management
 
-### Scenario 3.1: Add Google Slides Template
+### Scenario 3.1: Create Template via Built-in HTML Canvas Editor
 1. Go to **Templates** / **Frame Inventory**.
-2. Click **Add Google Slides Template**.
-3. Enter a Template Name and paste a valid Google Slides presentation URL.
-4. Click **Connect Template**.
-5. Verify that:
-   - The app parses the file ID and lists the template in your dashboard.
-   - Clicking **Sync Placeholders** pulls all variables correctly (e.g. `{{name}}`, `{{email}}`).
-6. **Edge Case (Invalid URL)**: Enter a broken URL or a URL to a restricted presentation.
-   - Verify that the app displays a clear error (e.g., "File not found or permission denied").
+2. Click **Create Template**.
+3. In the canvas editor workspace:
+   - Drag and place static labels (e.g. "Certificate of Achievement").
+   - Inject dynamic text placeholders mapped to spreadsheet columns (e.g. `{{Name}}`, `{{Email}}`).
+   - Configure text properties (font family, size, line-height, color alignment).
+4. Click **Save Template**.
+5. Verify it appears under your workspace templates and can be selected for certificate generation batches.
 
-### Scenario 3.2: Local PPTX Template Upload
-1. Go to the template selector.
-2. Select **Upload PPTX File**.
-3. Drag and drop a valid `.pptx` presentation.
-4. Verify that:
-   - The file is uploaded to the Hono backend.
-   - The backend successfully converts and uploads it to Google Slides on your behalf.
-   - The template appears in your list with a working slide thumbnail.
-5. **Edge Case (Invalid File Type)**: Try uploading a `.pdf` or `.docx` file.
-   - Verify that the app rejects the file with a validation error.
+### Scenario 3.2: Manage Design Frames in Frame Inventory
+1. Navigate to **Frame Inventory**.
+2. Click **Upload Frame**.
+3. Drag and drop a valid design background file (`.png` or `.jpg`).
+4. Verify the background uploads successfully to Cloudflare R2 and displays in the inventory.
+5. Create a template using this frame background.
+6. **Edge Case (Invalid File Types)**: Try uploading a `.pdf` or `.docx` as a background frame.
+   - Verify the browser alerts you and blocks the upload.
 
-### Scenario 3.3: Add QR Code Placeholder
-1. Open your connected Google Slides template details.
-2. Click **Inject QR Code**.
-3. Open the template in Google Slides and verify that:
-   - A shape placeholder is added to the slide (by default in the bottom right corner).
-   - The shape has the Alt Text title set to `<<qr_code>>`.
+### Scenario 3.3: QR Element Aspect Ratio Constraints
+1. Open a template in the built-in canvas editor.
+2. Click **Add QR Code** element.
+3. Drag the corners of the QR box to resize it on the canvas.
+4. Verify that the resizing is constrained to a **locked 1:1 aspect ratio** to prevent QR code distortion.
+5. Select the QR element and manually edit the **Width** or **Height** property in the Properties Panel.
+6. Verify that changing one dimension automatically updates the other dimension to match (maintaining 1:1 ratio).
 
 ---
 
@@ -123,20 +127,41 @@ This checklist provides step-by-step manual verification scenarios for Cephlow's
 2. Make sure your workspace balance is sufficient (at least `10 * generation_cost` credits).
 3. Click **Generate Certificates**.
 4. Verify that:
-   - The browser starts looping through rows, copying slides, and exporting PDFs via the Google Slides API.
+   - The browser starts looping through rows, rendering them on an HTML canvas, and compiling PDFs locally using PDF-Lib (client-side).
+   - The PDFs are uploaded directly to Cloudflare R2 (`*.r2.cloudflarestorage.com`) via presigned URLs.
    - The progress bar updates in real-time.
    - Your wallet balance is atomically deducted for the cost of generation.
 5. Navigate to **Wallet** -> **Ledger** and verify that a transaction of type `generation` is recorded.
 6. **Edge Case (Insufficient Balance)**: Attempt to generate a batch of 100 certificates when your wallet has 5 credits.
    - Verify the generation blocks immediately with an "Insufficient balance" alert.
 
-### Scenario 5.3: Visual Regeneration (Cost Discount)
+### Scenario 5.3: Visual Regeneration (Free Re-generation)
 1. Select a certificate that has already been successfully generated (`status = 'generated'`).
-2. Update the recipient's name in the spreadsheet and mark it for regeneration (or click **Re-generate**).
+2. Update the recipient's name in the spreadsheet and click **Re-generate**.
 3. Verify that:
-   - The regeneration cost is charged at the discounted rate of `20%` of the standard generation cost.
-   - The old PDF is replaced in Cloudflare R2 and Google Drive.
+   - The regeneration is completely free (0 credit cost) and no wallet balance is deducted.
+   - The old PDF is replaced in Cloudflare R2.
    - The new PDF contains the corrected name.
+
+### Scenario 5.4: Advanced Workflow Graph Persistence
+1. Navigate to the **Advanced Workflow Builder** (`/advanced`).
+2. Construct a workflow with React Flow: drag Spreadsheet and Template nodes and connect them.
+3. Click **Launch Batch**.
+4. Verify that:
+   - The batch is successfully initialized.
+   - The React Flow nodes and edges array are saved in D1 as `workflow_json` on the batch.
+5. Go to the Batch Detail page and click the **Edit Workflow** button in the header.
+6. Verify it returns you to the advanced designer and restores the exact graph.
+7. **Edge Case (Malformed workflow JSON)**: Inject a malformed string or script payload into the graph state.
+   - Verify the designer handles rendering errors gracefully and Zod rejects malicious payloads on saving.
+
+### Scenario 5.5: Google Drive Folder Sharing
+1. In the Batch Detail header, click the **More** dropdown and select **Share PDFs**.
+2. If Google is not connected, verify a dialog prompts you to connect your account.
+3. If connected, click **Share Folder** and verify that:
+   - The backend creates a dedicated, publicly accessible folder named after the batch.
+   - A background thread automatically moves any existing certificate files from the Drive root into this new folder.
+   - A success toast is displayed with a direct link to the shared Google Drive folder.
 
 ---
 
@@ -163,7 +188,7 @@ This checklist provides step-by-step manual verification scenarios for Cephlow's
 
 ## 7. Certificate Delivery Channels
 
-### Scenario 7.1: Delivery via Email (Gmail / Zeptomail)
+### Scenario 7.1: Delivery via Email (ZeptoMail)
 1. Go to the batch details page.
 2. Ensure recipient records have valid email addresses.
 3. Click **Send Emails**.
@@ -171,7 +196,7 @@ This checklist provides step-by-step manual verification scenarios for Cephlow's
    - The browser triggers the send endpoint for each recipient.
    - The status column changes from `generated` to `sent`.
    - Your wallet balance is deducted by `email_cost` credits per sent email.
-   - The recipient receives the email containing the certificate PDF as an attachment.
+   - The recipient receives the email (delivered via ZeptoMail) containing the certificate PDF as an attachment.
 
 ### Scenario 7.2: Delivery via WhatsApp
 1. Ensure the recipient records have valid phone numbers normalized (E.164 format).
@@ -239,7 +264,10 @@ This checklist provides step-by-step manual verification scenarios for Cephlow's
 4. Verify that:
    - The bot replies: "Thanks! Your issue has been reported."
    - The issue is saved in the D1 `reports` database table.
-   - The workspace owner receives an automated email notification detailing the reported issue, containing a link to review the batch.
+5. Log into the Cephlow Dashboard as the workspace owner and navigate to the **Reports** page.
+6. Verify that:
+   - The reported issue is displayed correctly under the workspace's reports list.
+   - The private WhatsApp analytics token is **not** leaked to the client browser (the browser fetches securely from `/api/reports` passing the `x-workspace-id` header, with zero direct cross-origin calls to the bot worker).
 
 ### Scenario 9.4: Developer Live Chat Bridge (Telegram)
 1. Select `💬 Talk to Developer` or send "talk to developer" to the bot.
@@ -290,8 +318,8 @@ These scenarios test the resilience, error-handling, validation, and security bo
    - *Expected Outcome*: The application must process the string as literal text (creating a workspace actually named `' OR 1=1 --`) and must **not** execute it as SQL commands, since D1 uses native parameterized bindings.
 3. **Oversized Input Payload**: Send a JSON payload containing an extremely large batch name (e.g. 5,000 characters).
    - *Expected Outcome*: The Zod schema must reject the input due to the `.max(100)` constraint on the string name.
-4. **Corrupted PPTX Upload**: Attempt to upload a non-presentation file (e.g., a `.txt` file renamed to `.pptx`) to the template upload route.
-   - *Expected Outcome*: The endpoint must validate the file type/mime-type and return a `400 Invalid content type` or fail gracefully during conversion without crashing the worker.
+4. **Corrupted Frame Background Upload**: Attempt to upload a non-image file (e.g., a `.txt` file renamed to `.png`) to the template background upload route.
+   - *Expected Outcome*: The endpoint must validate the file content/mime-type and return a `400 Invalid content type` or fail gracefully without saving the file to R2.
 
 ### Scenario 10.4: Spreadsheet Editor Abuse & Bad Data
 1. **Malformed Emails**: In the spreadsheet editor, enter invalid email strings (e.g., `not_an_email`, `john@`, `@domain.com`) in the mapped email column.
@@ -310,10 +338,10 @@ These scenarios test the resilience, error-handling, validation, and security bo
    - *Expected Outcome*: The API worker must reject the webhook request with `401 Invalid signature` or `401 Missing header` because of cryptographic HMAC mismatch.
 
 ### Scenario 10.6: Integration & API Disconnection
-1. **Google Account Disconnected Mid-Run**: Revoke Cephlow permissions from your Google Account settings (`myaccount.google.com/permissions`) while a certificate generation batch is mid-way.
-   - *Expected Outcome*: The client-side loop must fail gracefully on the next row processing step, change the batch status to `partial` or `draft`, and display a connection error ("Google account connection has expired. Please reconnect").
-2. **Delete Active Template in Google Drive**: Go to Google Drive and delete the slide presentation template, then attempt to generate certificates for a batch that points to it.
-   - *Expected Outcome*: The generation must fail, display "File not found" for that template ID, and halt without crashing the app.
+1. **Google Account Disconnected Mid-Share**: Revoke Cephlow permissions from your Google Account settings (`myaccount.google.com/permissions`) while a Google Drive folder sharing operation is in progress in the background.
+   - *Expected Outcome*: The background worker task (`waitUntil`) must catch the API authorization failure, stop copying PDFs, mark the folder sharing status as `failed` in the database, and display an expired credentials alert.
+2. **Delete Active Template in Database**: Access the database directly (or open a parallel tab) and delete the canvas template while a batch is configuring it.
+   - *Expected Outcome*: Clicking generate must fail immediately, returning `404 Template not found`, and halt the generation process safely.
 3. **Simulate Network Drop**: Disconnect your internet connection during client-side generation.
    - *Expected Outcome*: The browser loop must pause or fail gracefully, updating the batch status in D1 to `partial` (if some certificates were already reported) and logging the failure.
 

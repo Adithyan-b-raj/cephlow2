@@ -2,20 +2,20 @@
 
 A powerful, automated platform for organizations to generate, manage, and deliver personalized certificates at scale. 
 
-The platform integrates directly with **Google Sheets** for participant data and **Google Slides** for certificate templates. It handles the full lifecycle: generating personalized PDFs client-side, uploading them to Cloudflare R2, delivering them via Email or WhatsApp, and providing a public verification page via QR codes.
+The platform integrates a built-in spreadsheet editor for participant data and an HTML canvas template designer for certificate templates. It handles the full lifecycle: generating personalized PDFs client-side using PDF-Lib, uploading them to Cloudflare R2, delivering them via Email or WhatsApp, and providing a public verification page via QR codes.
 
 ---
 
 ## 🌟 Key Features
 
-- **Google Workspace Integration:** Connects seamlessly to your Google Drive to read participant data from Sheets and use Slides as highly-customizable certificate templates.
-- **Smart Generation & Font Scaling:** Automatically replaces `<<placeholders>>` in templates and intelligently scales down font sizes to ensure long names always fit perfectly on a single line.
+- **Built-in Spreadsheet & Canvas Designer:** Create highly customizable templates and manage participant list tables natively in the application.
+- **Smart Generation & Font Scaling:** Automatically replaces dynamic `{{placeholders}}` in templates and intelligently scales down font sizes to ensure long names always fit perfectly on a single line.
 - **Multi-Channel Delivery:** Send generated certificates to participants via:
-  - **Email:** Uses the Gmail API to send personalized emails with the certificate attached as a PDF.
+  - **Email:** Uses ZeptoMail API to send personalized emails with the certificate attached as a PDF.
   - **WhatsApp:** Uses the Meta Graph API to send the certificate document directly to the participant's WhatsApp.
 - **Public Verification & QR Codes:** Dynamically injects a unique QR code onto every certificate that links to a public verification page.
 - **Prepaid Wallet System:** Integrated with Cashfree Payment Gateway to manage generation quotas and prepaid wallet balances.
-- **High-Performance Architecture:** Exports PDFs to Cloudflare R2 for lightning-fast, highly-available public access required by the WhatsApp API.
+- **High-Performance Architecture:** Exports PDFs directly to Cloudflare R2 for lightning-fast, highly-available public access required by the WhatsApp API.
 - **Interactive WhatsApp Bot & Telegram Bridge:** Recipients can message the WhatsApp number to retrieve their certificates. Conversations can be bridged to Telegram topics for support.
 
 ---
@@ -37,15 +37,14 @@ This project is structured as a **pnpm monorepo** with shared workspaces.
 - **Storage:** Cloudflare R2 (S3-compatible object storage) for public PDFs
 
 ### Shared Packages (`packages/`)
-- `@workspace/supabase`: Shared Supabase client initialization and JWT verification helper.
 - `@workspace/api-client-react`: Auto-generated API client and React Query hooks.
 - `@workspace/api-zod`: Auto-generated Zod schemas and TypeScript types.
 
 ### Infrastructure & External Services
 - **Database:** Cloudflare D1 (SQLite)
-- **Authentication:** Supabase Auth (Identity) + Google OAuth 2.0 (Permissions)
-- **Storage:** Google Drive (Archival) + Cloudflare R2 (Public Edge Storage)
-- **Messaging:** Gmail API + Meta WhatsApp Business API
+- **Authentication:** Supabase Auth (Identity) + Google OAuth 2.0 (Optional Permissions)
+- **Storage:** Cloudflare R2 (Public Edge Storage) + Google Drive (Optional backup folder sharing)
+- **Messaging:** ZeptoMail API + Meta WhatsApp Business API
 - **Payments:** Cashfree API
 
 ---
@@ -66,7 +65,8 @@ The following guides are available in the [docs/](file:///c:/Users/AKSHAY/Deskto
 - `pnpm` (installed via `npm install -g pnpm`)
 - A Supabase Project (for Authentication)
 - A Cloudflare Account (for Workers, D1 Database, and R2 Storage)
-- Google Cloud Console Project (with Drive, Sheets, Slides, and Gmail APIs enabled)
+- Google Cloud Console Project (with Drive API enabled for optional folder sharing)
+- ZeptoMail Account (for email sending)
 - Meta Developer Account (for WhatsApp Cloud API)
 
 ### 1. Installation

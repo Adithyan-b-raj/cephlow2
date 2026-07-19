@@ -14,7 +14,7 @@ Historically, Cephlow ran on a monolithic Express.js server hosted on a $18/mo D
 
 ### Long-Running HTTP Connections
 - **Problem:** In-line certificate generation held HTTP connections open for up to 30 minutes, leading to server timeouts, socket exhaustion, and OOM crashes.
-- **Fix:** Moved certificate generation **client-side** (browser generates PDFs using the organizer's Google API quota and uploads directly to Cloudflare R2 via presigned URLs).
+- **Fix:** Moved certificate generation **client-side** (browser renders template on HTML Canvas, compiles PDF using PDF-Lib, and uploads directly to Cloudflare R2 via presigned URLs).
 
 ### Monolithic Database & Queue Overhead
 - **Problem:** Running BullMQ/Redis or poll-based Postgres queues added latency, infrastructure cost, and complexity.
@@ -72,6 +72,6 @@ Cephlow now runs entirely serverless at the Cloudflare edge:
 ## 5. Key System Architecture Talking Points
 
 - **Database Migration:** Migrated production DB from Firebase Firestore / Supabase Postgres to Cloudflare D1 (SQLite).
-- **Google API Quota Mitigation:** Generation task is distributed client-side, using each user's individual Google API writes quota (60 writes/min) instead of exhausting a single centralized service account.
+- **Google API Quota Elimination:** Migrated from Google Slides API limits to 100% client-side HTML Canvas rendering + PDF-Lib generation. This eliminates Google API quotas and rate limits entirely, allowing fast and infinite scale limited only by the client device's CPU/RAM.
 - **WhatsApp Webhook Bot & Support Bridge:** Meta webhooks trigger Worker functions directly, mapping incoming messages to Telegram group forum topics based on D1 state records (`user_states`, `wa_tg_threads`), allowing developers to reply from Telegram directly to WhatsApp.
 - **Payment Idempotency:** Cashfree payment webhook verification locks order records dynamically using D1 transactions to prevent duplicate top-up credits.

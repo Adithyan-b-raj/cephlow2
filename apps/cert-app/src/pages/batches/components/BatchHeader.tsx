@@ -2,20 +2,25 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { LockedFeature } from "@/components/LockedFeature";
+import { LockedFeature, useLockedFeatureGuard } from "@/components/LockedFeature";
 import { useApproval } from "@/hooks/use-approval";
 import { useToast } from "@/hooks/use-toast";
-import { Play, Send, Loader2, Share2, Link2, MessageCircle, RefreshCcw, Eye, X, ChevronDown, ChevronUp, Pencil, Check } from "lucide-react";
+import { Play, Send, Loader2, Share2, Link2, MessageCircle, Eye, X, ChevronDown, ChevronUp, Pencil, Check, Network, MoreHorizontal, Lock } from "lucide-react";
 import { FileSpreadsheet, Table2 } from "lucide-react";
 import { format } from "date-fns";
 import { FileText } from "lucide-react";
 import { useLocation } from "wouter";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface Props {
   batch: any;
   batchId: string;
   isGenerating: boolean;
-  isSyncing: boolean;
   isSharing: boolean;
   isSending: boolean;
   isSendingWhatsapp: boolean;
@@ -26,7 +31,6 @@ interface Props {
   getStatusColor: (status: string) => string;
   onGenerate: () => void;
   onCancelGeneration: () => void;
-  onSync: () => void;
   onShare: () => void;
   onBannerEdit: () => void;
   onOpenSend: () => void;
@@ -36,15 +40,17 @@ interface Props {
 }
 
 export function BatchHeader({
-  batch, batchId, isGenerating, isSyncing, isSharing, isSending, isSendingWhatsapp,
+  batch, batchId, isGenerating, isSharing, isSending, isSendingWhatsapp,
   bannerUploading, generateBtnText, canResumeAll, selectedCertIds,
-  getStatusColor, onGenerate, onCancelGeneration, onSync, onShare, onBannerEdit, onOpenSend, onOpenWa,
+  getStatusColor, onGenerate, onCancelGeneration, onShare, onBannerEdit, onOpenSend, onOpenWa,
   onRename, isRenaming,
 }: Props) {
   const [moreOpen, setMoreOpen] = useState(false);
   const { isApproved } = useApproval();
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const { isApproved: isEmailUnlocked, guard: guardEmail, modal: emailModal } = useLockedFeatureGuard("Email delivery", "email_delivery");
+  const { isApproved: isWaUnlocked, guard: guardWa, modal: waModal } = useLockedFeatureGuard("WhatsApp delivery", "whatsapp_delivery");
 
   const copyGalleryLink = () => {
     const slug = batch.name
@@ -75,7 +81,7 @@ export function BatchHeader({
 
   const handleEditSheet = async () => {
     if (batch.spreadsheetId) {
-      setLocation(`/spreadsheets/${batch.spreadsheetId}?returnTo=/batches/${batchId}`);
+      setLocation(`/spreadsheets/${batch.spreadsheetId}?returnTo=/batches/${batchId}?synced=1`);
       return;
     }
 
@@ -99,7 +105,7 @@ export function BatchHeader({
       }
       const data = await res.json();
       toast({ title: "Migrated to Built-in Sheet", description: "Successfully converted Google Sheet data to built-in sheet." });
-      setLocation(`/spreadsheets/${data.spreadsheetId}?returnTo=/batches/${batchId}`);
+      setLocation(`/spreadsheets/${data.spreadsheetId}?returnTo=/batches/${batchId}?synced=1`);
     } catch (err: any) {
       toast({ title: "Conversion failed", description: err.message, variant: "destructive" });
     } finally {
@@ -110,7 +116,7 @@ export function BatchHeader({
   function EditSheetButton({ className }: { className?: string }) {
     return (
       <Button variant="outline" size="sm" className={`hover-elevate bg-background ${className ?? ""}`}
-        onClick={handleEditSheet} disabled={convertingSheet || isSyncing || isGenerating}>
+        onClick={handleEditSheet} disabled={convertingSheet || isGenerating}>
         {convertingSheet ? (
           <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
         ) : isInbuilt ? (
@@ -210,18 +216,19 @@ export function BatchHeader({
               size="sm"
               className="hover-elevate flex-1"
             >
-              {isSendingWhatsapp ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-1.5" />}
+              {isSendingWhatsapp ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-1.5 text-[#25D366]" />}
               WhatsApp
             </Button>
           ) : (
             <Button
-              onClick={onOpenSend}
-              disabled={sendDisabled}
+              onClick={onShare}
+              disabled={isSharing || batch.generatedCount === 0}
               size="sm"
-              className="hover-elevate flex-1"
+              variant="outline"
+              className="hover-elevate flex-1 bg-background"
             >
-              {isSending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Send className="w-4 h-4 mr-1.5" />}
-              Send
+              {isSharing ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Share2 className="w-4 h-4 mr-1.5" />}
+              Share PDFs
             </Button>
           )}
           <Button
@@ -239,14 +246,19 @@ export function BatchHeader({
         {moreOpen && (
           <div className="grid grid-cols-2 gap-2 md:hidden p-3 bg-secondary/40 rounded-xl border border-border/50">
             <EditSheetButton className="w-full justify-start" />
-            <Button variant="outline" size="sm" onClick={onSync} disabled={isSyncing || batch.status === 'generating'} className="hover-elevate bg-background w-full justify-start">
-              {isSyncing ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RefreshCcw className="w-4 h-4 mr-1.5" />}
-              Sync Data
-            </Button>
-            <Button variant="outline" size="sm" onClick={onShare} disabled={isSharing || batch.generatedCount === 0} className="hover-elevate bg-background w-full justify-start">
-              {isSharing ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Share2 className="w-4 h-4 mr-1.5" />}
-              Share PDFs
-            </Button>
+            {isApproved ? (
+              <Button variant="outline" size="sm" onClick={onShare} disabled={isSharing || batch.generatedCount === 0} className="hover-elevate bg-background w-full justify-start">
+                {isSharing ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Share2 className="w-4 h-4 mr-1.5" />}
+                Share PDFs
+              </Button>
+            ) : (
+              <LockedFeature feature="Email delivery" featureKey="email_delivery" inline className="w-full">
+                <Button variant="outline" size="sm" onClick={onOpenSend} disabled={sendDisabled} className="hover-elevate bg-background w-full justify-start">
+                  {isSending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Send className="w-4 h-4 mr-1.5" />}
+                  Send Emails
+                </Button>
+              </LockedFeature>
+            )}
             <Button variant="outline" size="sm" onClick={copyGalleryLink} disabled={batch.generatedCount === 0} className="hover-elevate bg-background w-full justify-start" title="Copy a public link recipients can use to find their certificate">
               <Link2 className="w-4 h-4 mr-1.5" />
               Share Page
@@ -257,16 +269,15 @@ export function BatchHeader({
                 {batch.bannerUrl ? "Edit Banner" : "Add Banner"}
               </Button>
             </LockedFeature>
-            {/* Paid: Send Emails moves to dropdown. Free: WhatsApp stays here (locked). */}
             {isApproved ? (
               <Button variant="outline" size="sm" onClick={onOpenSend} disabled={sendDisabled} className="hover-elevate bg-background w-full justify-start">
                 {isSending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Send className="w-4 h-4 mr-1.5" />}
                 Send Emails
               </Button>
             ) : (
-              <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>
+              <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline className="w-full">
                 <Button variant="outline" size="sm" onClick={onOpenWa} disabled={waDisabled} className="hover-elevate bg-background w-full justify-start">
-                  {isSendingWhatsapp ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-1.5" />}
+                  {isSendingWhatsapp ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <MessageCircle className="w-4 h-4 mr-1.5 text-[#25D366]" />}
                   WhatsApp
                 </Button>
               </LockedFeature>
@@ -276,36 +287,9 @@ export function BatchHeader({
 
         {/* Desktop: single compact row */}
         <div className="hidden md:flex items-center gap-1.5 flex-wrap">
-          {/* Data group */}
-          <EditSheetButton />
-          <Button variant="outline" size="sm" onClick={onSync} disabled={isSyncing || batch.status === 'generating'} className="hover-elevate bg-background">
-            {isSyncing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <RefreshCcw className="w-3.5 h-3.5 mr-1.5" />}
-            Sync Data
-          </Button>
-
-          <div className="w-px h-5 bg-border mx-0.5" />
-
-          {/* Output group */}
-          <Button variant="outline" size="sm" onClick={onShare} disabled={isSharing || batch.generatedCount === 0} className="hover-elevate bg-background">
-            {isSharing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5 mr-1.5" />}
-            Share PDFs
-          </Button>
-          <Button variant="outline" size="sm" onClick={copyGalleryLink} disabled={batch.generatedCount === 0} className="hover-elevate bg-background" title="Copy a public link recipients can use to find their certificate">
-            <Link2 className="w-3.5 h-3.5 mr-1.5" />
-            Share Page
-          </Button>
-          <LockedFeature feature="custom event banners" featureKey="custom_event_banners" inline>
-            <Button variant="outline" size="sm" onClick={onBannerEdit} disabled={bannerUploading} className="hover-elevate bg-background">
-              {bannerUploading ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-1.5" />}
-              {batch.bannerUrl ? "Edit Banner" : "Add Banner"}
-            </Button>
-          </LockedFeature>
-
-          <div className="w-px h-5 bg-border mx-0.5" />
-
-          {/* Generate group */}
-          <div className="flex items-center gap-1 min-w-[240px]">
-            <Button size="sm" variant="outline" onClick={onGenerate} disabled={generateDisabled} className="hover-elevate bg-background min-w-[148px] justify-start">
+          {/* Generate — primary CTA */}
+          <div className="flex items-center gap-1">
+            <Button size="sm" onClick={onGenerate} disabled={generateDisabled} className="hover-elevate min-w-[148px] justify-start">
               {isGenerating ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Play className="w-3.5 h-3.5 mr-1.5" />}
               {isGenerating ? 'Generating...' : generateBtnText}
             </Button>
@@ -316,21 +300,83 @@ export function BatchHeader({
             )}
           </div>
 
+          {isApproved ? (
+            <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>
+              <Button variant="outline" size="sm" onClick={onOpenWa} disabled={isSendingWhatsapp || batch.status === 'sending' || batch.generatedCount === 0} className="hover-elevate bg-background">
+                {isSendingWhatsapp ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5 mr-1.5 text-[#25D366]" />}
+                WhatsApp
+              </Button>
+            </LockedFeature>
+          ) : (
+            <Button variant="outline" size="sm" onClick={onShare} disabled={isSharing || batch.generatedCount === 0} className="hover-elevate bg-background">
+              {isSharing ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Share2 className="w-3.5 h-3.5 mr-1.5" />}
+              Share PDFs
+            </Button>
+          )}
+
           <div className="w-px h-5 bg-border mx-0.5" />
 
-          {/* Send group */}
-          <Button size="sm" onClick={onOpenSend} disabled={sendDisabled} className="hover-elevate">
-            {isSending ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
-            Send Emails
-          </Button>
-          <LockedFeature feature="WhatsApp delivery" featureKey="whatsapp_delivery" inline>
-            <Button variant="outline" size="sm" onClick={onOpenWa} disabled={isSendingWhatsapp || batch.status === 'sending' || batch.generatedCount === 0} className="hover-elevate bg-background">
-              {isSendingWhatsapp ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <MessageCircle className="w-3.5 h-3.5 mr-1.5" />}
-              WhatsApp
-            </Button>
-          </LockedFeature>
+          {/* More dropdown — secondary actions */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="hover-elevate bg-background px-2">
+                <MoreHorizontal className="w-3.5 h-3.5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleEditSheet} disabled={convertingSheet || isGenerating}>
+                {isInbuilt ? <Table2 className="w-3.5 h-3.5 mr-2 text-blue-600" /> : <FileSpreadsheet className="w-3.5 h-3.5 mr-2 text-green-600" />}
+                Edit Sheet
+              </DropdownMenuItem>
+              {batch.workflowJson && (
+                <DropdownMenuItem onClick={() => setLocation(`/advanced?batchId=${batchId}`)}>
+                  <Network className="w-3.5 h-3.5 mr-2" />
+                  Edit Workflow
+                </DropdownMenuItem>
+              )}
+              {isApproved ? (
+                <>
+                  <DropdownMenuItem onClick={onOpenSend} disabled={sendDisabled}>
+                    <Send className="w-3.5 h-3.5 mr-2" />
+                    Send Emails
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onShare} disabled={isSharing || batch.generatedCount === 0}>
+                    {isSharing ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Share2 className="w-3.5 h-3.5 mr-2" />}
+                    Share PDFs
+                  </DropdownMenuItem>
+                </>
+              ) : (
+                <>
+                  <DropdownMenuItem onClick={guardEmail(onOpenSend)} disabled={sendDisabled} className="flex items-center justify-between">
+                    <span className="flex items-center">
+                      <Send className="w-3.5 h-3.5 mr-2" />
+                      Send Emails
+                    </span>
+                    <Lock className="w-3 h-3 text-muted-foreground ml-2" />
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={guardWa(onOpenWa)} disabled={isSendingWhatsapp || batch.status === 'sending' || batch.generatedCount === 0} className="flex items-center justify-between">
+                    <span className="flex items-center">
+                      <MessageCircle className="w-3.5 h-3.5 mr-2 text-[#25D366]" />
+                      WhatsApp
+                    </span>
+                    <Lock className="w-3 h-3 text-muted-foreground ml-2" />
+                  </DropdownMenuItem>
+                </>
+              )}
+              <DropdownMenuItem onClick={copyGalleryLink} disabled={batch.generatedCount === 0}>
+                <Link2 className="w-3.5 h-3.5 mr-2" />
+                Share Page
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onBannerEdit} disabled={bannerUploading}>
+                {bannerUploading ? <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" /> : <Eye className="w-3.5 h-3.5 mr-2" />}
+                {batch.bannerUrl ? "Edit Banner" : "Add Banner"}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
+      {emailModal}
+      {waModal}
     </div>
   );
 }

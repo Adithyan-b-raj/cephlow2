@@ -66,9 +66,9 @@ export default function PrivacyPolicy() {
           <div className="text-[10px] tracking-widest text-gray-500 mb-4">LEGAL DOCUMENT</div>
           <h1 className="text-4xl lg:text-6xl font-bold mb-6 leading-tight text-white">Privacy Policy</h1>
           <div className="flex flex-wrap gap-6 text-sm text-gray-400">
-            <span>Last updated: <span className="text-white font-bold">06 May 2026</span></span>
+            <span>Last updated: <span className="text-white font-bold">18 July 2026</span></span>
             <span>·</span>
-            <span>Effective: <span className="text-white font-bold">06 May 2026</span></span>
+            <span>Effective: <span className="text-white font-bold">18 July 2026</span></span>
           </div>
           <p className="mt-8 text-base text-gray-400 max-w-2xl leading-relaxed">
             This policy explains what data Cephlow collects, how it is used, and your rights. By using
@@ -106,7 +106,7 @@ export default function PrivacyPolicy() {
           {/* Intro */}
           <p className="text-base text-gray-700 leading-relaxed max-w-3xl">
             Cephlow Certificate Authority ("Cephlow", "we", "our", or "us") operates the platform at{" "}
-            <span className="font-bold">cephlow.online</span>. We are committed to protecting your personal
+            <span className="font-bold">cephlow.in</span>. We are committed to protecting your personal
             data and being transparent about how we use it.
           </p>
 
@@ -120,12 +120,10 @@ export default function PrivacyPolicy() {
               Supabase Auth to identify your account and workspace.
             </SubSection>
             <SubSection title="Google Workspace Data">
-              <p>To automate certificate generation you grant Cephlow access to specific Google services:</p>
+              <p>To support saving generated certificates to Google Drive, you may grant Cephlow access to your Google Drive account:</p>
               <div className="mt-4 space-y-3">
                 {[
-                  ["Google Sheets", "Read recipient data (names, emails, event details) from spreadsheets you explicitly select via the Google Picker."],
-                  ["Google Slides", "Read certificate templates from presentations you explicitly select via the Google Picker; create and modify personalised copies."],
-                  ["Google Drive (drive.file)", "Copy templates, export certificate PDFs, delete temporary files, and store output in your Drive. Access is limited only to files you select via the Google Picker or files the app creates — we never browse or list your full Drive."],
+                  ["Google Drive (drive.file)", "Create folders and upload certificate PDF files to your Drive. Access is strictly limited to files and folders created by the Cephlow app itself — we never browse, list, or access other files in your Drive."],
                   ["Email delivery", "Send personalised emails with certificate PDFs attached via our own sending infrastructure."],
                 ].map(([svc, desc]) => (
                   <div key={svc} className="flex gap-4 items-start">
@@ -135,9 +133,7 @@ export default function PrivacyPolicy() {
                 ))}
               </div>
               <p className="mt-4 text-xs text-gray-500">
-                File selection is done exclusively through the Google Picker API — we never call drive.files.list
-                or access any file you have not explicitly selected. We do not scan, index, or retain any other
-                Drive, Sheets, or Slides content outside of the active generation session.
+                Connection is entirely optional. We request the minimal drive.file scope and do not scan, index, or retain any other Google Drive content.
               </p>
             </SubSection>
             <SubSection title="Recipient Data">
@@ -163,7 +159,7 @@ export default function PrivacyPolicy() {
             <BulletList items={[
               "Authenticate you and manage your workspace.",
               "Generate personalised certificate PDFs from your templates and recipient lists.",
-              "Deliver certificates via email (Amazon SES) and WhatsApp Business API.",
+              "Deliver certificates via email (ZeptoMail by Zoho) and WhatsApp Business API.",
               "Store PDFs on Cloudflare R2 (edge CDN) so WhatsApp and verification links work reliably.",
               "Inject unique QR codes linking to public verification pages.",
               "Maintain public student profile pages showing certificates issued to each recipient.",
@@ -187,8 +183,8 @@ export default function PrivacyPolicy() {
                 <span>PURPOSE</span>
               </div>
               {[
-                ["Google LLC", "OAuth authentication, Sheets / Slides / Drive access"],
-                ["Amazon Web Services (SES)", "Transactional email delivery"],
+                ["Google LLC", "OAuth authentication, Google Drive integration"],
+                ["ZeptoMail (Zoho)", "Transactional email delivery"],
                 ["Cloudflare Inc. (R2)", "PDF storage and public CDN delivery"],
                 ["Meta Platforms (WhatsApp Business API)", "Certificate delivery via WhatsApp"],
                 ["Cashfree Payments India", "Wallet top-up and payment processing"],
@@ -212,14 +208,14 @@ export default function PrivacyPolicy() {
             <SectionHead num="04" title="Public Profiles & QR Verification" />
             <p className="text-sm text-gray-700 leading-relaxed">
               Each certificate recipient gets a public profile page at{" "}
-              <span className="font-bold">cephlow.online/&lt;username&gt;</span> and a unique QR code
+              <span className="font-bold">cephlow.in/&lt;username&gt;</span> and a unique QR code
               embedded in their certificate PDF. These pages allow anyone to verify authenticity without
               logging in.
             </p>
             <p className="text-sm text-gray-700 leading-relaxed">
               Public profiles display only the recipient's name and the certificates you have issued to
               them through Cephlow. If a recipient wishes to have their profile delisted, they may
-              contact us at <span className="font-bold">approvals@cephlow.online</span>.
+              contact us at <span className="font-bold">contact@cephlow.in</span>.
             </p>
           </section>
 
@@ -250,7 +246,7 @@ export default function PrivacyPolicy() {
             </p>
             <p className="text-sm text-gray-700 leading-relaxed">
               No system is perfectly secure. If you discover a security issue please report it responsibly
-              to <span className="font-bold">approvals@cephlow.online</span>.
+              to <span className="font-bold">contact@cephlow.in</span>.
             </p>
           </section>
 
@@ -272,7 +268,7 @@ export default function PrivacyPolicy() {
             ]} />
             <p className="text-sm text-gray-700 leading-relaxed">
               To exercise any of these rights, email{" "}
-              <span className="font-bold">approvals@cephlow.online</span>. We will respond within 30 days.
+              <span className="font-bold">contact@cephlow.in</span>. We will respond within 30 days.
             </p>
           </section>
 
@@ -296,7 +292,7 @@ export default function PrivacyPolicy() {
               Cephlow is intended for organisations and their administrators (aged 18+). We do not
               knowingly collect personal data from children under 13. If you believe a child has provided
               us data, contact us immediately at{" "}
-              <span className="font-bold">approvals@cephlow.online</span>.
+              <span className="font-bold">contact@cephlow.in</span>.
             </p>
           </section>
 
@@ -321,8 +317,8 @@ export default function PrivacyPolicy() {
               <h2 className="text-xl font-bold mb-4">Questions about this policy?</h2>
               <div className="space-y-1 text-sm">
                 <div className="font-bold">CEPHLOW CERTIFICATE AUTHORITY</div>
-                <div className="text-gray-600">approvals@cephlow.online</div>
-                <div className="text-gray-600">cephlow.online</div>
+                <div className="text-gray-600">contact@cephlow.in</div>
+                <div className="text-gray-600">cephlow.in</div>
               </div>
             </div>
           </section>

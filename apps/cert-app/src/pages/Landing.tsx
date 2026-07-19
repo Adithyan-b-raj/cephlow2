@@ -204,7 +204,7 @@ function WhatsAppInteractive() {
     botReply({
       from: 'bot',
       certFile: selectedCert,
-      text: `Hi Adithyan, your certificate for ${name} is attached.\n\nSend /cert anytime to get it again.\n\nView all your certificates at cephlow.online/adithyanbraj`,
+      text: `Hi Adithyan, your certificate for ${name} is attached.\n\nSend /cert anytime to get it again.\n\nView all your certificates at cephlow.in/adithyanbraj`,
     }, 1400);
   }
 
@@ -502,7 +502,7 @@ export default function Landing() {
               </p>
             </div>
             <p className="text-sm text-gray-600 leading-relaxed mb-8 max-w-md">
-              Merge spreadsheet data into certificate templates — use our built-in editor or connect Google Sheets and Slides. Generate hundreds of personalised certificates and deliver them via WhatsApp or email — in minutes.
+              Merge spreadsheet data into certificate templates — design in our built-in editor and upload local spreadsheets. Generate hundreds of personalised certificates and deliver them via WhatsApp or email — in minutes.
             </p>
             <div className="flex flex-wrap gap-3">
               <button
@@ -550,8 +550,8 @@ export default function Landing() {
           </div>
           <div className="grid md:grid-cols-2 gap-12 items-start">
             <div className="space-y-8">
-              <StepCard num="1" title="Design your template" desc="Design in our built-in editor, or bring your own Google Slides template with placeholders like <<Name>>, <<Email>>, <<Event>> — Cephlow detects them automatically." delay={0} />
-              <StepCard num="2" title="Connect your spreadsheet" desc="Use our built-in spreadsheet editor or link a Google Sheet with your recipients' data. Map columns to template placeholders in a few clicks." delay={100} />
+              <StepCard num="1" title="Design your template" desc="Design in our built-in editor with placeholders like <<Name>>, <<Email>>, <<Event>>, or upload PowerPoint/PDF designs as background images." delay={0} />
+              <StepCard num="2" title="Connect your spreadsheet" desc="Use our built-in spreadsheet editor or upload a local CSV, TSV, or Excel file with your recipients' data. Map columns to template placeholders in a few clicks." delay={100} />
               <StepCard num="3" title="Generate & deliver" desc="Hit generate. Cephlow creates personalised PDFs for every recipient and delivers them via WhatsApp, email, or both. Each certificate gets a unique verification link." delay={200} />
               <StepCard num="4" title="Recipients verify anywhere" desc="Every certificate has a public profile page and QR code. Scan to verify — no login required." delay={300} />
             </div>
@@ -577,7 +577,7 @@ export default function Landing() {
               </div>
               {/* Template picker mockup */}
               <div className="border border-black p-4 bg-white">
-                <div className="text-[9px] tracking-widest mb-3 text-gray-500">SELECT AN EXISTING GOOGLE SLIDE</div>
+                <div className="text-[9px] tracking-widest mb-3 text-gray-500">SELECT AN EXISTING TEMPLATE</div>
                 <div className="grid grid-cols-2 gap-2">
                   {["Participation Cert", "Winners Cert", "Coordinator Cert", "Honours Cert"].map((name, i) => (
                     <div key={name} className={`border p-2 ${i === 0 ? "border-black" : "border-gray-200"}`}>
@@ -610,7 +610,7 @@ export default function Landing() {
                 ["SEND ALL CERT", "Get every certificate issued to you in one tap"],
                 ["SEARCH A CERT", "Pick a specific event from your history"],
                 ["/CERT", "Resend any certificate anytime with a command"],
-                ["PROFILE LINK", "Bot shares your public cephlow.online page"],
+                ["PROFILE LINK", "Bot shares your public cephlow.in page"],
               ].map(([title, desc]) => (
                 <li key={title} className="flex gap-3 text-xs font-mono items-start">
                   <span className="border border-black px-2 py-1 font-bold text-[9px] tracking-wider shrink-0 mt-0.5">{title}</span>
@@ -638,14 +638,14 @@ export default function Landing() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-px bg-gray-700">
             {[
-              ["📊", "Built-in or Google Sheets", "Use our built-in spreadsheet editor, or connect any Google Sheet. Map any column to any placeholder."],
-              ["🎨", "Built-in or Google Slides templates", "Design certificates in our built-in editor, or bring your own Google Slides design. Single template or multiple designs per category."],
+              ["📊", "Built-in spreadsheet editor", "Use our built-in spreadsheet editor, or import local CSV, TSV, and Excel sheets. Map any column to any placeholder."],
+              ["🎨", "Built-in designer templates", "Design certificates in our built-in editor, or bring your own design backgrounds (PNG/PDF). Single template or multiple designs per category."],
               ["📱", "WhatsApp delivery", "Send personalised PDF certificates via WhatsApp Business API to each recipient."],
               ["✉️", "Email delivery", "Send via email with custom subject and body. HTML email with PDF attached."],
               ["🔒", "Tamper-proof verification", "Every certificate has a unique verification URL and QR code. Public, no login needed."],
               ["👤", "Student profiles", "Each recipient gets a public profile page showing all their certificates across all events."],
               ["💳", "Prepaid wallet", "Top up credits, pay per generation. Transparent pricing, no surprises."],
-              ["📁", "PPTX upload", "Already have a PowerPoint template? Upload it — converted to Google Slides automatically."],
+              ["📁", "PDF background upload", "Already have a designed certificate? Upload it as a PDF or PNG and lay placeholders on top of it."],
               ["📈", "Batch analytics", "Track generated, sent, failed counts per batch. WhatsApp delivery status in real-time."],
             ].map(([icon, title, desc]) => (
               <div key={title as string} className="bg-black p-5 border border-gray-800 hover:border-white transition-colors group">
@@ -672,7 +672,7 @@ export default function Landing() {
             <ul className="space-y-4">
               {[
                 ["⇄", "Conditional routing", "Pick any column (e.g. Prize, Role, Track) as the routing key. Each unique value maps to its own template."],
-                ["🎨", "Per-route templates", "Assign a Google Slides or built-in template to each routing value. First place gets one design, second gets another."],
+                ["🎨", "Per-route templates", "Assign a built-in template to each routing value. First place gets one design, second gets another."],
                 ["📊", "One spreadsheet", "No need to split your data. Every row is automatically dispatched to the right template at generation time."],
                 ["▶", "Single generate run", "Hit Generate once. Cephlow handles the branching, generates all variants, and delivers each recipient their correct certificate."],
               ].map(([icon, title, desc]) => (
@@ -762,12 +762,12 @@ export default function Landing() {
                   ["✓", "Create workspaces & batches"],
                   ["✓", "Built-in template editor"],
                   ["✓", "Export certificates to Google Drive"],
-                  ["✓", "Manage recipients from Google Sheets"],
+                  ["✓", "Manage recipients from local spreadsheets"],
                   ["✓", "Unlimited certificate generation"],
                   ["✗", "Wallet & prepaid credits"],
                   ["✗", "WhatsApp delivery"],
                   ["✗", "QR code verification"],
-                  ["✗", "Google Slides templates"],
+                  ["✗", "Custom branding backgrounds"],
                   ["✗", "Cloudflare R2 storage"],
                   ["✗", "Student public profile pages"],
                   ["✗", "Workspace member management"],
@@ -797,7 +797,7 @@ export default function Landing() {
               <ul className="space-y-3 text-xs flex-1">
                 {[
                   { label: "Built-in template editor" },
-                  { label: "Google Slides → PDF generation" },
+                  { label: "PDF/PNG background uploads" },
                   { label: "Store in Google Drive" },
                   { label: "Cloudflare R2 storage (fast CDN delivery)" },
                   { label: "Unique verification URL per certificate" },

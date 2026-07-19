@@ -119,7 +119,7 @@ export default function Settings() {
   // ── Google account ────────────────────────────────────────────────────────────
   const [scopeLoading, setScopeLoading] = useState<string | null>(null);
 
-  const handleConnect = async (scope: "drive" | "sheets" | "slides") => {
+  const handleConnect = async (scope: "drive") => {
     setScopeLoading(scope);
     try {
       await connectGoogle(scope);
@@ -129,10 +129,10 @@ export default function Settings() {
     }
   };
 
-  const handleDisconnect = async (scope: "drive" | "sheets" | "slides") => {
+  const handleDisconnect = async (scope: "drive") => {
     setScopeLoading(scope);
     try {
-      await disconnectGoogle(scope);
+      await disconnectGoogle();
       toast({ title: "Google connection removed" });
     } catch (err: any) {
       toast({ title: "Failed to disconnect", description: err?.message || "Unknown error", variant: "destructive" });
@@ -291,16 +291,6 @@ export default function Settings() {
             scope: "drive" as const,
             label: "Google Drive",
             description: "PDF uploads and folder creation.",
-          },
-          {
-            scope: "sheets" as const,
-            label: "Google Sheets",
-            description: "Use Google Sheets as a data source for batches.",
-          },
-          {
-            scope: "slides" as const,
-            label: "Google Slides",
-            description: "Use Google Slides as certificate templates.",
           },
         ]).map(({ scope, label, description }, i, arr) => {
           const connected = googleAuthStatus[scope];

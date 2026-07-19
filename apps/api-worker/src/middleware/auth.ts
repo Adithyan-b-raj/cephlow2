@@ -157,6 +157,11 @@ async function verifyHs256Jwt(token: string, secretStr: string): Promise<any> {
 }
 
 export const authMiddleware: MiddlewareHandler<ContextEnv> = async (c, next) => {
+  const path = c.req.path;
+  if (path === "/api/auth/google/callback" || path.endsWith("/auth/google/callback")) {
+    return await next();
+  }
+
   const authHeader = c.req.header("Authorization");
   let idToken = "";
 

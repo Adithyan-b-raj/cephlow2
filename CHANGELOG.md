@@ -4,6 +4,58 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-07-19
+
+### Fixed
+- **Google OAuth redirect_uri**: Added missing `GOOGLE_REDIRECT_URI` to production and staging `wrangler.toml` vars — was causing "Error 400: invalid_request — Missing required parameter: redirect_uri" on reconnect. Added early validation in `generateAuthUrl()`.
+- **Content-Security-Policy**: Whitelisted `https://fonts.googleapis.com` (styles), `https://fonts.gstatic.com` (fonts), `https://static.cloudflareinsights.com` (scripts), `https://*.r2.dev` (images), and `https://*.r2.cloudflarestorage.com` (direct API uploads) in both frontend `_headers` and API worker `secureHeaders` middleware to prevent browser blocking.
+- **WhatsApp Issue Reports Security**: Refactored the `useWaReports` hook to query the API worker's `/api/reports` endpoint securely instead of calling the external WhatsApp bot worker directly. This fixes client-side CSP block violations and prevents exposing the private `VITE_WA_ANALYTICS_TOKEN` to the public client.
+
+
+
+
+### Added
+- **Google Drive Batch Folders**: Added client-side Google Drive folder creation during generation for free-tier users, and on-demand folder creation and public sharing under `POST /batches/:batchId/share-folder`.
+- **Automatic Certs Movement**: Configured `/share-folder` to automatically move existing cert PDFs from the user's Drive root into the new folder in the background.
+- **Legal & Copy Updates**: Updated Landing Page, Terms of Service, and Privacy Policy pages to align with Google Sheets/Slides integrations removal and the updated `drive.file` OAuth scope constraint.
+
+### Removed
+- **Obsolete Code Cleanup**: Removed legacy `deleteFile` helper and `POST /batches/:batchId/client-cleanup` endpoint since slides generation was removed.
+
+### Added (Legacy)
+- **Frontend Dependencies**: Added `xlsx` (SheetJS) and `pdfjs-dist` (PDF.js) dependencies in `apps/cert-app/package.json` for client-side local spreadsheet imports and PDF template backgrounds.
+- **Workflow Persistence**: The Advanced Workflow Builder now saves the full React Flow graph (nodes + edges) as `workflow_json` on the batch when launched. Batches with a saved workflow display an **Edit Workflow** button in the batch header that reopens `/advanced?batchId=<id>` and restores the exact graph. This persists server-side across devices and sessions.
+
+- **Gating of Email and WhatsApp Delivery**: Restricted the backend email sending route (`POST /batches/:batchId/certificates/:certId/send`) to approved/paid organizations using `requireApproval` middleware, and registered `"email_delivery"` as a first-class feature key.
+- **Unified Delivery Visual Hierarchy**: Realigned the desktop and mobile action header buttons. For unapproved (free) tier workspaces, the primary delivery option is now the free **Share PDFs** action, with locked **Send Emails** and **WhatsApp** options moved to the secondary dropdown/menu. For approved (paid) tier workspaces, the primary delivery option is **WhatsApp**, with **Send Emails** and **Share PDFs** moved to the secondary dropdown/menu.
+- **Inline Action Visibility**: Hidden the inline recipient **Email** action button in the certificates table (`BatchCertificatesTable.tsx`) completely for free tier users, while keeping it visible for approved workspaces.
+- **Gated Wallet Balance Fetching**: Configured `BatchDetail.tsx` to conditionally enable the `useGetWalletBalance` React Query hook only for approved (paid tier) workspaces. This prevents redundant `403 Forbidden` API requests and console errors when unapproved (free tier) users load a batch detail page.
+- **Visual Hierarchy & Header Decluttering**: Redesigned the Batch Detail page's action buttons to improve visual hierarchy and usability. Set the primary action, **Generate All**, as the only solid filled button. Repositioned and demoted delivery buttons (**Send Emails** and **WhatsApp**) to outlined styles, and styled the WhatsApp icon with its brand-specific green color (`#25D366`).
+- **More Action Dropdown**: Consolidated secondary actions (**Edit Sheet**, **Edit Workflow**, **Share PDFs**, **Share Page**, and **Add/Edit Banner**) into a unified **More** dropdown menu (`DropdownMenu`) to declutter the batch header interface.
+- **Google OAuth Scope Streamlining**: Updated the Google authentication helper (`google-auth.ts`) to request only the minimal `drive.file` scope, completely removing `sheets` and `slides` permissions from Google OAuth scopes. Added a route bypass check in the authentication middleware (`auth.ts`) for `/api/auth/google/callback` to ensure direct browser redirects from Google OAuth flow succeed without verification tokens.
+- **Contact Emails**: Updated default fallback support and approval contact emails across the Privacy Policy, Terms & Conditions, Locked Feature wrapper, App Sidebar, and Landing pages to transition from `cephlow.online` / `approvals@cephlow.online` to `cephlow.in` / `contact@cephlow.in` / `approvals@cephlow.in`.
+- **Deployment Workflow**: Split the Cloudflare wrangler deployment step in the GitHub Actions workflow ([deploy.yml](file:///c:/Users/AKSHAY/Desktop/code/projects/fork-cephlow/adi-cephlow/cephlow2/.github/workflows/deploy.yml)) into separate conditional steps for production (on `main` branch) and staging (on `staging` branch) to prevent invalid empty environment flags.
+- **Batch Creator & Sync**: Updated the batch endpoints in `apps/api-worker/src/routes/batches.ts` to remove Google Sheets validation fields and enforce inbuilt spreadsheets as the sole data source kind.
+- **Client Generation Engine**: Updated `apps/api-worker/src/routes/clientGenerate.ts` to default campaign template kind to `"builtin"`.
+- **Campaign Creation Wizard**: Simplified the campaign wizard pages (`StepDataSource.tsx`, `StepTemplate.tsx`, `NewBatch.tsx`) to remove Sheets/Slides options, forcing all campaigns to use built-in spreadsheets and built-in templates.
+- **Google OAuth & Settings**: Streamlined `use-auth.tsx` to remove slides/sheets permissions status, and updated `Settings.tsx` to hide Sheets and Slides account connection options.
+- **Spreadsheets List Page**: Removed the "Import from Google Sheets" options in `SpreadsheetsList.tsx`.
+- **Built-in Editor File Uploads**: Integrated background image and PDF upload capabilities directly in `PropertiesPanel.tsx` using `uploadAssetToR2` client-side API.
+- **Client-Side PDF Background Conversion**: Integrated dynamic import of `pdfjs-dist` to render the first page of PDF template uploads to a high-resolution canvas client-side, converting it to a PNG file before uploading to Cloudflare R2 storage.
+- **Generation Engine Simplification**: Rewrote `clientGenerate.ts` to remove Google Slides batch PDF generation, alt-text placeholders, and PDF splitting, while retaining the client-side built-in template renderer and free-tier Google Drive upload pathways.
+- **Spreadsheet Editor Importer**: Extended the built-in sheet editor (`SpreadsheetEditorUI.tsx`) to support importing `.csv`, `.tsv`, `.xlsx`, `.xls`, and `.ods` local spreadsheet files using SheetJS (`xlsx`).
+- **Save as Copy in Template Editor**: Added a "Save as Copy" button and callback handler in the built-in template editor (`BuiltinTemplateEditor.tsx`, `TemplateEditor.tsx`, and `EditorToolbar.tsx`) to allow cloning an existing template and saving changes under a new name without overriding the original template.
+- **Locked QR Aspect Ratio**: Configured the built-in template editor (`EditorCanvas.tsx` and `PropertiesPanel.tsx`) to lock the aspect ratio of QR elements to 1:1, preventing distortion during canvas transforming or manual size property updates.
+
+### Removed
+- **Legacy Slides PDF Export**: Removed the obsolete `exportSlidesToPdf` fallback chain and helper function from the backend, as all new certificate batches generate PDFs from built-in templates.
+- **Google Sheets & Slides Routes**: Deleted backend API routes `sheets.ts` and `slides.ts`, unregistering them from the Hono API worker entrypoint in `apps/api-worker/src/index.ts`.
+- **Slide Thumbnail Proxy**: Removed the `/api/slides/thumbnail/:fileId` proxy endpoint from the backend worker.
+- **Legacy Template Wizard**: Deleted `NewTemplate.tsx` (the slide-based wizard) and redirected `/templates/new` to the builtin template editor page in `App.tsx`.
+- **Google Slides templates button**: Removed the "From Google Slides" legacy template creation button in `BuiltinTemplatesList.tsx`.
+- **Unused Hooks**: Removed unused frontend hooks `use-google-picker.ts` and `use-import-google-sheet.ts`.
+
+
 ## [2.2.0] - 2026-07-18
 
 ### Added

@@ -20,6 +20,10 @@ interface ImageCache {
 export function EditorCanvas({ store, zoom, setZoom, fontTick }: Props) {
   const { doc, selectedIds, setSelected, updateElement, beginTransient, endTransient } = store;
 
+  const shouldKeepRatio = useMemo(() => {
+    return doc.elements.some((el) => selectedIds.includes(el.id) && el.type === "qr");
+  }, [doc.elements, selectedIds]);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
@@ -125,12 +129,20 @@ export function EditorCanvas({ store, zoom, setZoom, fontTick }: Props) {
       if (!node) continue;
       const scaleX = node.scaleX();
       const scaleY = node.scaleY();
+      const el = doc.elements.find((x) => x.id === id);
+      let w = Math.max(8, node.width() * scaleX);
+      let h = Math.max(8, node.height() * scaleY);
+      if (el?.type === "qr") {
+        const size = Math.max(w, h);
+        w = size;
+        h = size;
+      }
       const patch: Partial<CanvasElement> = {
         x: node.x(),
         y: node.y(),
         rotation: node.rotation(),
-        width: Math.max(8, node.width() * scaleX),
-        height: Math.max(8, node.height() * scaleY),
+        width: w,
+        height: h,
       };
       node.scaleX(1);
       node.scaleY(1);
@@ -245,7 +257,8 @@ export function EditorCanvas({ store, zoom, setZoom, fontTick }: Props) {
             <Transformer
               ref={transformerRef}
               rotateEnabled
-              keepRatio={false}
+              keepRatio={shouldKeepRatio}
+              enabledAnchors={shouldKeepRatio ? ["top-left", "top-right", "bottom-left", "bottom-right"] : undefined}
               onTransformStart={onTransformStart}
               onTransformEnd={onTransformEnd}
               boundBoxFunc={(oldBox, newBox) => {

@@ -35,9 +35,6 @@ export default function BuiltinTemplatesListPage() {
           <p className="text-sm sm:text-base text-muted-foreground">Templates designed inside Cephloe.</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <Button variant="outline" className="w-full sm:w-auto" onClick={() => setLocation("/templates/new")}>
-            From Google Slides
-          </Button>
           <Button className="w-full sm:w-auto" onClick={() => setLocation("/templates/builtin/new")}>
             <Plus className="w-4 h-4 mr-1.5" /> New Builtin Template
           </Button>

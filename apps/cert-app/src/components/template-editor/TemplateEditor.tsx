@@ -17,10 +17,11 @@ interface Props {
   initialName?: string;
   saving: boolean;
   onSave: (params: { name: string; canvas: CanvasDocument }) => void;
+  onSaveAsCopy?: (params: { name: string; canvas: CanvasDocument }) => void;
   onBack: () => void;
 }
 
-export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, onBack }: Props) {
+export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, onSaveAsCopy, onBack }: Props) {
   const store = useEditorStore(initialDoc);
   const [zoom, setZoom] = useState(() => {
     if (typeof window === "undefined") return 1;
@@ -189,6 +190,7 @@ export function TemplateEditor({ initialDoc, initialName = "", saving, onSave, o
         templateName={templateName}
         setTemplateName={setTemplateName}
         onSave={() => onSave({ name: templateName.trim(), canvas: store.doc })}
+        onSaveAsCopy={onSaveAsCopy ? () => onSaveAsCopy({ name: templateName.trim(), canvas: store.doc }) : undefined}
         saving={saving}
         onBack={onBack}
         onAddImage={handleAddImage}

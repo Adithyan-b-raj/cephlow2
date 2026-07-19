@@ -1,14 +1,13 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { getAccessToken } from "../lib/google-auth.js";
-import { downloadDriveFile, exportSlidesToPdf } from "../lib/google-drive.js";
+import { downloadDriveFile, makeFilePublic, createFolder, moveFileToFolder } from "../lib/google-drive.js";
 import { sendEmail } from "../lib/email.js";
 import { sendWhatsAppDocument } from "../lib/whatsapp.js";
 import { workspaceMiddleware, isAdminOrOwner } from "../middleware/workspace.js";
 import { requireApproval as approvalMiddleware } from "../middleware/approval.js";
 import { upsertStudentProfile, emailToSlug } from "../lib/cert-utils.js";
 import { isApprovedInContext } from "../lib/approval.js";
-import { getSpreadsheetValues } from "../lib/google-sheets.js";
 import { normalizePhoneNumber, hasXssPayload } from "../lib/security.js";
 
 const CreateBatchSchema = z.object({
@@ -16,17 +15,8 @@ const CreateBatchSchema = z.object({
     (val) => !hasXssPayload(val),
     { message: "Batch name contains invalid or malicious characters" }
   ),
-  dataSourceKind: z.enum(["google", "inbuilt"]).default("google"),
+  dataSourceKind: z.enum(["inbuilt"]).default("inbuilt"),
   spreadsheetId: z.string().nullable().optional(),
-  sheetId: z.string().nullable().optional().refine(
-    (val) => {
-      if (!val) return true;
-      return /^[a-zA-Z0-9-_]+$/.test(val);
-    },
-    { message: "sheetId must be alphanumeric" }
-  ),
-  sheetName: z.string().nullable().optional(),
-  tabName: z.string().nullable().optional(),
   templateId: z.string().nullable().optional(),
   templateName: z.string().nullable().optional(),
   templateKind: z.string().nullable().optional(),
@@ -36,9 +26,10 @@ const CreateBatchSchema = z.object({
   emailSubject: z.string().max(200).optional(),
   emailBody: z.string().max(2000).optional(),
   categoryColumn: z.string().nullable().optional(),
-  categoryTemplateMap: z.record(z.string()).optional(),
+  categoryTemplateMap: z.record(z.any()).optional(),
   categorySlideMap: z.record(z.string()).optional(),
   categorySlideIndexes: z.record(z.any()).optional(),
+  workflowJson: z.string().optional(),
 });
 
 const router = new Hono<ContextEnv>();
@@ -109,6 +100,7 @@ router.get("/batches", async (c) => {
       updatedAt: row.updated_at,
       certCount: row.cert_count || 0,
       totalCount: row.cert_count || 0,
+      workflowJson: row.workflow_json || null,
     }));
 
     return c.json({ spreadsheets: batches, batches });
@@ -193,6 +185,7 @@ router.get("/batches/:batchId", async (c) => {
       totalCount,
       certCount: totalCount,
       certificates,
+      workflowJson: batch.workflow_json || null,
     });
   } catch (err: any) {
     return c.json({ error: err.message }, 500);
@@ -212,58 +205,43 @@ router.post("/batches", async (c) => {
     const body = parseResult.data;
     const batchId = crypto.randomUUID();
 
-    const dataSourceKind = body.dataSourceKind;
-    const isInbuilt = dataSourceKind === "inbuilt";
+    const dataSourceKind = "inbuilt";
     const spreadsheetId = body.spreadsheetId || null;
 
     let headers: string[] = [];
     let dataRows: Record<string, string>[] = [];
     let inbuiltSpreadsheetName = "";
 
-    if (isInbuilt && spreadsheetId) {
-      const spreadsheet = await c.env.DB.prepare(`
-        SELECT name, columns, rows FROM spreadsheets WHERE id = ? AND workspace_id = ?
-      `).bind(spreadsheetId, workspace.id).first<any>();
-      
-      if (!spreadsheet) {
-        return c.json({ error: "Spreadsheet not found" }, 400);
-      }
-      
-      inbuiltSpreadsheetName = spreadsheet.name || "";
-      const rawCols = JSON.parse(spreadsheet.columns || "[]") as string[];
-      const rawRows = JSON.parse(spreadsheet.rows || "[]") as Record<string, string>[];
-      
-      const firstRow = rawRows[0];
-      const filledCols = rawCols.filter((c) => firstRow?.[c]?.trim());
-      if (filledCols.length > 0) {
-        headers = filledCols.map((c) => firstRow[c].trim());
-        dataRows = rawRows.slice(1)
-          .filter((r) => filledCols.some((c) => r[c]?.trim()))
-          .map((row) => {
-            const mapped: Record<string, string> = {};
-            filledCols.forEach((oldCol, i) => { mapped[headers[i]] = row[oldCol] ?? ""; });
-            return mapped;
-          });
-      } else {
-        headers = rawCols;
-        dataRows = rawRows.filter((r) => Object.values(r).some((v) => v?.trim()));
-      }
-    } else {
-      const sheetId = body.sheetId;
-      if (!sheetId) {
-        return c.json({ error: "sheetId is required for Google Sheets data source" }, 400);
-      }
-      const { accessToken } = await getAccessToken(c.env.DB, c.env, user.uid, "sheets");
-      const range = body.tabName ? `${body.tabName}!A:ZZ` : "A:ZZ";
-      const rawValues = await getSpreadsheetValues(accessToken, sheetId, range);
-      if (rawValues.length > 0) {
-        headers = rawValues[0] as string[];
-        dataRows = rawValues.slice(1).filter((r) => r.length > 0).map((row) => {
-          const obj: Record<string, string> = {};
-          headers.forEach((h, i) => { obj[h] = (row[i] as string) || ""; });
-          return obj;
+    if (!spreadsheetId) {
+      return c.json({ error: "spreadsheetId is required" }, 400);
+    }
+
+    const spreadsheet = await c.env.DB.prepare(`
+      SELECT name, columns, rows FROM spreadsheets WHERE id = ? AND workspace_id = ?
+    `).bind(spreadsheetId, workspace.id).first<any>();
+    
+    if (!spreadsheet) {
+      return c.json({ error: "Spreadsheet not found" }, 400);
+    }
+    
+    inbuiltSpreadsheetName = spreadsheet.name || "";
+    const rawCols = JSON.parse(spreadsheet.columns || "[]") as string[];
+    const rawRows = JSON.parse(spreadsheet.rows || "[]") as Record<string, string>[];
+    
+    const firstRow = rawRows[0];
+    const filledCols = rawCols.filter((c) => firstRow?.[c]?.trim());
+    if (filledCols.length > 0) {
+      headers = filledCols.map((c) => firstRow[c].trim());
+      dataRows = rawRows.slice(1)
+        .filter((r) => filledCols.some((c) => r[c]?.trim()))
+        .map((row) => {
+          const mapped: Record<string, string> = {};
+          filledCols.forEach((oldCol, i) => { mapped[headers[i]] = row[oldCol] ?? ""; });
+          return mapped;
         });
-      }
+    } else {
+      headers = rawCols;
+      dataRows = rawRows.filter((r) => Object.values(r).some((v) => v?.trim()));
     }
 
     const statements: any[] = [];
@@ -275,16 +253,16 @@ router.post("/batches", async (c) => {
         spreadsheet_id, data_source_kind, template_id, template_name, template_kind,
         column_map, email_column, name_column, email_subject, email_body,
         category_column, category_template_map, category_slide_map, category_slide_indexes,
-        total_count
-      ) VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        total_count, workflow_json
+      ) VALUES (?, ?, ?, ?, 'draft', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       batchId,
       workspace.id,
       user.uid,
       body.name || "Untitled Batch",
-      body.sheetId || "",
-      isInbuilt ? inbuiltSpreadsheetName : (body.sheetName || ""),
-      body.tabName || null,
+      "",
+      inbuiltSpreadsheetName,
+      null,
       spreadsheetId,
       dataSourceKind,
       body.templateId || "",
@@ -299,7 +277,8 @@ router.post("/batches", async (c) => {
       JSON.stringify(body.categoryTemplateMap || {}),
       JSON.stringify(body.categorySlideMap || {}),
       JSON.stringify(body.categorySlideIndexes || {}),
-      dataRows.length
+      dataRows.length,
+      body.workflowJson || null
     ));
 
     // 2. Prepare certificate inserts
@@ -377,6 +356,8 @@ router.patch("/batches/:batchId", async (c) => {
       bannerCropZoom: "banner_crop_zoom",
       bannerCropX: "banner_crop_x",
       bannerCropY: "banner_crop_y",
+      pdfFolderId: "pdf_folder_id",
+      driveFolderId: "drive_folder_id",
     };
 
     const fields: string[] = ["updated_at = datetime('now')"];
@@ -455,64 +436,72 @@ router.delete("/batches/:batchId", async (c) => {
       }
     }
 
-    // Clean up student profile certs and index listings
+    // Helper: chunk array to stay under D1's 999 bind-variable limit
+    const chunk = <T>(arr: T[], size: number): T[][] =>
+      Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, i * size + size));
+
+    // Clean up student profile certs
     const certIds = certs.map(c => c.id);
     if (certIds.length > 0) {
-      const placeholders = certIds.map(() => "?").join(",");
-      await c.env.DB.prepare(`
-        DELETE FROM student_profile_certs WHERE cert_id IN (${placeholders})
-      `).bind(...certIds).run();
-      
+      for (const ids of chunk(certIds, 100)) {
+        const ph = ids.map(() => "?").join(",");
+        await c.env.DB.prepare(`DELETE FROM student_profile_certs WHERE cert_id IN (${ph})`).bind(...ids).run();
+      }
+
       const uniqueEmails = [...new Set(certs.map(c => c.recipient_email).filter(Boolean))] as string[];
       if (uniqueEmails.length > 0) {
         const emailKeys = uniqueEmails.map(e => e.toLowerCase().replace(/[^a-z0-9]/g, "_"));
-        const emailPlaceholders = emailKeys.map(() => "?").join(",");
 
-        const { results: indexRows } = await c.env.DB.prepare(`
-          SELECT slug, email_key FROM student_profile_index
-          WHERE email_key IN (${emailPlaceholders})
-        `).bind(...emailKeys).all<{ slug: string; email_key: string }>();
+        const indexRows: { slug: string; email_key: string }[] = [];
+        for (const keys of chunk(emailKeys, 100)) {
+          const ph = keys.map(() => "?").join(",");
+          const { results } = await c.env.DB.prepare(`
+            SELECT slug, email_key FROM student_profile_index WHERE email_key IN (${ph})
+          `).bind(...keys).all<{ slug: string; email_key: string }>();
+          indexRows.push(...(results ?? []));
+        }
 
-        if (indexRows && indexRows.length > 0) {
+        if (indexRows.length > 0) {
           const slugs = indexRows.map(r => r.slug);
-          const slugPlaceholders = slugs.map(() => "?").join(",");
+          const remainingSlugs = new Set<string>();
+          for (const sl of chunk(slugs, 100)) {
+            const ph = sl.map(() => "?").join(",");
+            const { results } = await c.env.DB.prepare(`
+              SELECT DISTINCT profile_slug FROM student_profile_certs WHERE profile_slug IN (${ph})
+            `).bind(...sl).all<{ profile_slug: string }>();
+            (results ?? []).forEach(r => remainingSlugs.add(r.profile_slug));
+          }
 
-          // Check if slugs have remaining certs left
-          const { results: remainingCerts } = await c.env.DB.prepare(`
-            SELECT DISTINCT profile_slug FROM student_profile_certs
-            WHERE profile_slug IN (${slugPlaceholders})
-          `).bind(...slugs).all<{ profile_slug: string }>();
-
-          const slugsWithRemaining = new Set(remainingCerts.map(r => r.profile_slug));
-          const orphanedSlugs = slugs.filter(s => !slugsWithRemaining.has(s));
-          const orphanedEmailKeys = indexRows
-            .filter(r => orphanedSlugs.includes(r.slug))
-            .map(r => r.email_key);
+          const orphanedSlugs = slugs.filter(s => !remainingSlugs.has(s));
+          const orphanedEmailKeys = indexRows.filter(r => orphanedSlugs.includes(r.slug)).map(r => r.email_key);
 
           if (orphanedSlugs.length > 0) {
-            const osPlaceholders = orphanedSlugs.map(() => "?").join(",");
-            const oekPlaceholders = orphanedEmailKeys.map(() => "?").join(",");
-            
-            await c.env.DB.batch([
-              c.env.DB.prepare(`DELETE FROM student_profiles WHERE slug IN (${osPlaceholders})`).bind(...orphanedSlugs),
-              c.env.DB.prepare(`DELETE FROM student_profile_index WHERE email_key IN (${oekPlaceholders})`).bind(...orphanedEmailKeys),
-            ]);
+            for (const sl of chunk(orphanedSlugs, 100)) {
+              const ph = sl.map(() => "?").join(",");
+              await c.env.DB.prepare(`DELETE FROM student_profiles WHERE slug IN (${ph})`).bind(...sl).run();
+            }
+            for (const ek of chunk(orphanedEmailKeys, 100)) {
+              const ph = ek.map(() => "?").join(",");
+              await c.env.DB.prepare(`DELETE FROM student_profile_index WHERE email_key IN (${ph})`).bind(...ek).run();
+            }
           }
         }
       }
     }
 
-    // Cascade delete batch
+    // Delete certificates then the batch itself
+    await c.env.DB.prepare(`DELETE FROM certificates WHERE batch_id = ?`).bind(batchId).run();
     await c.env.DB.prepare(`DELETE FROM batches WHERE id = ?`).bind(batchId).run();
 
     return c.json({ success: true });
   } catch (err: any) {
+    console.error("[DELETE /batches] error:", err.message);
     return c.json({ error: err.message }, 500);
   }
 });
 
 // 6. POST /batches/:batchId/certificates/:certId/send — Send single certificate via email in-line
-router.post("/batches/:batchId/certificates/:certId/send", async (c) => {
+router.post("/batches/:batchId/certificates/:certId/send", approvalMiddleware, async (c) => {
   const user = c.get("user")!;
   const workspace = c.get("workspace")!;
   const { batchId, certId } = c.req.param();
@@ -532,7 +521,7 @@ router.post("/batches/:batchId/certificates/:certId/send", async (c) => {
 
     if (!cert) return c.json({ error: "Certificate not found" }, 404);
     if (!cert.recipient_email) return c.json({ error: "Certificate has no email address" }, 400);
-    if (!cert.r2_pdf_url && !cert.slide_file_id) return c.json({ error: "Certificate has not been generated yet" }, 400);
+    if (!cert.r2_pdf_url && !cert.pdf_file_id) return c.json({ error: "Certificate has not been generated yet" }, 400);
 
     const subject = reqSubject || batch.email_subject || "Your Certificate";
     const body = reqBody || batch.email_body || "Please find your certificate attached.";
@@ -574,13 +563,7 @@ router.post("/batches/:batchId/certificates/:certId/send", async (c) => {
       }
     }
 
-    if (!pdfBuffer && cert.slide_file_id) {
-      try {
-        pdfBuffer = await exportSlidesToPdf(accessToken, cert.slide_file_id);
-      } catch (e: any) {
-        console.error("[Worker Send Email] Slides export failed:", e.message);
-      }
-    }
+
 
     if (!pdfBuffer) {
       return c.json({ error: "Could not retrieve certificate PDF attachment" }, 500);
@@ -1067,42 +1050,31 @@ router.post("/batches/:batchId/sync", async (c) => {
     let headers: string[] = [];
     let dataRows: Record<string, string>[] = [];
 
-    if (batch.data_source_kind === "inbuilt") {
-      const spreadsheet = await c.env.DB.prepare(`
-        SELECT columns, rows FROM spreadsheets WHERE id = ? AND workspace_id = ?
-      `).bind(batch.spreadsheet_id, workspace.id).first<any>();
-      if (!spreadsheet) return c.json({ error: "Inbuilt spreadsheet not found" }, 400);
-
-      const rawCols = JSON.parse(spreadsheet.columns || "[]") as string[];
-      const rawRows = JSON.parse(spreadsheet.rows || "[]") as Record<string, string>[];
-      const firstRow = rawRows[0];
-      const filledCols = rawCols.filter((c) => firstRow?.[c]?.trim());
-      if (filledCols.length > 0) {
-        headers = filledCols.map((c) => firstRow[c].trim());
-        dataRows = rawRows.slice(1).filter((r) => filledCols.some((c) => r[c]?.trim())).map((row) => {
-          const mapped: Record<string, string> = {};
-          filledCols.forEach((oldCol, i) => { mapped[headers[i]] = row[oldCol] ?? ""; });
-          return mapped;
-        });
-      } else {
-        headers = rawCols;
-        dataRows = rawRows.filter((r) => Object.values(r).some((v) => v?.trim()));
-      }
-      if (dataRows.length === 0) return c.json({ error: "Spreadsheet is empty." }, 400);
-    } else {
-      const sheetId = batch.sheet_id;
-      if (!sheetId) return c.json({ error: "sheetId is required for Google Sheets" }, 400);
-      const { accessToken } = await getAccessToken(c.env.DB, c.env, user.uid, "sheets");
-      const range = batch.tab_name ? `${batch.tab_name}!A:ZZ` : "A:ZZ";
-      const rawValues = await getSpreadsheetValues(accessToken, sheetId, range);
-      if (rawValues.length === 0) return c.json({ error: "Spreadsheet is empty." }, 400);
-      headers = rawValues[0] as string[];
-      dataRows = rawValues.slice(1).filter((r) => r.length > 0).map((row) => {
-        const obj: Record<string, string> = {};
-        headers.forEach((h, i) => { obj[h] = (row[i] as string) || ""; });
-        return obj;
-      });
+    if (!batch.spreadsheet_id) {
+      return c.json({ error: "This batch does not have an associated spreadsheet ID." }, 400);
     }
+
+    const spreadsheet = await c.env.DB.prepare(`
+      SELECT columns, rows FROM spreadsheets WHERE id = ? AND workspace_id = ?
+    `).bind(batch.spreadsheet_id, workspace.id).first<any>();
+    if (!spreadsheet) return c.json({ error: "Inbuilt spreadsheet not found" }, 400);
+
+    const rawCols = JSON.parse(spreadsheet.columns || "[]") as string[];
+    const rawRows = JSON.parse(spreadsheet.rows || "[]") as Record<string, string>[];
+    const firstRow = rawRows[0];
+    const filledCols = rawCols.filter((c) => firstRow?.[c]?.trim());
+    if (filledCols.length > 0) {
+      headers = filledCols.map((c) => firstRow[c].trim());
+      dataRows = rawRows.slice(1).filter((r) => filledCols.some((c) => r[c]?.trim())).map((row) => {
+        const mapped: Record<string, string> = {};
+        filledCols.forEach((oldCol, i) => { mapped[headers[i]] = row[oldCol] ?? ""; });
+        return mapped;
+      });
+    } else {
+      headers = rawCols;
+      dataRows = rawRows.filter((r) => Object.values(r).some((v) => v?.trim()));
+    }
+    if (dataRows.length === 0) return c.json({ error: "Spreadsheet is empty." }, 400);
 
     const nameColumn = batch.name_column;
     const emailColumn = batch.email_column;
@@ -1218,6 +1190,57 @@ router.post("/batches/:batchId/sync", async (c) => {
     return c.json({ success: true, message: `Synced successfully. Added ${newCount} new certificates.`, newCount });
   } catch (err: any) {
     console.error("[SYNC] failed:", err);
+    return c.json({ error: err.message }, 500);
+  }
+});
+ 
+// 13. POST /batches/:batchId/share-folder — Share the PDF folder (make it public on Google Drive)
+router.post("/batches/:batchId/share-folder", async (c) => {
+  const user = c.get("user")!;
+  const workspace = c.get("workspace")!;
+  const { batchId } = c.req.param();
+  try {
+    const batch = await c.env.DB.prepare(`
+      SELECT user_id, workspace_id, pdf_folder_id, name FROM batches WHERE id = ?
+    `).bind(batchId).first<any>();
+
+    if (!batch) return c.json({ error: "Batch not found" }, 404);
+    if (!canAccessBatch(batch, workspace, user)) return c.json({ error: "Access denied" }, 403);
+
+    const { accessToken } = await getAccessToken(c.env.DB, c.env, user.uid, "all");
+    let folderId = batch.pdf_folder_id;
+
+    if (!folderId) {
+      folderId = await createFolder(accessToken, batch.name || batchId);
+      await c.env.DB.prepare(`
+        UPDATE batches SET pdf_folder_id = ?, drive_folder_id = ? WHERE id = ?
+      `).bind(folderId, folderId, batchId).run();
+
+      // Find any already generated certificates that have pdf_file_id
+      const certs = await c.env.DB.prepare(`
+        SELECT pdf_file_id FROM certificates WHERE batch_id = ? AND pdf_file_id IS NOT NULL
+      `).bind(batchId).all<{ pdf_file_id: string }>();
+
+      if (certs.results && certs.results.length > 0) {
+        c.executionCtx.waitUntil((async () => {
+          for (const cert of certs.results) {
+            try {
+              await moveFileToFolder(accessToken, cert.pdf_file_id, folderId);
+            } catch (err: any) {
+              console.error(`[SHARE-FOLDER] Failed to move cert ${cert.pdf_file_id} to folder ${folderId}:`, err.message);
+            }
+          }
+        })());
+      }
+    }
+
+    await makeFilePublic(accessToken, folderId);
+
+    return c.json({
+      success: true,
+      shareLink: `https://drive.google.com/drive/folders/${folderId}`,
+    });
+  } catch (err: any) {
     return c.json({ error: err.message }, 500);
   }
 });

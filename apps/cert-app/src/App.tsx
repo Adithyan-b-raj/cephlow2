@@ -1,11 +1,11 @@
-import { lazy, Suspense } from "react";
+import { lazy, Suspense, useEffect } from "react";
 import { Switch, Route, Router as WouterRouter, useRoute, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
 import { AuthProvider, useAuth } from "@/hooks/use-auth";
-import { ApprovalProvider } from "@/hooks/use-approval";
+import { ApprovalProvider, useApproval } from "@/hooks/use-approval";
 import { FeaturesProvider } from "@/hooks/use-features";
 import { WorkspaceProvider } from "@/hooks/use-workspace";
 import { Layout } from "@/components/layout/Layout";
@@ -15,7 +15,25 @@ const NewBatch = lazy(() => import("@/pages/batches/NewBatch"));
 const BatchDetail = lazy(() => import("@/pages/batches/BatchDetail"));
 const History = lazy(() => import("@/pages/History"));
 const Wallet = lazy(() => import("@/pages/Wallet"));
-const NewTemplate = lazy(() => import("@/pages/templates/NewTemplate"));
+
+const RedirectToNewBuiltin = (): any => {
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    setLocation("/templates/builtin/new", { replace: true });
+  }, [setLocation]);
+  return null;
+};
+const WalletGuard = (): any => {
+  const { isApproved } = useApproval();
+  const [, setLocation] = useLocation();
+  useEffect(() => {
+    if (!isApproved) {
+      setLocation("/", { replace: true });
+    }
+  }, [isApproved, setLocation]);
+  if (!isApproved) return null;
+  return <Wallet />;
+};
 const BuiltinTemplateEditorPage = lazy(() => import("@/pages/templates/BuiltinTemplateEditor"));
 const BuiltinTemplatesListPage = lazy(() => import("@/pages/templates/BuiltinTemplatesList"));
 const VerifyCertificate = lazy(() => import("@/pages/VerifyCertificate"));
@@ -83,11 +101,11 @@ function AuthenticatedRouter() {
           <Route path="/batches/new" component={NewBatch} />
           <Route path="/batches/:id" component={BatchDetail} />
           <Route path="/history" component={History} />
-          <Route path="/wallet" component={Wallet} />
+          <Route path="/wallet" component={WalletGuard} />
           <Route path="/reports" component={Reports} />
           <Route path="/advanced" component={Advanced} />
           <Route path="/templates" component={BuiltinTemplatesListPage} />
-          <Route path="/templates/new" component={NewTemplate} />
+          <Route path="/templates/new" component={RedirectToNewBuiltin} />
           <Route path="/workspace/members" component={WorkspaceMembers} />
           <Route path="/workspace/brand" component={WorkspaceBrand} />
           <Route path="/workspace/invitations" component={Invitations} />

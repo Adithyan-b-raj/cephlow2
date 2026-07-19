@@ -4,19 +4,9 @@ export type GoogleScopeType = "drive" | "sheets" | "slides" | "all";
 
 const SCOPE_SETS: Record<GoogleScopeType, string[]> = {
   drive: ["https://www.googleapis.com/auth/drive.file"],
-  sheets: [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive.file",
-  ],
-  slides: [
-    "https://www.googleapis.com/auth/presentations",
-    "https://www.googleapis.com/auth/drive.file",
-  ],
-  all: [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive.file",
-    "https://www.googleapis.com/auth/presentations",
-  ],
+  sheets: ["https://www.googleapis.com/auth/drive.file"],
+  slides: ["https://www.googleapis.com/auth/drive.file"],
+  all: ["https://www.googleapis.com/auth/drive.file"],
 };
 
 async function encryptToken(text: string, secretKeyStr: string): Promise<string> {
@@ -88,12 +78,16 @@ export async function generateAuthUrl(
     VALUES (?, ?, ?, ?, ?)
   `).bind(nonce, uid, scopeType, Date.now() + 10 * 60 * 1000, originUrl ?? null).run();
 
+  if (!env.GOOGLE_REDIRECT_URI) {
+    throw new Error("GOOGLE_REDIRECT_URI is not configured");
+  }
+
   const params = new URLSearchParams({
     access_type: "offline",
     prompt: "consent",
     response_type: "code",
     client_id: env.GOOGLE_CLIENT_ID || "",
-    redirect_uri: env.GOOGLE_REDIRECT_URI || "",
+    redirect_uri: env.GOOGLE_REDIRECT_URI,
     scope: SCOPE_SETS[scopeType].join(" "),
     state: nonce,
   });
