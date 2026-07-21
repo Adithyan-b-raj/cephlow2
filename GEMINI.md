@@ -56,4 +56,9 @@ To find a file (e.g., "**Product Definition**") within a specific context (Proje
 - Whenever you modify source code, configuration files, or database schemas, you **MUST** automatically update the root `CHANGELOG.md` file with a concise summary of your changes under the `## [Unreleased]` or target version header. 
 - Do not wait for the user to explicitly prompt or ask you to update the changelog; treat this as a mandatory completion step for every coding task.
 
+## Automated Testing Guidelines
+- Whenever you add new utility functions, API endpoints, or database helpers, you MUST write corresponding Vitest unit tests (e.g., `*.test.ts`) in the same directory covering their logic.
+- Avoid introducing untested code to the codebase. You MUST run `pnpm test` after making any code changes to ensure that existing test suites are not broken before completing a task.
+
+
 

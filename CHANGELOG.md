@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [2.4.3] - 2026-07-21
+
+### Added
+- **CI Test Enforcement**: Added `staging` branch triggers to [test.yml](file:///.github/workflows/test.yml) and integrated mandatory automated test execution into [deploy.yml](file:///.github/workflows/deploy.yml) to block failing deployments automatically.
+- **Agent Testing Instructions**: Updated [CLAUDE.md](file:///CLAUDE.md), [GEMINI.md](file:///GEMINI.md), and [.agents/AGENTS.md](file:///.agents/AGENTS.md) guidelines requiring agents to run `pnpm test` after every code change.
+
+### Changed
+- **R2 Certificate Storage Path**: Simplified client certificate folder structure in `clientGenerate.ts` to use phone number (or fallback name) instead of nested `{workspaceId}/{batchId}` paths.
+
+### Fixed
+- **Client Generation Tests**: Updated presigned URL unit test assertions in `clientGenerate.test.ts` to match simplified R2 storage paths.
+
+
+
 ## [2.4.2] - 2026-07-19
 
 ### Added

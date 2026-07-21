@@ -136,9 +136,9 @@ describe("clientGenerateRouter - Presigned URL Security & Scoping (H-3)", () => 
     
     const { uploadUrl, r2PdfUrl } = data.presignedUrls[0];
     
-    // Path must contain workspace ID and batch ID (H-3)
-    expect(uploadUrl).toContain("ws-abc/batch-123/9876543210");
-    expect(r2PdfUrl).toContain("ws-abc/batch-123/9876543210");
+    // Path must contain phone number folder (or fallback name)
+    expect(uploadUrl).toContain("9876543210/Alice_");
+    expect(r2PdfUrl).toContain("9876543210/Alice_");
     
     // Timeframe / Expiration limit must be set correctly (e.g. 900 seconds)
     expect(uploadUrl).toContain("expiresIn=900");
