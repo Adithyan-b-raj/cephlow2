@@ -5,7 +5,11 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Changed
-- **R2 Certificate Storage Path**: Simplified the R2 folder structure for client-generated certificate uploads in `clientGenerate.ts` — PDFs are now stored under a single top-level folder named by recipient phone number (or name, as fallback) instead of being nested under `{workspaceId}/{batchId}/{phoneOrName}`. Deletion is unaffected since it deletes by full stored key, not by prefix.
+- **R2 Certificate Storage Path**: Simplified client certificate folder structure in `clientGenerate.ts` to use phone number (or fallback name) instead of nested `{workspaceId}/{batchId}` paths.
+
+### Fixed
+- **Client Generation Tests**: Updated presigned URL unit test assertions in `clientGenerate.test.ts` to match simplified R2 storage paths.
+
 
 ## [2.4.2] - 2026-07-19
 
