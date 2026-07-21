@@ -9,5 +9,5 @@
 
 ## Automated Testing Guidelines
 - Whenever you add new utility functions, API endpoints, or database helpers, you MUST write corresponding Vitest unit tests (e.g., `*.test.ts`) in the same directory covering their logic.
-- Avoid introducing untested code to the codebase. Ensure that any code changes do not break the existing test suites by running `pnpm test`.
+- Avoid introducing untested code to the codebase. You MUST run `pnpm test` after making any code changes to ensure that existing test suites are not broken before completing a task.
 
