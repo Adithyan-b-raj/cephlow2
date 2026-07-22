@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **API Worker Rate Limiting**: Added KV-backed rate limiters for `/api/verify/*` (60 req/min), `/api/qr/*` (60 req/min), `/api/spreadsheets/*` (20 req/min), and a global fallback limit for all `/api/*` routes (120 req/min).
+- **SEO Sitemap & LLM Structured Data**: Added `apps/cert-app/public/sitemap.xml` for public pages indexing, updated `robots.txt` domain reference to `cephlow.in`, updated meta description, and added `JSON-LD` (`SoftwareApplication`) schema markup in `index.html` for AI search engine discovery.
+
+### Fixed
+- **Favicon Webmanifest Metadata**: Configured `"name": "Cephlow"` and `"short_name": "Cephlow"` in `favicons/site.webmanifest`.
+- **Open Graph Preview Image**: Updated `apps/cert-app/public/opengraph.jpg` with the latest platform dashboard UI screenshot for social link sharing previews.
+- **Public Pages Theme Cleanup**: Fixed a theme leakage bug where logging out from a dark mode session left the `.dark` class active on `<html>`, causing white-on-white text rendering on `Landing.tsx`, `TermsAndConditions.tsx`, and `PrivacyPolicy.tsx`. Active `.dark` classes are now automatically removed when mounting public pages.
+
 ## [2.4.3] - 2026-07-21
 
 ### Added

@@ -51,9 +51,7 @@ export default function Login() {
         <div className="min-h-screen flex items-center justify-center bg-background p-4">
             <div className="w-full max-w-sm border-2 border-foreground">
                 <div className="bg-foreground text-background p-6 text-center">
-                    <div className="w-12 h-12 border-2 border-background/30 flex items-center justify-center mx-auto mb-4">
-                        <Award className="w-6 h-6" />
-                    </div>
+                    <img src="/android-chrome-512x512.png" alt="Cephlow" className="w-12 h-12 mx-auto mb-3 object-contain" />
                     <div className="flex items-center justify-center gap-1.5 mx-auto">
                         <h1 className="text-lg font-black uppercase tracking-widest text-background">Cephlow</h1>
                         {isStaging && (

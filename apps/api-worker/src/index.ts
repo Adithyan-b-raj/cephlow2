@@ -108,7 +108,12 @@ app.use("/api/wallet*", authMiddleware);
 app.use("/api/wallet/*", authMiddleware);
 app.use("/api/admin/*", authMiddleware);
 
-// ── Rate Limiting (Applied to critical endpoints) ──
+// ── Rate Limiting (Applied to critical and public endpoints) ──
+app.use("/api/*", rateLimit({ limit: 120, windowSeconds: 60, keyPrefix: "global" }));
+app.use("/api/verify/*", rateLimit({ limit: 60, windowSeconds: 60, keyPrefix: "verify" }));
+app.use("/api/qr/*", rateLimit({ limit: 60, windowSeconds: 60, keyPrefix: "qr" }));
+app.use("/api/spreadsheets*", rateLimit({ limit: 20, windowSeconds: 60, keyPrefix: "sheets" }));
+app.use("/api/spreadsheets/*", rateLimit({ limit: 20, windowSeconds: 60, keyPrefix: "sheets" }));
 app.use("/api/auth/*", rateLimit({ limit: 30, windowSeconds: 60, keyPrefix: "auth" }));
 app.use("/api/payments/create-order", rateLimit({ limit: 10, windowSeconds: 60, keyPrefix: "pay" }));
 app.use("/api/batches", async (c, next) => {

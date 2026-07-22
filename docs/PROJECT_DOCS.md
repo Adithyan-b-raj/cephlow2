@@ -162,6 +162,7 @@ Deployed via `npx wrangler deploy` to Cloudflare Workers. It implements all API 
   - `auth.ts`: Verifies user Supabase JWTs.
   - `workspace.ts`: Validates workspace context and user membership roles.
   - `approval.ts`: Restricts wallet actions to whitelisted and approved organizations.
+  - `rateLimiter.ts`: KV-backed rate limiter enforcing request thresholds for auth (`30/min`), payments (`10/min`), batch creation (`10/min`), certificate verification (`60/min`), QR lookup (`60/min`), spreadsheet sync (`20/min`), and a global API fallback (`120/min`).
 
 ---
 
