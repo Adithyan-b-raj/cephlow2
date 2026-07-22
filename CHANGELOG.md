@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- **API Worker Rate Limiting**: Added KV-backed rate limiters for `/api/verify/*` (60 req/min), `/api/qr/*` (60 req/min), `/api/spreadsheets/*` (20 req/min), and a global fallback limit for all `/api/*` routes (120 req/min).
+
 ## [2.4.3] - 2026-07-21
 
 ### Added
