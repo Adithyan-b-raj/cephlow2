@@ -50,7 +50,7 @@ export default function TermsAndConditions() {
       {/* Header */}
       <header className="border-b border-black px-6 lg:px-10 py-4 flex items-center justify-between sticky top-0 bg-white z-20">
         <button onClick={() => navigate("/")} className="flex items-center gap-1.5 hover:opacity-70 transition-opacity">
-          <img src="/android-chrome-512x512.png" alt="Cephlow" className="w-8 h-8 object-contain shrink-0 invert -mr-1" />
+          <img src="/cephlow-logo-transparent.png" alt="Cephlow" className="w-8 h-8 object-contain shrink-0 invert -mr-1" />
           <span className="font-bold tracking-widest text-sm">CEPHLOW</span>
         </button>
         <div className="text-[9px] tracking-widest text-gray-400 hidden sm:block">TERMS &amp; CONDITIONS</div>

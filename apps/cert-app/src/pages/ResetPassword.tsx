@@ -53,7 +53,7 @@ export default function ResetPassword() {
         <div className="min-h-screen flex items-center justify-center bg-background p-4">
             <div className="w-full max-w-sm border-2 border-foreground">
                 <div className="bg-foreground text-background p-6 text-center">
-                    <img src="/android-chrome-512x512.png" alt="Cephlow" className="w-12 h-12 mx-auto mb-3 object-contain" />
+                    <img src="/cephlow-logo-transparent.png" alt="Cephlow" className="w-12 h-12 mx-auto mb-3 object-contain" />
                     <div className="flex items-center justify-center gap-1.5 mx-auto">
                         <h1 className="text-lg font-black uppercase tracking-widest text-background">Cephlow</h1>
                         {isStaging && (

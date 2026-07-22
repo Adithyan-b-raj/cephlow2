@@ -450,7 +450,7 @@ export default function Landing() {
       {/* ── Nav ── */}
       <nav className="border-b border-black px-4 sm:px-6 py-3 sm:py-4 flex items-center justify-between sticky top-0 bg-white z-50">
         <div className="flex items-center gap-1.5">
-          <img src="/android-chrome-512x512.png" alt="Cephlow" className="w-9 h-9 object-contain shrink-0 invert -mr-1" />
+          <img src="/cephlow-logo-transparent.png" alt="Cephlow" className="w-9 h-9 object-contain shrink-0 invert -mr-1" />
           <span className="font-bold tracking-widest text-sm">CEPHLOW</span>
           <span className="hidden sm:inline text-[9px] text-gray-400 tracking-widest">AUTOMATION</span>
           {isStaging && (

@@ -31,7 +31,7 @@ export default function TermsAgreementScreen() {
         <div className="min-h-screen flex items-center justify-center bg-background p-4 z-50 fixed inset-0">
             <div className="w-full max-w-md border-2 border-foreground bg-background shadow-md animate-in fade-in zoom-in-95 duration-200">
                 <div className="bg-foreground text-background p-6 text-center">
-                    <img src="/android-chrome-512x512.png" alt="Cephlow" className="w-12 h-12 mx-auto mb-3 object-contain" />
+                    <img src="/cephlow-logo-transparent.png" alt="Cephlow" className="w-12 h-12 mx-auto mb-3 object-contain" />
                     <h1 className="text-lg font-black uppercase tracking-widest text-background">Welcome to Cephlow</h1>
                     <p className="text-[10px] uppercase tracking-widest text-background/50 mt-1">One last step before you start</p>
                 </div>
