@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - **Favicon Webmanifest Metadata**: Configured `"name": "Cephlow"` and `"short_name": "Cephlow"` in `favicons/site.webmanifest`.
 - **Open Graph Preview Image**: Updated `apps/cert-app/public/opengraph.jpg` with the latest platform dashboard UI screenshot for social link sharing previews.
-- **UI Header Logo Assets**: Standardized header logo branding across `Landing.tsx`, `AppSidebar.tsx`, `Login.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx`, `TermsAgreementScreen.tsx`, `TermsAndConditions.tsx`, and `PrivacyPolicy.tsx` using high-res logo asset (`/android-chrome-512x512.png`).
+- **UI Header Logo Assets**: Standardized header logo branding across `Landing.tsx`, `AppSidebar.tsx`, `Login.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx`, `TermsAgreementScreen.tsx`, `TermsAndConditions.tsx`, and `PrivacyPolicy.tsx` using high-res logo asset (`/android-chrome-512x512.png`)
 
 ## [2.4.3] - 2026-07-21
 
