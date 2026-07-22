@@ -32,8 +32,8 @@ export default function ForgotPassword() {
         <div className="min-h-screen flex items-center justify-center bg-background p-4">
             <div className="w-full max-w-sm border-2 border-foreground">
                 <div className="bg-foreground text-background p-6 text-center">
-                    <div className="w-12 h-12 border-2 border-background/30 flex items-center justify-center mx-auto mb-4">
-                        <Award className="w-6 h-6" />
+                    <div className="w-12 h-12 border-2 border-background/30 flex items-center justify-center mx-auto mb-4 bg-background/10">
+                        <img src="/favicon-32x32.png" alt="Cephlow" className="w-6 h-6" />
                     </div>
                     <div className="flex items-center justify-center gap-1.5 mx-auto">
                         <h1 className="text-lg font-black uppercase tracking-widest text-background">Cephlow</h1>

@@ -9,6 +9,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 - **Favicon Webmanifest Metadata**: Configured `"name": "Cephlow"` and `"short_name": "Cephlow"` in `favicons/site.webmanifest`.
+- **Open Graph Preview Image**: Updated `apps/cert-app/public/opengraph.jpg` with the latest platform dashboard UI screenshot for social link sharing previews.
+- **UI Header Logo Assets**: Replaced legacy `<Award />` icons with the new logo image asset (`/favicon-32x32.png`) across `AppSidebar.tsx`, `Login.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx`, and `TermsAgreementScreen.tsx`.
 
 ## [2.4.3] - 2026-07-21
 
