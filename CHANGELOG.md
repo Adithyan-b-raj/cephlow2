@@ -11,7 +11,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - **Favicon Webmanifest Metadata**: Configured `"name": "Cephlow"` and `"short_name": "Cephlow"` in `favicons/site.webmanifest`.
 - **Open Graph Preview Image**: Updated `apps/cert-app/public/opengraph.jpg` with the latest platform dashboard UI screenshot for social link sharing previews.
-- **UI Header Logo Assets**: Standardized header logo branding across `Landing.tsx`, `AppSidebar.tsx`, `Login.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx`, `TermsAgreementScreen.tsx`, `TermsAndConditions.tsx`, and `PrivacyPolicy.tsx` using a 100% transparent PNG logo asset (`/cephlow-logo-transparent.png`), ensuring seamless background blending in both light and dark modes without box artifacts.
+- **Public Pages Theme Cleanup**: Fixed a theme leakage bug where logging out from a dark mode session left the `.dark` class active on `<html>`, causing white-on-white text rendering on `Landing.tsx`, `TermsAndConditions.tsx`, and `PrivacyPolicy.tsx`. Active `.dark` classes are now automatically removed when mounting public pages.
 
 ## [2.4.3] - 2026-07-21
 

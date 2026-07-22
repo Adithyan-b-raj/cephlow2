@@ -435,6 +435,7 @@ export default function Landing() {
 
   // Typewriter effect
   useEffect(() => {
+    document.documentElement.classList.remove("dark");
     let i = 0;
     const interval = setInterval(() => {
       setTypedText(fullText.slice(0, i + 1));

@@ -37,6 +37,10 @@ export default function PrivacyPolicy() {
   const [, navigate] = useLocation();
   const activeId = useSectionObserver(SECTIONS.map((s) => s.id));
 
+  useEffect(() => {
+    document.documentElement.classList.remove("dark");
+  }, []);
+
   const scrollTo = (id: string) => {
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
