@@ -6,11 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ### Added
 - **API Worker Rate Limiting**: Added KV-backed rate limiters for `/api/verify/*` (60 req/min), `/api/qr/*` (60 req/min), `/api/spreadsheets/*` (20 req/min), and a global fallback limit for all `/api/*` routes (120 req/min).
+- **SEO Sitemap**: Added `apps/cert-app/public/sitemap.xml` for public pages indexing and updated `robots.txt` domain reference to `cephlow.in`.
 
 ### Fixed
 - **Favicon Webmanifest Metadata**: Configured `"name": "Cephlow"` and `"short_name": "Cephlow"` in `favicons/site.webmanifest`.
 - **Open Graph Preview Image**: Updated `apps/cert-app/public/opengraph.jpg` with the latest platform dashboard UI screenshot for social link sharing previews.
-- **UI Header Logo Assets**: Replaced legacy `<Award />` icons with the new logo image asset (`/favicon-32x32.png`) across `AppSidebar.tsx`, `Login.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx`, and `TermsAgreementScreen.tsx`.
+- **UI Header Logo Assets**: Cleaned up header logos across `AppSidebar.tsx`, `Login.tsx`, `ForgotPassword.tsx`, `ResetPassword.tsx`, and `TermsAgreementScreen.tsx` by removing the outer grey box borders and rendering the high-resolution logo asset (`/android-chrome-512x512.png`).
 
 ## [2.4.3] - 2026-07-21
 
